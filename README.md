@@ -1,13 +1,13 @@
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://github.com/I-NERGY/DeepTSF/blob//License.txt)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://github.com/epu-ntua/DeepTSF/blob//License.txt)
 # DeepTSF
 
-This is the repository for DeepTSF timeseries forecasting tool. The whitepaper for this project can be found in [1]. For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/I-NERGY/DeepTSF/wiki/DeepTSF-documentation). 
+This is the repository for DeepTSF timeseries forecasting tool. The whitepaper for this project can be found in [1]. For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation). 
 
 ## Installation
 
 To set up DeepTSF on your local system, you need clone the main branch of this repository:
 
-```git clone https://github.com/I-NERGY/DeepTSF.git```
+```git clone https://github.com/epu-ntua/DeepTSF.git```
 
 Alternatively you can use the dedicated Github release instead of cloning the main branch.
 
@@ -69,7 +69,7 @@ pipeline parameterization and functionalities such as hyperparameter tuning.
 
 To run DeepTSF on your system you first have to install the mlflow tracking and minio server.
 
-```git clone https://github.com/I-NERGY/mlflow-tracking-server.git```
+```git clone https://github.com/epu-ntua/mlflow-tracking-server.git```
 
 ```cd mlflow-server```
 
@@ -103,7 +103,7 @@ Please do not omit this step as this environment variable will not get inherited
 
 ```export MLFLOW_TRACKING_URI=https://localhost:5000```
 
-For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/I-NERGY/DeepTSF/wiki/DeepTSF-documentation). 
+For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation). 
 
 ## References
 [1]: Pelekis, S., Karakolis, E., Pountridis, T., Kormpakis, G., Lampropoulos, G., Mouzakits, S., & Askounis, D. (2023). DeepTSF: Codeless machine learning operations for time series forecasting. ArXiv https://arxiv.org/abs/2308.00709  <br>
