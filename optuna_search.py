@@ -1205,7 +1205,7 @@ def optuna_search(series_csv, series_uri, future_covs_csv, future_covs_uri,
         n_trials = int(n_trials)
         evaluate_all_ts = truth_checker(evaluate_all_ts)
         pv_ensemble = truth_checker(pv_ensemble)
-        with mlflow.start_run(run_name=f'optuna_test_{darts_model}', nested=True) as mlrun:
+        with mlflow.start_run(tags={"mlflow.runName": f'optuna_test_{darts_model}'}, nested=True) as mlrun:
             if grid_search:
                 hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}

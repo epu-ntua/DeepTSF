@@ -457,7 +457,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
 
     # Note: The entrypoint names are defined in MLproject. The artifact directories
     # are documented by each step's .py file.
-    with mlflow.start_run(run_name=darts_model + '_pipeline') as active_run:
+    with mlflow.start_run(tags={"mlflow.runName": darts_model + '_pipeline'}) as active_run:
         mlflow.set_tag("stage", "main")
 
         # 1.Load Data

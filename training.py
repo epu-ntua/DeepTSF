@@ -272,7 +272,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
     future_covariates = none_checker(future_covs_csv)
     past_covariates = none_checker(past_covs_csv)
 
-    with mlflow.start_run(run_name=f'train_{darts_model}', nested=True) as mlrun:
+    with mlflow.start_run(tags={"mlflow.runName": f'train_{darts_model}'}, nested=True) as mlrun:
 
         mlflow_model_root_dir = "pyfunc_model"
 

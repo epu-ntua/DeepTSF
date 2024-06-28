@@ -1072,7 +1072,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
     #TODO Chenck if series number == covariate series number
 
-    with mlflow.start_run(run_name='etl', nested=True) as mlrun:
+    with mlflow.start_run(tags={"mlflow.runName": "etl"}, nested=True) as mlrun:
         #these are the final dataframe lists to be returned from etl
         res_ = []
         res_past = []

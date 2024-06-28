@@ -379,7 +379,7 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
 
     multiple = truth_checker(multiple)
 
-    with mlflow.start_run(run_name='load_data', nested=True) as mlrun:
+    with mlflow.start_run(tags={"mlflow.runName": "load_data"}, nested=True) as mlrun:
 
         ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, from_database=from_database, format=format)
 
