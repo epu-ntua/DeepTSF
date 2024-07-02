@@ -362,10 +362,10 @@ hyperparameters:
     generic_architecture: True
     layer_widths: 64
     expansion_coefficient_dim: 5
-    n_epochs: 2
+    n_epochs: 200
     random_state: 0
     nr_epochs_val_period: 2
-    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+    batch_size: 1024
 
   NBEATS_river:
     input_chunk_length: ["range", 48, 480, 24]
@@ -431,6 +431,10 @@ hyperparameters:
     lags: ["range", 24, 96, 24]
     output_chunk_length: 1
     random_state: 0
+
+  LightGBM_example:
+    lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    random_state: 0 
 
   LightGBM_UC6_W6_plain_ds_:
     lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
