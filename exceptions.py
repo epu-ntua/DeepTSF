@@ -23,8 +23,12 @@ class DatetimesNotInOrder(Exception):
     """
     Exception raised if dates in series_csv are not sorted.
     """
-    def __init__(self, id=0):
-        super().__init__(f"Datetimes in series_csv are not sorted for time series component with id {id}. Check date format in input csv.")
+    def __init__(self, first_wrong_date, ts_id=None, id=None):
+        if ts_id == None:
+            self.message = f"Datetimes in series_csv are not sorted for time series component with id {id}. First unordered date: {first_wrong_date}."
+        else:
+            self.message = f"Datetimes are not sorted for component with id {id} of timeseries {ts_id}. First unordered date: {first_wrong_date}."
+        super().__init__(self.message)
 
 class WrongColumnNames(Exception):
     """
@@ -38,6 +42,22 @@ class WrongColumnNames(Exception):
             self.message = f'Column names provided: {columns}. For {format} format, series_csv must have {col_num} columns named {names}.'
         else:
             self.message = f'Column names provided: {columns}. For single time series, series_csv must have {col_num} columns named {names}.'
+        super().__init__(self.message)
+
+class WrongDateFormat(Exception):
+    """Exception raised for errors in the input date format."""
+    def __init__(self, invalid_date):
+        self.message = f"Date format must be 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD'. First invalid date: {invalid_date}"
+        super().__init__(self.message)
+
+class DuplicateDateError(Exception):
+    """Exception raised for duplicate dates in the series."""
+    def __init__(self, duplicate_date, ts_id=None, id=None):
+        if ts_id != None:
+            self.message = f"Timeseries can not have any duplicate dates. First duplicate: {duplicate_date}"
+        else:
+            self.message = f"Component {id} of timeseries {ts_id} has duplicate dates. First duplicate: {duplicate_date}"
+
         super().__init__(self.message)
 
 class CountryDoesNotExist(Exception):
@@ -107,12 +127,6 @@ class TsUsedIdDoesNotExcist(Exception):
         self.message = f'This ts_used_id does not exist in the multiple time series file'
         super().__init__(self.message)
 
-class WrongIndexFormat(Exception):
-    """
-    Exception raised if the index of a dataframe is not pd.Timestamp.
-    """
-    def __init__(self):
-        self.message = f'The index of the dataframe is not pd.Timestamp. Check day_first argument'
 
 class DifferentFrequenciesMultipleTS(Exception):
     """
@@ -128,4 +142,16 @@ class EvalSeriesNotFound(Exception):
     """
     def __init__(self, eval_series):
         self.message = f"eval_series parameter '{eval_series}' not found in file"
+        super().__init__(self.message)
+
+class NonIntegerMultipleIndexError(Exception):
+    """Exception raised when the index of a multiple series is not of integer type."""
+    def __init__(self, index_dtype):
+        self.message = f"The index is not of integer type. The current index type is: {index_dtype}"
+        super().__init__(self.message)
+
+class MissingMultipleIndexError(Exception):
+    """Exception raised when the index of multuple series format is missing values."""
+    def __init__(self, missing_index):
+        self.message = f"The index is missing values. The first missing index is: {missing_index}"
         super().__init__(self.message)

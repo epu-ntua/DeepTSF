@@ -19,7 +19,7 @@ from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to
 import shutil
 import pretty_errors
 import uuid
-from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder, WrongIndexFormat
+from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder, WrongIndexFormat, WrongDateFormat, DuplicateDateError, MissingMultipleIndexError, NonIntegerMultipleIndexError
 from utils import truth_checker, none_checker
 import tempfile
 from math import ceil
@@ -37,6 +37,66 @@ from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
 
+def check_datetime_format(datetime_iterable, file_format=None):
+    #Check date index column has correct format. All dates must have the same format
+    if file_format == "short":
+        format_to_check = '%Y-%m-%d'
+    else:
+        format_to_check = '%Y-%m-%d %H:%M:%S'
+
+    first_date = True
+    for date_str in datetime_iterable:
+        try:
+            # Attempt to parse with the format 'YYYY-MM-DD HH:MM:SS'
+            pd.to_datetime(date_str, format=format_to_check, errors='raise')
+            first_date = False
+        except ValueError:
+            try:
+                # Attempt to parse with the format 'YYYY-MM-DD'
+                assert first_date
+                format_to_check = '%Y-%m-%d'
+                pd.to_datetime(date_str, format=format_to_check, errors='raise')
+                first_date = False
+            except:
+                raise WrongDateFormat(date_str)
+
+def check_and_convert_column_types(df, intended_types):
+    """
+    Checks the types of all columns in a DataFrame against a list of intended types.
+    Attempts to convert columns to the intended types if they don't match.
+
+    Parameters:
+    df (pd.DataFrame): The DataFrame to check and convert.
+    intended_types (list): A list of intended types for the columns in the same order as the DataFrame columns.
+
+    Raises:
+    ValueError: If any column cannot be converted to the intended type.
+    """
+    if len(df.columns) != len(intended_types):
+        raise ValueError("The number of columns in the DataFrame does not match the number of intended types provided.")
+    
+    for i, (column, intended_type) in enumerate(zip(df.columns, intended_types)):
+        actual_type = df[column].dtype
+
+        if intended_type == str:
+            try:
+                df[column].astype(float)
+                assert df[column].astype(int).astype(str) != df[column].astype(str)
+                pure_float = True
+            except Exception as e:
+                pure_float = False
+        
+            if pure_float:
+                raise ValueError(f"Column '{column}' must strictly be str or int, and not float")
+
+        if actual_type != intended_type:
+            try:
+                df[column] = df[column].astype(intended_type)
+                print(f"Column '{column}' successfully converted to {intended_type}.")
+            except Exception as e:
+                raise ValueError(f"Column '{column}' could not be converted to {intended_type}. Error: {e}")
+
+    return df
 
 
 def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
@@ -130,79 +190,130 @@ The columns that can be present in the short format csv have the following meani
     (pandas.DataFrame, int)
         A tuple consisting of the resulting dataframe from series_csv as well as the resolution
     """
-    if format == "long":
-        ts = pd.read_csv(series_csv,
+    ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,
                      index_col=0,
-                     parse_dates=(["Datetime"] if multiple else True),
-                     dayfirst=day_first,
-                     engine='python', 
-                     date_format='mixed')
-        if multiple:
-            ts["Datetime"] = pd.to_datetime(ts["Datetime"])
-        else:
-            ts.index = pd.to_datetime(ts.index)
-    else:
-        ts = pd.read_csv(series_csv,
-                     sep=None,
-                     header=0,
-                     index_col=0,
-                     parse_dates=(["Date"] if multiple else True),
-                     dayfirst=day_first,
-                     engine='python',
-                     date_format='mixed')
-        if multiple:
-            ts["Date"] = pd.to_datetime(ts["Date"])
-        else:
-            ts.index = pd.to_datetime(ts.index)
+                     engine='python')
 
     #Dataframe can not be empty
     if ts.empty:
         raise EmptyDataframe(from_database)
-        
+
+    ######## NON MULTIPLE ########
     if not multiple:
-        #Check that dates are in order. If month is used before day and day_first is set to True, this is not the case.
-        if not ts.index.sort_values().equals(ts.index):
-            raise DatetimesNotInOrder()
-        if type(ts.index[0]) != pd.Timestamp:
-            raise WrongIndexFormat()
-        #Check that column Datetime is used as index, and that Load is the only other column in the csv for the series csv
-        elif covariates == "series" and not (len(ts.columns) == 1 and ts.columns[0] == "Value" and ts.index.name == 'Datetime'):
+        #CORRECT COLUMNS PRESENT
+        
+        #Check that column Datetime is used as index, and that Value is the only other column in the csv for the series csv
+        if covariates == "series" and not (len(ts.columns) == 1 and ts.columns[0] == "Value" and ts.index.name == 'Datetime'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', "Value"])
         #Check that column Datetime is used as index, and that there is only other column in the csv for the covariates csvs
         elif covariates != "series" and not (len(ts.columns) == 1 and ts.index.name == 'Datetime'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', '<Value Column Name>'])
 
+        #TYPE CHECKS
+
+        #Check date index column has correct format
+        check_datetime_format(ts.index)
+        ts.index = pd.to_datetime(ts.index)
+
+        #Check index type
+        index_type = type(ts.index[0])
+        if index_type != pd.Timestamp:
+            raise TypeError(f"The index column Datetime must be of type pd.Timestamp.")
+
+        #Check Value column type
+        ts = check_and_convert_column_types(ts, [float])
+
+        #Check for duplicates
+        duplicates = ts.index[ts.index.duplicated()]
+        if not duplicates.empty:
+            # Raise the custom exception if duplicates are found
+            raise DuplicateDateError(duplicates[0])
+            
+        #Check that dates are in order.
+        dates_not_in_order = ts[ts.index.sort_values() != ts.index]
+        if not dates_not_in_order.empty():
+            first_wrong_date = dates_not_in_order.iloc[0].name
+            raise DatetimesNotInOrder(first_wrong_date=first_wrong_date)
+
         #Infering resolution for single timeseries
         resolution = to_standard_form(pd.to_timedelta(np.diff(ts.index).min()))
 
+
+    ######## MULTIPLE ########
     else:
+        #CORRECT COLUMNS PRESENT
+        
         #If columns don't exist set defaults
         if "Timeseries ID" not in ts.columns and "ID" in ts.columns:
             ts["Timeseries ID"] = ts["ID"]
 
+        #Setting format dependant names
+        if format == "long":
+            date_col = "Datetime"
+            val_cols = ["Value"]
+            intended_col_types = [pd.Datetime, str, str, float]
+        else:
+            date_col = "Date"
+            val_cols = [col for col in list(ts.columns) if col not in ['Date', 'ID', 'Timeseries ID']]
+            try:
+                intended_col_types = [pd.Datetime, str, str] + [float for _ in range(len(ts.columns) - 3)]
+            except:
+                pass
+
+
+        #Check present columns according to format
         if format == "short":
             des_columns = list(map(str, ['Date', 'ID', 'Timeseries ID']))
             #Check that all columns 'Date', 'ID', 'Timeseries ID' and only time columns exist in any order.
             if not set(des_columns).issubset(set(list(ts.columns))) and any(not isinstance(e, pd.Timestamp) for e in (set(list(ts.columns))).difference(set(des_columns))):
                 raise WrongColumnNames(list(ts.columns), len(des_columns) + 1, des_columns + ['and the rest should all be time columns'], "short")
-            #Check that all dates for each component are sorted
-            for ts_id in np.unique(ts["Timeseries ID"]):
-                for id in np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"]):
-                    if not ts.loc[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)]["Date"].sort_values().equals(ts.loc[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)]["Date"]):
-                        raise DatetimesNotInOrder(id)
         else:
             des_columns = list(map(str, ['Datetime', 'ID', 'Timeseries ID', 'Value']))
             #Check that only columns 'Datetime', 'ID', 'Timeseries ID', 'Value' exist in any order.
             if not set(des_columns) == set(list(ts.columns)):
                 raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns, "long")
-            #Check that all dates for each component are sorted
-            for ts_id in np.unique(ts["Timeseries ID"]):
-                for id in np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"]):
-                    if not ts.loc[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)]["Datetime"].sort_values().equals(ts.loc[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)]["Datetime"]):
-                        raise DatetimesNotInOrder(id)
-                    
+
+        #TYPE CHECKS
+
+        # Check if the index is of integer type
+        if not pd.api.types.is_integer_dtype(ts.index):
+            raise NonIntegerMultipleIndexError(ts.index.dtype)
+    
+        # Expected complete index range
+        expected_index = pd.Index(range(len(ts)))
+    
+        # Check for missing values in the index
+        missing_index = expected_index.difference(ts.index)
+        if not missing_index.empty:
+            raise MissingMultipleIndexError(missing_index[0])
+
+        #Check date column has correct format
+        check_datetime_format(ts[date_col], format)
+        ts[date_col] = pd.to_datetime(ts[date_col])
+
+        #Check column types and if needed, convert them
+        ts = check_and_convert_column_types(ts, intended_col_types)
+
+        #Check each component individualy
+        for ts_id in np.unique(ts["Timeseries ID"]):
+            for id in np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"]):
+                dates = ts[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)][date_col]
+                
+                #Check for duplicates
+                duplicates = dates[dates.duplicated()]
+                if not duplicates.empty:
+                    raise DuplicateDateError(duplicates[0], ts_id, id)
+
+                #Check that dates are in order.
+                dates_not_in_order = dates[dates.sort_values() != dates]
+                if not dates_not_in_order.empty():
+                    first_wrong_date = dates_not_in_order.iloc[0].name
+                    raise DatetimesNotInOrder(first_wrong_date, ts_id, id)
+
+    
+                        
         #Check that all timeseries in a multiple timeseries file have the same number of components
         if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
             raise DifferentComponentDimensions()

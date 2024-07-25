@@ -261,12 +261,13 @@ def remove_outliers(ts: pd.DataFrame,
 
     #Datetimes with NaN values are removed from the dataframe
     ts = ts.dropna()
-    #Removing all zero values if no negative values are present
-    if min(ts["Value"]) >= 0:
-        a = ts.loc[ts["Value"] <= 0]
-    else:
-        a = pd.DataFrame(columns=ts.columns)
-        a.index.name = ts.index.name
+
+    # #Removing all zero values if no negative values are present
+    # if min(ts["Value"]) >= 0:
+    #     a = ts.loc[ts["Value"] <= 0]
+    # else:
+    a = pd.DataFrame(columns=ts.columns)
+    a.index.name = ts.index.name
 
     #Calculating monthly mean and standard deviation and removing values
     #that are more than std_dev standard deviations away from the mean
@@ -672,7 +673,7 @@ def sum_wo_nans(arraylike):
     #function used to ingore nans in
     #case of summation, and if other
     #samples exist 
-    if np.isnan(arraylike).all():
+    if np.isnan(arraylike).any():
         return np.nan
     else:
         return np.sum(arraylike)
