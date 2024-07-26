@@ -245,7 +245,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, 
              cut_date_test, device, forecast_horizon, stride, retrain, scale, 
              scale_covs, multiple, eval_series, mlrun, trial, study, opt_tmpdir, 
-             num_workers, day_first, eval_method, loss_function, opt_all_results,
+             num_workers, eval_method, loss_function, opt_all_results,
              evaluate_all_ts, num_samples, pv_ensemble, format):
 
                 hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
@@ -294,7 +294,6 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                       training_dict=training_dict,
                       mlrun=mlrun,
                       num_workers=num_workers,
-                      day_first=day_first,
                       resolution=resolution,
                       trial=trial,
                       pv_ensemble=pv_ensemble,
@@ -347,7 +346,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
 def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          training_dict, mlrun, num_workers, day_first, resolution, trial, pv_ensemble, format):
+          training_dict, mlrun, num_workers, resolution, trial, pv_ensemble, format):
 
 
     # Argument preprocessing
@@ -440,7 +439,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 time_col=time_col,
                 last_date=test_end_date,
                 multiple=multiple,
-                day_first=day_first,
                 resolution=resolution,
                 format=format)
     
@@ -451,7 +449,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 time_col=time_col,
                 last_date=test_end_date,
                 multiple=True,
-                day_first=day_first,
                 resolution=resolution,
                 format=format)
     else:
@@ -463,7 +460,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 time_col=time_col,
                 last_date=test_end_date,
                 multiple=True,
-                day_first=day_first,
                 resolution=resolution,
                 format=format)
     else:
@@ -1138,11 +1134,6 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
         type=str,
         default="4",
         help="Number of threads that will be used by pytorch")
-@click.option("--day-first",
-    type=str,
-    default="true",
-    help="Whether the date has the day before the month")
-
 @click.option("--eval-method",
     type=click.Choice(
         ['ts_ID',
@@ -1198,7 +1189,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 def optuna_search(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, year_range, resolution, darts_model, hyperparams_entrypoint,
            cut_date_val, cut_date_test, test_end_date, device, forecast_horizon, stride, retrain,
-           scale, scale_covs, multiple, eval_series, n_trials, num_workers, day_first, eval_method, 
+           scale, scale_covs, multiple, eval_series, n_trials, num_workers, eval_method, 
            loss_function, evaluate_all_ts, grid_search, num_samples, pv_ensemble, format):
 
         n_trials = none_checker(n_trials)
@@ -1230,7 +1221,7 @@ def optuna_search(series_csv, series_uri, future_covs_csv, future_covs_uri,
             study.optimize(lambda trial: objective(series_csv, series_uri, future_covs_csv, future_covs_uri, past_covs_csv, past_covs_uri, year_range, resolution,
                        darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
                        forecast_horizon, stride, retrain, scale, scale_covs,
-                       multiple, eval_series, mlrun, trial, study, opt_tmpdir, num_workers, day_first, eval_method, 
+                       multiple, eval_series, mlrun, trial, study, opt_tmpdir, num_workers, eval_method, 
                        loss_function, opt_all_results, evaluate_all_ts, num_samples, pv_ensemble, format),
                        n_trials=n_trials, n_jobs = 1)
 

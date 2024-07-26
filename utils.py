@@ -14,7 +14,7 @@ import numpy as np
 load_dotenv()
 from tqdm import tqdm
 import logging
-from exceptions import MandatoryArgNotSet, NotValidConfig, EmptySeries, DifferentFrequenciesMultipleTS
+from exceptions import MandatoryArgNotSet, NotValidConfig, EmptySeries, DifferentFrequenciesMultipleTS, ComponentTooShortError
 import json
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
@@ -1152,7 +1152,7 @@ def add_weather_covariates(start, end, res_future, id_l_future_covs, ts_id_l_fut
             ts_id_l_future_covs[i].extend([ts_id_l[i][0] for _ in range(len(covs))])
     return res_future, id_l_future_covs, ts_id_l_future_covs
 
-def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Datetime', last_date=None, multiple = False, day_first=True, resolution="15min", format="long"):
+def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Datetime', last_date=None, multiple = False, resolution="15min", format="long"):
 
     import logging
     import darts
@@ -1163,7 +1163,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
         if multiple:
             #TODO Fix this too (
             #file_name, format)
-            ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=day_first, resolution=resolution, format=format)
+            ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv=local_path, resolution=resolution, format=format)
             covariate_l  = []
 
             print("\nTurning dataframes to timeseries...")
@@ -1308,7 +1308,6 @@ def parse_uri_prediction_input(client, model_input: dict, model, ts_id_l) -> dic
     }
 
 def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
-                            day_first: bool = True,
                             resolution: str = "15min",
                             value_name="Value",
                             format="long"):
@@ -1320,8 +1319,6 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     ----------
     series_csv
         The file name of the csv to be read. It must be in the multiple ts form described in the documentation
-    day_first
-        Wether the day appears before the month in dates
     resolution
         The resolution of the dataset
     value_name
@@ -1349,15 +1346,13 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      sep=None,
                      header=0,
                      index_col=0,
-                     parse_dates=(["Date"] if format=='short' else ["Datetime"]),
-                     dayfirst=day_first,
-                     engine='python',
-                     date_format='mixed')
-    
+                     engine='python')
+        
     if format == "long":
         ts["Datetime"] = pd.to_datetime(ts["Datetime"])
     else:
         ts["Date"] = pd.to_datetime(ts["Date"])
+
 
     res = []
     id_l = []
@@ -1381,16 +1376,23 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                 curr_comp["Datetime"] = pd.to_datetime(curr_comp["Datetime"])
             curr_comp = curr_comp.set_index("Datetime")
             series = curr_comp[value_name].sort_index().dropna()
+
+            #Check if the length of a component is less than one
+            if len(series) <= 1:
+                raise ComponentTooShortError(len(series), ts_id, id)
+            
             if resolution!=None:
                 series = series.asfreq(resolution)
             elif first:
                 infered_resolution = to_standard_form(pd.to_timedelta(np.diff(series.index).min()))
                 series = series.asfreq(infered_resolution)
                 first = False
+                first_id = id
+                first_ts_id = ts_id
             else:
                 temp = to_standard_form(pd.to_timedelta(np.diff(series.index).min()))
                 if temp != infered_resolution:
-                    raise DifferentFrequenciesMultipleTS(temp, infered_resolution, id)
+                    raise DifferentFrequenciesMultipleTS(temp, id, ts_id, infered_resolution, first_id, first_ts_id)
                 else:
                     series = series.asfreq(temp)
                     infered_resolution = temp

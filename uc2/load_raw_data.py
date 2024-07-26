@@ -19,7 +19,7 @@ from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to
 import shutil
 import pretty_errors
 import uuid
-from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder, WrongIndexFormat, WrongDateFormat, DuplicateDateError, MissingMultipleIndexError, NonIntegerMultipleIndexError
+from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder, WrongDateFormat, DuplicateDateError, MissingMultipleIndexError, NonIntegerMultipleIndexError, ComponentTooShortError
 from utils import truth_checker, none_checker
 import tempfile
 from math import ceil
@@ -77,17 +77,18 @@ def check_and_convert_column_types(df, intended_types):
     
     for i, (column, intended_type) in enumerate(zip(df.columns, intended_types)):
         actual_type = df[column].dtype
-
         if intended_type == str:
-            try:
-                df[column].astype(float)
-                assert df[column].astype(int).astype(str) != df[column].astype(str)
-                pure_float = True
-            except Exception as e:
+            for value in df[column]:
                 pure_float = False
-        
-            if pure_float:
-                raise ValueError(f"Column '{column}' must strictly be str or int, and not float")
+                try:
+                    float_value = float(value)
+                    assert str(int(value)) != str(value)
+                    pure_float = True
+                except Exception as e:
+                    pure_float = False
+
+                if pure_float:
+                    raise ValueError(f"Column '{column}' must strictly be str or int, and not float. First value to be float: {value}")
 
         if actual_type != intended_type:
             try:
@@ -100,7 +101,6 @@ def check_and_convert_column_types(df, intended_types):
 
 
 def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
-                            day_first: bool = True,
                             multiple: bool = False,
                             from_database: bool = False,
                             covariates: str = "series",
@@ -174,8 +174,6 @@ The columns that can be present in the short format csv have the following meani
     ----------
     series_csv
         The path to the local file of the series to be validated
-    day_first
-        Whether to read the csv assuming day comes before the month
     multiple
         Whether to train on multiple timeseries
     from_database
@@ -196,12 +194,12 @@ The columns that can be present in the short format csv have the following meani
                      index_col=0,
                      engine='python')
 
-    #Dataframe can not be empty
-    if ts.empty:
-        raise EmptyDataframe(from_database)
-
     ######## NON MULTIPLE ########
     if not multiple:
+        #Dataframe can not be empty
+        if len(ts) <= 1:
+            raise EmptyDataframe(from_database)
+
         #CORRECT COLUMNS PRESENT
         
         #Check that column Datetime is used as index, and that Value is the only other column in the csv for the series csv
@@ -233,7 +231,7 @@ The columns that can be present in the short format csv have the following meani
             
         #Check that dates are in order.
         dates_not_in_order = ts[ts.index.sort_values() != ts.index]
-        if not dates_not_in_order.empty():
+        if not dates_not_in_order.empty:
             first_wrong_date = dates_not_in_order.iloc[0].name
             raise DatetimesNotInOrder(first_wrong_date=first_wrong_date)
 
@@ -243,6 +241,10 @@ The columns that can be present in the short format csv have the following meani
 
     ######## MULTIPLE ########
     else:
+        #Dataframe can not be empty
+        if len(ts) == 0:
+            raise EmptyDataframe(from_database)
+
         #CORRECT COLUMNS PRESENT
         
         #If columns don't exist set defaults
@@ -253,33 +255,32 @@ The columns that can be present in the short format csv have the following meani
         if format == "long":
             date_col = "Datetime"
             val_cols = ["Value"]
-            intended_col_types = [pd.Datetime, str, str, float]
+            intended_col_types = ['datetime64[ns]', str, str, float]
         else:
             date_col = "Date"
             val_cols = [col for col in list(ts.columns) if col not in ['Date', 'ID', 'Timeseries ID']]
             try:
-                intended_col_types = [pd.Datetime, str, str] + [float for _ in range(len(ts.columns) - 3)]
+                intended_col_types = ['datetime64[ns]', str, str] + [float for _ in range(len(ts.columns) - 3)]
             except:
                 pass
-
-
-        #Check present columns according to format
-        if format == "short":
-            des_columns = list(map(str, ['Date', 'ID', 'Timeseries ID']))
-            #Check that all columns 'Date', 'ID', 'Timeseries ID' and only time columns exist in any order.
-            if not set(des_columns).issubset(set(list(ts.columns))) and any(not isinstance(e, pd.Timestamp) for e in (set(list(ts.columns))).difference(set(des_columns))):
-                raise WrongColumnNames(list(ts.columns), len(des_columns) + 1, des_columns + ['and the rest should all be time columns'], "short")
-        else:
-            des_columns = list(map(str, ['Datetime', 'ID', 'Timeseries ID', 'Value']))
-            #Check that only columns 'Datetime', 'ID', 'Timeseries ID', 'Value' exist in any order.
-            if not set(des_columns) == set(list(ts.columns)):
-                raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns, "long")
-
-        #TYPE CHECKS
 
         # Check if the index is of integer type
         if not pd.api.types.is_integer_dtype(ts.index):
             raise NonIntegerMultipleIndexError(ts.index.dtype)
+
+        #Check present columns according to format
+        if format == "short":
+            des_columns = ['Date', 'ID', 'Timeseries ID']
+            #Check that all columns 'Date', 'ID', 'Timeseries ID' and only time columns exist in that order.
+            if not des_columns == list(ts.columns)[:3] and any(not isinstance(e, pd.Timestamp) for e in (set(list(ts.columns))).difference(set(des_columns))):
+                raise WrongColumnNames(list(ts.columns), len(des_columns) + 1, des_columns + ['and the rest should all be time columns'], "short")
+        else:
+            des_columns = ['Datetime', 'ID', 'Timeseries ID', 'Value']
+            #Check that only columns 'Datetime', 'ID', 'Timeseries ID', 'Value' exist in that order.
+            if not des_columns == list(ts.columns):
+                raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns, "long")
+
+        #TYPE CHECKS
     
         # Expected complete index range
         expected_index = pd.Index(range(len(ts)))
@@ -299,27 +300,29 @@ The columns that can be present in the short format csv have the following meani
         #Check each component individualy
         for ts_id in np.unique(ts["Timeseries ID"]):
             for id in np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"]):
-                dates = ts[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)][date_col]
-                
-                #Check for duplicates
-                duplicates = dates[dates.duplicated()]
-                if not duplicates.empty:
-                    raise DuplicateDateError(duplicates[0], ts_id, id)
+                dates = ts[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)]
+                dates.index = dates[date_col]
+                dates = dates[[date_col]]
 
+                #Check for duplicates
+                duplicates = dates.index[dates.index.duplicated()]
+                if not duplicates.empty:
+                    # Raise the custom exception if duplicates are found
+                    raise DuplicateDateError(duplicates[0], ts_id, id)
+            
                 #Check that dates are in order.
-                dates_not_in_order = dates[dates.sort_values() != dates]
-                if not dates_not_in_order.empty():
+                dates_not_in_order = dates[dates.index.sort_values() != dates.index]
+                if not dates_not_in_order.empty:
                     first_wrong_date = dates_not_in_order.iloc[0].name
                     raise DatetimesNotInOrder(first_wrong_date, ts_id, id)
-
     
                         
-        #Check that all timeseries in a multiple timeseries file have the same number of components
-        if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
-            raise DifferentComponentDimensions()
+            #Check that all timeseries in a multiple timeseries file have the same number of components
+            if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
+                raise DifferentComponentDimensions()
         
         #Infering resolution for multiple ts
-        ts_l, id_l, ts_id_l, resolution = multiple_ts_file_to_dfs(series_csv, day_first, None, format=format)
+        ts_l, id_l, ts_id_l, resolution = multiple_ts_file_to_dfs(series_csv, None, format=format)
 
         if allow_empty_series:
             ts_list_ret, id_l_ret, ts_id_l_ret = allow_empty_series_fun(ts_l, id_l, ts_id_l, allow_empty_series=allow_empty_series)
@@ -330,7 +333,7 @@ The columns that can be present in the short format csv have the following meani
             
     return ts, resolution
 
-def make_multiple(ts_covs, series_csv, day_first, inf_resolution, format):
+def make_multiple(ts_covs, series_csv, inf_resolution, format):
     """
     In case covariates.
 
@@ -338,8 +341,6 @@ def make_multiple(ts_covs, series_csv, day_first, inf_resolution, format):
     ----------
     series_csv
         The path to the local file of the series to be validated
-    day_first
-        Whether to read the csv assuming day comes before the month
     multiple
         Whether to train on multiple timeseries
     resolution
@@ -359,7 +360,7 @@ def make_multiple(ts_covs, series_csv, day_first, inf_resolution, format):
 
 
     if series_csv != None:
-        ts_list, _, _, _, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, inf_resolution, format=format)
+        ts_list, _, _, _, ts_id_l = multiple_ts_file_to_dfs(series_csv, inf_resolution, format=format)
 
         ts_list_covs = [[ts_covs] for _ in range(len(ts_list))]
         id_l_covs = [[str(list(ts_covs.columns)[0]) + "_" + ts_id_l[i]] for i in range(len(ts_list))]
@@ -428,10 +429,6 @@ def load_data_to_csv(tmpdir, database_name):
     default="None",
     help="Remote future covariates csv file. If set, it overwrites the local value."
     )
-@click.option("--day-first",
-    type=str,
-    default="true",
-    help="Whether the date has the day before the month")
 @click.option("--multiple",
     type=str,
     default="false",
@@ -457,7 +454,7 @@ def load_data_to_csv(tmpdir, database_name):
     help="Which file format to use. Only for multiple time series"
 )
 
-def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, day_first, multiple, resolution, from_database, database_name, format):
+def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, multiple, resolution, from_database, database_name, format):
     from_database = truth_checker(from_database)
     tmpdir = tempfile.mkdtemp()
 
@@ -486,13 +483,11 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
     fname = series_csv.split(os.path.sep)[-1]
     local_path = series_csv.split(os.path.sep)[:-1]
 
-    day_first = truth_checker(day_first)
-
     multiple = truth_checker(multiple)
 
     with mlflow.start_run(tags={"mlflow.runName": "load_data"}, nested=True) as mlrun:
 
-        ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, from_database=from_database, format=format)
+        ts, _ = read_and_validate_input(series_csv, multiple=multiple, from_database=from_database, format=format)
 
         print(f'Validating timeseries on local file: {series_csv}')
         logging.info(f'Validating timeseries on local file: {series_csv}')
@@ -515,7 +510,6 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
 
             #try:
             ts_past_covs, _ = read_and_validate_input(past_covs_csv,
-                                                              day_first,
                                                               multiple=True,
                                                               from_database=from_database,
                                                               covariates="past",
@@ -553,7 +547,6 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
 
             try:
                 ts_future_covs, _ = read_and_validate_input(future_covs_csv,
-                                                              day_first,
                                                               multiple=True,
                                                               from_database=from_database,
                                                               covariates="future",
@@ -561,14 +554,12 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
             #TODO Catch this exception more robustly
             except:
                 ts_future_covs, inf_resolution = read_and_validate_input(future_covs_csv,
-                                                                           day_first,
                                                                            multiple=False,
                                                                            from_database=from_database,
                                                                            covariates="future",
                                                                            format=format)
                 ts_future_covs = make_multiple(ts_future_covs,
                                                  series_csv,
-                                                 day_first,
                                                  inf_resolution,
                                                  format=format)
                                     

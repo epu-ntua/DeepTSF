@@ -168,10 +168,6 @@ my_stopper = EarlyStopping(
         default="4",
         help="Number of threads that will be used by pytorch")
         
-@click.option("--day-first",
-    type=str,
-    default="true",
-    help="Whether the date has the day before the month")
 @click.option("--resolution",
     default="None",
     type=str,
@@ -191,7 +187,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          training_dict, num_workers, day_first, resolution,
+          training_dict, num_workers, resolution,
           pv_ensemble, format):
 
     num_workers = int(num_workers)
@@ -285,7 +281,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 time_col=time_col,
                 last_date=test_end_date,
                 multiple=multiple,
-                day_first=day_first,
                 resolution=resolution,
                 format=format)
         if future_covariates is not None:
@@ -295,7 +290,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 time_col=time_col,
                 last_date=test_end_date,
                 multiple=True,
-                day_first=day_first,
                 resolution=resolution,
                 format=format)
         else:
@@ -307,7 +301,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 time_col=time_col,
                 last_date=test_end_date,
                 multiple=True,
-                day_first=day_first,
                 resolution=resolution,
                 format=format)
         else:

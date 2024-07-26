@@ -676,11 +676,6 @@ def call_shap(n_past_covs: int,
               default='None',
               help="Val set start date [str: 'YYYYMMDD']",
               )
-@click.option("--day-first",
-    type=str,
-    default="true",
-    help="Whether the date has the day before the month")
-
 @click.option("--resolution",
     default="None",
     type=str,
@@ -720,7 +715,7 @@ def call_shap(n_past_covs: int,
 )
 def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, 
              forecast_horizon, stride, retrain, shap_input_length, shap_output_length, size, analyze_with_shap, multiple, eval_series, 
-             cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase, num_samples, pv_ensemble, format):
+             cut_date_val, resolution, eval_method, evaluate_all_ts, m_mase, num_samples, pv_ensemble, format):
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
     evaltmpdir = tempfile.mkdtemp()
@@ -758,7 +753,6 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         local_path=series_path,
         last_date=test_end_date,
         multiple=multiple,
-        day_first=day_first,
         resolution=resolution,
         format=format)
     
@@ -801,7 +795,6 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             local_path=future_covs_path,
             last_date=test_end_date,
             multiple=True,
-            day_first=day_first,
             resolution=resolution,
             format=format)
     else:
@@ -814,7 +807,6 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             local_path=past_covs_path,
             last_date=test_end_date,
             multiple=True,
-            day_first=day_first,
             resolution=resolution,
             format=format)
     else:

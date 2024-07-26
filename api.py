@@ -266,28 +266,25 @@ async def get_metric_names():
     return metrics
 
 
-def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_series=False, format='long'):
+def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='long'):
 
     fileExtension = fname.split(".")[-1].lower() == "csv"
     if not fileExtension:
         print("Unsupported file type provided. Please upload CSV file")
         raise HTTPException(status_code=415, detail="Unsupported file type provided. Please upload CSV file")
     try:
-        ts, resolution = read_and_validate_input(series_csv=fname, day_first=day_first, 
+        ts, resolution = read_and_validate_input(series_csv=fname, 
                                                  multiple=multiple, allow_empty_series=allow_empty_series, 
                                                  format=format, log_to_mlflow=False)
-    except WrongColumnNames:
-        print("There was an error validating the file. Please reupload CSV with correct column names")
-        raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with correct column names")
-    except DatetimesNotInOrder:
-        print("There was an error validating the file. Datetimes are not in order")
-        raise HTTPException(status_code=415, detail="There was an error validating the file. Datetimes are not in order")
+    except Exception as e:
+        print(f"There was an error validating the file: {e}")
+        raise HTTPException(status_code=415, detail=f"There was an error validating the file: {e}")
     
     resolutions = make_time_list(resolution=resolution)    
     return ts, resolutions
 
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
-async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True), 
+async def create_upload_csv_file(file: UploadFile = File(...), 
                                  multiple: bool = Form(default=False), format: str = Form(default=False)):
 
     # Store uploaded dataset to backend
@@ -308,7 +305,7 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
 
     # Validation
     print("Validating file...") 
-    ts, resolutions = csv_validator(fname, day_first, multiple, format=format)
+    ts, resolutions = csv_validator(fname, multiple, format=format)
 
     if multiple:
         if format == "long":
@@ -380,7 +377,7 @@ async def retrieve_uc2_dataset():
     client.close()
     # Validate_csv
     multiple = False
-    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple, format='short')
+    ts, resolutions = csv_validator(fname, multiple=multiple, format='short')
     return {"message": "Validation successful",
         "fname": fname,
         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
@@ -448,7 +445,7 @@ async def retrieve_uc6_dataset(series_name: str):
     client.close()
     # Validate_csv
     multiple = True
-    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple, format='short')
+    ts, resolutions = csv_validator(fname, multiple=multiple, format='short')
     return {"message": "Validation successful",
         "fname": fname,
         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],

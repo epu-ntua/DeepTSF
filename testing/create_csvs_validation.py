@@ -1,7 +1,7 @@
 import os
 
 # Directory to save the CSV files
-output_dir = "test_csvs"
+output_dir = "test_validator_csvs"
 os.makedirs(output_dir, exist_ok=True)
 
 # Data for each CSV
@@ -19,7 +19,7 @@ csv_data = {
 2,2023-01-01 00:00:00,1,B,3.0
 3,2023-01-01 01:00:00,1,B,4.0
 """,
-    "valid_multiple_short.csv": """,Date,ID,Timeseries ID,00:00,12:00
+    "valid_multiple_short.csv": """,Date,ID,Timeseries ID,00:00:00,12:00:00
 0,2023-01-01,1,A,1.0,2.0
 1,2023-01-01,2,B,3.0,4.0
 """,
@@ -30,7 +30,6 @@ csv_data = {
 01-01-2023 01:00:00,2.0
 01-01-2023 02:00:00,3.0
 """,
-,
  "wrong_col_names_2_single.csv": """Datetime,Temp
 01-01-2023 00:00:00,1.0
 01-01-2023 01:00:00,2.0
@@ -71,7 +70,7 @@ csv_data = {
 """,
     "empty_multiple_long.csv": """,Datetime,ID,Timeseries ID,Value
 """,
-    "empty_multiple_short.csv": """,Date,ID,Timeseries ID,00:00,12:00
+    "empty_multiple_short.csv": """,Date,ID,Timeseries ID,00:00:00,12:00:00
 """,
     "wrong_col_names_1_multiple_long.csv": """,DT,ID,Timeseries ID,Value
 0,01-01-2023 00:00:00,0,A,1.0
@@ -85,11 +84,11 @@ csv_data = {
 2,2023-01-01 00:00:00,1,B,3.0
 3,2023-01-01 01:00:00,1,B,4.0
 """,
-    "wrong_col_names_1_multiple_short.csv": """,Date,Ident,Timeseries ID,00:00,12:00
+    "wrong_col_names_1_multiple_short.csv": """,Date,Ident,Timeseries ID,00:00:00,12:00:00
 0,2023-01-01,1,A,1.0,2.0
 1,2023-01-01,2,B,3.0,4.0
 """,
-    "wrong_col_names_2_multiple_short.csv": """,Date,ID,TS_ID,00:00,12:00
+    "wrong_col_names_2_multiple_short.csv": """,Date,ID,TS_ID,00:00:00,12:00:00
 0,2023-01-01,1,A,1.0,2.0
 1,2023-01-01,2,B,3.0,4.0
 """,
@@ -99,7 +98,7 @@ csv_data = {
 2023-01-01 00:00:00,1,B,3.0
 2023-01-01 01:00:00,1,B,4.0
 """,
-    "no_index_short.csv": """Date,ID,Timeseries ID,00:00,12:00
+    "no_index_short.csv": """Date,ID,Timeseries ID,00:00:00,12:00:00
 2023-01-01,1,A,1.0,2.0
 2023-01-01,2,B,3.0,4.0
 """,
@@ -109,7 +108,7 @@ csv_data = {
 3, 2023-01-01 00:00:00,1,B,3.0
 4, 2023-01-01 01:00:00,1,B,4.0
 """,
-    "wrong_index_short.csv": """Date,ID,Timeseries ID,00:00,12:00
+    "wrong_index_short.csv": """Date,ID,Timeseries ID,00:00:00,12:00:00
 3, 2023-01-01,1,A,1.0,2.0
 5, 2023-01-01,2,B,3.0,4.0
 """,
@@ -119,7 +118,7 @@ csv_data = {
 2,01-01-2023 00:00:00,1,B,3.0
 3,01-01-2023 01:00:00,1,B,4.0
 """,
-    "invalid_date_format_multiple_short.csv": """,Date,ID,Timeseries ID,00:00,12:00
+    "invalid_date_format_multiple_short.csv": """,Date,ID,Timeseries ID,00:00:00,12:00:00
 0,01-01-2023,1,A,1.0,2.0
 1,01-01-2023,2,B,3.0,4.0
 """,
@@ -129,7 +128,7 @@ csv_data = {
 2,2023-01-01 00:00:00,1,B,3.0
 3,2023-01-01 01:00:00,1,B,4.0
 """,
-    "non_float_value_multiple_short.csv": """,Date,ID,Timeseries ID,00:00,12:00
+    "non_float_value_multiple_short.csv": """,Date,ID,Timeseries ID,00:00:00,12:00:00
 0,2023-01-01,1,A,1.0,abc
 1,2023-01-01,2,B,3.0,4.0
 """,
@@ -139,7 +138,7 @@ csv_data = {
 2,2023-01-01 00:00:00,1,B,3.0
 3,2023-01-01 01:00:00,1,B,4.0
 """,
-    "float_id_value_multiple_short.csv": """,Date,ID,Timeseries ID,00:00,12:00
+    "float_id_value_multiple_short.csv": """,Date,ID,Timeseries ID,00:00:00,12:00:00
 0,2023-01-01,1.0,A,1.0,abc
 1,2023-01-01,2,B,3.0,4.0
 """,
@@ -149,7 +148,7 @@ csv_data = {
 2,2023-01-01 01:00:00,1,B,3.0
 3,2023-01-01 01:00:00,1,B,4.0
 """,
-    "duplicate_dates_multiple_short.csv": """,Date,ID,Timeseries ID,00:00,12:00
+    "duplicate_dates_multiple_short.csv": """,Date,ID,Timeseries ID,00:00:00,12:00:00
 0,2023-01-01,1,A,1.0,2.0
 1,2023-01-01,2,B,3.0,4.0
 2,2023-01-01,1,A,5.0,6.0
@@ -160,7 +159,7 @@ csv_data = {
 2,2023-01-01 01:00:00,1,B,3.0
 3,2023-01-01 00:00:00,1,B,4.0
 """,
-    "non_increasing_dates_multiple_short.csv": """,Date,ID,Timeseries ID,00:00,12:00
+    "non_increasing_dates_multiple_short.csv": """,Date,ID,Timeseries ID,00:00:00,12:00:00
 0,2023-01-01,1,A,1.0,2.0
 1,2023-01-02,2,B,3.0,4.0
 2,2023-01-01,2,B,5.0,6.0
@@ -168,20 +167,21 @@ csv_data = {
     "missing_date_1_multiple_long.csv": """,Datetime,ID,Timeseries ID,Value
 0,2023-01-01 00:00:00,0,A,1.0
 1,2023-01-01 02:00:00,0,A,3.0
-2,2023-01-01 03:00:00,1,B,4.0
-3,2023-01-01 04:00:00,1,B,5.0
+2,2023-01-01 03:00:00,0,A,3.0
+3,2023-01-01 03:00:00,1,B,4.0
+4,2023-01-01 04:00:00,1,B,5.0
 """,
-    "missing_date_1_multiple_short.csv": """,Date,ID,Timeseries ID,00:00,12:00
+    "missing_date_1_multiple_short.csv": """,Date,ID,Timeseries ID,00:00:00,12:00:00
 0,2023-01-01,1,A,1.0,2.0
 1,2023-01-03,1,A,3.0,4.0
 """,
-    "missing_date_2_multiple_long.csv": """,Datetime,ID,Timeseries ID,Value
+    "missing_date_2_short_multiple_long.csv": """,Datetime,ID,Timeseries ID,Value
 0,2023-01-01 00:00:00,0,A,1.0
 1,2023-01-01 01:00:00,0,A,
 2,2023-01-01 02:00:00,1,B,3.0
 3,2023-01-01 03:00:00,1,B,4.0
 """,
-    "missing_date_2_multiple_short.csv": """,Date,ID,Timeseries ID,00:00,12:00
+    "missing_date_2_short_multiple_short.csv": """,Date,ID,Timeseries ID,00:00:00,12:00:00
 0,2023-01-01,1,A,1.0,2.0
 1,2023-01-01,2,B,3.0,
 2,2023-01-02,1,A,5.0,6.0
@@ -195,11 +195,18 @@ csv_data = {
 5,2023-01-01 01:00:00,0,B,4.0
 
 """,
-    "wrong_comp_nos_multiple_short.csv": """,Date,ID,Timeseries ID,00:00,12:00
+    "wrong_comp_nos_multiple_short.csv": """,Date,ID,Timeseries ID,00:00:00,12:00:00
 0,2023-01-01,1,A,1.0,2.0
 1,2023-01-01,2,B,3.0,4.0
 2,2023-01-01,1,B,3.0,4.0
 """,
+    "multiple_resolutions_multiple_long.csv": """,Datetime,ID,Timeseries ID,Value
+0,2023-01-01 00:00:00,0,A,1.0
+1,2023-01-01 01:00:00,0,A,2.0
+2,2023-01-01 00:00:00,1,B,3.0
+3,2023-01-01 02:00:00,1,B,4.0
+""",
+
 }
 
 # Write each CSV file
