@@ -55,6 +55,8 @@ def test_read_and_validate_input():
         file_path = os.path.join(input_dir, filename)
         print(f"\n~~~Testing {filename} (multiple={params['multiple']}, format={params['format']})~~~")
 
+        # if "wrong_col_names_2_multiple_short.csv" != filename: continue
+
         # ts, resolution = read_and_validate_input(
         #         series_csv=file_path,
         #         multiple=params["multiple"],
