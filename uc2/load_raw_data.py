@@ -271,10 +271,21 @@ The columns that can be present in the short format csv have the following meani
         #Check present columns according to format
         if format == "short":
             des_columns = ['Date', 'ID', 'Timeseries ID']
+
+            try:
+                ts = ts[['Date', 'ID', 'Timeseries ID'] + val_cols]
+            except:
+                pass
+            
             #Check that all columns 'Date', 'ID', 'Timeseries ID' and only time columns exist in that order.
             if not des_columns == list(ts.columns)[:3] and any(not isinstance(e, pd.Timestamp) for e in (set(list(ts.columns))).difference(set(des_columns))):
                 raise WrongColumnNames(list(ts.columns), len(des_columns) + 1, des_columns + ['and the rest should all be time columns'], "short")
         else:
+            try:
+                ts = ts[['Datetime', 'ID', 'Timeseries ID', 'Value']]
+            except:
+                pass
+
             des_columns = ['Datetime', 'ID', 'Timeseries ID', 'Value']
             #Check that only columns 'Datetime', 'ID', 'Timeseries ID', 'Value' exist in that order.
             if not des_columns == list(ts.columns):
