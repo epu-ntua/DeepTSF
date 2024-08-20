@@ -23,11 +23,11 @@ class DatetimesNotInOrder(Exception):
     """
     Exception raised if dates in series_csv are not sorted.
     """
-    def __init__(self, first_wrong_date, ts_id=None, id=None):
+    def __init__(self, first_wrong_date, row_id, ts_id=None, id=None):
         if ts_id == None:
-            self.message = f"Datetimes in series_csv are not sorted. First unordered date: {first_wrong_date}."
+            self.message = f"Datetimes in series_csv are not sorted. First unordered date: {first_wrong_date} in row with id {row_id}."
         else:
-            self.message = f"Datetimes are not sorted for component with id {id} of timeseries {ts_id}. First unordered date: {first_wrong_date}."
+            self.message = f"Datetimes are not sorted for component with id {id} of timeseries {ts_id}. First unordered date: {first_wrong_date} in row with id {row_id}."
         super().__init__(self.message)
 
 class WrongColumnNames(Exception):
@@ -46,17 +46,17 @@ class WrongColumnNames(Exception):
 
 class WrongDateFormat(Exception):
     """Exception raised for errors in the input date format."""
-    def __init__(self, invalid_date):
-        self.message = f"Date format must be 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD'. First invalid date: {invalid_date}"
+    def __init__(self, invalid_date, id_row):
+        self.message = f"Date format must be 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD'. First invalid date: {invalid_date} in row with id {id_row}"
         super().__init__(self.message)
 
 class DuplicateDateError(Exception):
     """Exception raised for duplicate dates in the series."""
-    def __init__(self, duplicate_date, ts_id=None, id=None):
+    def __init__(self, duplicate_date, id_row, ts_id=None, id=None):
         if ts_id == None:
-            self.message = f"Timeseries can not have any duplicate dates. First duplicate: {duplicate_date}"
+            self.message = f"Timeseries can not have any duplicate dates. First duplicate: {duplicate_date} in row with id {row_id}"
         else:
-            self.message = f"Component {id} of timeseries {ts_id} has duplicate dates. First duplicate: {duplicate_date}"
+            self.message = f"Component {id} of timeseries {ts_id} has duplicate dates. First duplicate: {duplicate_date} in row with id {row_id}"
 
         super().__init__(self.message)
 

@@ -38,7 +38,7 @@ from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
 
-def check_datetime_format(datetime_iterable, file_format=None):
+def check_datetime_format(datetime_iterable, ids, file_format=None):
     #Check date index column has correct format. All dates must have the same format
     if file_format == "short":
         format_to_check = '%Y-%m-%d'
@@ -46,9 +46,9 @@ def check_datetime_format(datetime_iterable, file_format=None):
         format_to_check = '%Y-%m-%d %H:%M:%S'
 
     first_date = True
-    for date_str in datetime_iterable:
+    for date_str, id_row in zip(datetime_iterable, ids):
         try:
-            # Attempt to parse with the format 'YYYY-MM-DD HH:MM:SS'
+            # Attempt to parse with the first format
             pd.to_datetime(date_str, format=format_to_check, errors='raise')
             first_date = False
         except ValueError:
@@ -59,7 +59,7 @@ def check_datetime_format(datetime_iterable, file_format=None):
                 pd.to_datetime(date_str, format=format_to_check, errors='raise')
                 first_date = False
             except:
-                raise WrongDateFormat(date_str)
+                raise WrongDateFormat(date_str, id_row)
 
 def check_and_convert_column_types(df, intended_types):
     """
@@ -79,7 +79,9 @@ def check_and_convert_column_types(df, intended_types):
     for i, (column, intended_type) in enumerate(zip(df.columns, intended_types)):
         actual_type = df[column].dtype
         if intended_type == str:
-            for value in df[column]:
+            for index, row in df.iterrows():
+                value = row[column]
+                row_id = row.index                
                 pure_float = False
                 try:
                     float_value = float(value)
@@ -89,7 +91,7 @@ def check_and_convert_column_types(df, intended_types):
                     pure_float = False
 
                 if pure_float:
-                    raise ValueError(f"Column '{column}' must strictly be str or int, and not float. First value to be float: {value}")
+                    raise ValueError(f"Column '{column}' must strictly be str or int, and not float. First value to be float: {value} in row with id {row_id}")
 
         if actual_type != intended_type:
             try:
@@ -113,20 +115,37 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     
     The checks that are performed are the following:
 
-    For all timeseries:
-        - The dataframe can not be empty
-        - All the dates must be sorted
+    Checks for non-multiple timeseries (single timeseries):
+        - The dataframe cannot be empty or have just one row (that would make it impossible to infer frequency).
+        - The 'Datetime' column must be used as the index.
+        - If the timeseries is the main dataset, 'Load' must be the only other column in the dataframe.
+        - If the timeseries is a covariate timeseries, there must be only one column in the dataframe named arbitrarily.
+        - The 'Datetime' index must have the correct format ('YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD', all indeces must have the same format) and be of type pd.Timestamp.
+        - The 'Value' column must be of type float.
+        - There should be no duplicate dates in the index.
+        - All dates must be sorted in chronological order.
 
-    For non multiple timeseries:
-        - Column Datetime must be used as index 
-        - If the timeseries is the main dataset, Load must be the only other column in the dataframe
-        - If the timeseries is a covariates timeseries, there must be only one column in the dataframe
-          named arbitrarily
-
-    For multiple timeseries:
-        - Columns 'Date', 'ID', and time columns exist in any order
-        - Only the permitted column names exist in the dataframe (see Multiple timeseries file format bellow)
-        - All timeseries in the dataframe have the same number of components
+    Checks for multiple timeseries:
+        - The dataframe cannot be empty
+        - Timeseries ID column is set equal to ID if it doesn't exist
+        - The dataframe index must be of integer type and an increasing sequence starting from 0 with no missing values.
+        - Only the permitted column names exist in the dataframe:
+            - For the short format, 'Date', 'ID', (optionally 'Timeseries ID') must exist in any order, and the rest should 
+                be time columns (they must have names convertible to pd.Timestamp. They are not checked for chronological order.)
+            - For the long format, 'Datetime', 'ID', 'Timeseries ID', 'Value' must exist in any order.
+            If the columns are not in the order presented above, the will be internally converted in the correct order. Time columns will
+            be left as is.
+        - The 'Date' or 'Datetime' column must have the correct format
+            - For the long format 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD', all indeces must have the same format and be convertible to type pd.Timestamp.
+            - For the short format only 'YYYY-MM-DD' is allowed
+        - All columns must have the correct types or be able to be converted to them ('datetime64[ns]' for date columns, str for ID columns, and float for value and time columns).
+            Specifically for ID columns, if the have any numerical value that is not strictly an integer, an error will be raised. 
+        - Then, the following checks are performed for each timeseries component individually:
+            - There should be no duplicate dates.
+            - All dates must be sorted in chronological order.
+            - Every component must have at least 2 samples, for its frequency to be able to be inferred 
+        - All components must have the same resolution.
+        - All timeseries in the dataframe must have the same number of components.
 
     For all timeseries, their resolution is also infered, and stored in mlflow as a tag. Furthermore, we support 2
     formats for multiple time series files; short and long. These formats are presented bellow:
@@ -148,7 +167,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     1     | 2015-04-09   | ES | ES            | 25497    | 23492                 | ... | 25487
     .
     .
-The columns that can be present in the short format csv have the following meaning:
+    The columns that can be present in the short format csv have the following meaning:
         - Index: Simply a monotonic integer range
         - Date: The Date each row is referring to
         - ID: Each ID corresponds to a component of a timeseries in the file. 
@@ -167,9 +186,6 @@ The columns that can be present in the short format csv have the following meani
               timeseries to which each component belongs. If Timeseries ID is not present, it is 
               assumed that each component represents one seperate series (the column is set to ID).
         - Value: The value of this component in a particular Datetime.
-
-        
-    Columns can be in any order and the file will be considered valid.
 
     Parameters
     ----------
@@ -197,7 +213,7 @@ The columns that can be present in the short format csv have the following meani
 
     ######## NON MULTIPLE ########
     if not multiple:
-        #Dataframe can not be empty
+        #Dataframe can not be empty or have just one row
         if len(ts) <= 1:
             raise EmptyDataframe(from_database)
 
@@ -213,7 +229,7 @@ The columns that can be present in the short format csv have the following meani
         #TYPE CHECKS
 
         #Check date index column has correct format
-        check_datetime_format(ts.index)
+        check_datetime_format(ts.index, ts.index)
         ts.index = pd.to_datetime(ts.index)
 
         #Check index type
@@ -228,13 +244,13 @@ The columns that can be present in the short format csv have the following meani
         duplicates = ts.index[ts.index.duplicated()]
         if not duplicates.empty:
             # Raise the custom exception if duplicates are found
-            raise DuplicateDateError(duplicates[0])
+            raise DuplicateDateError(duplicates[0], duplicates[0])
             
         #Check that dates are in order.
         dates_not_in_order = ts[ts.index.sort_values() != ts.index]
         if not dates_not_in_order.empty:
             first_wrong_date = dates_not_in_order.iloc[0].name
-            raise DatetimesNotInOrder(first_wrong_date=first_wrong_date)
+            raise DatetimesNotInOrder(first_wrong_date=first_wrong_date, row_id=first_wrong_date)
 
         #Infering resolution for single timeseries
         resolution = to_standard_form(pd.to_timedelta(np.diff(ts.index).min()))
@@ -304,7 +320,7 @@ The columns that can be present in the short format csv have the following meani
             raise MissingMultipleIndexError(missing_index[0])
 
         #Check date column has correct format
-        check_datetime_format(ts[date_col], format)
+        check_datetime_format(ts[date_col], ts.index, format)
         ts[date_col] = pd.to_datetime(ts[date_col])
 
         #Check column types and if needed, convert them
@@ -314,20 +330,22 @@ The columns that can be present in the short format csv have the following meani
         for ts_id in np.unique(ts["Timeseries ID"]):
             for id in np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"]):
                 dates = ts[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)]
+                dates["row_id"] = dates.index
                 dates.index = dates[date_col]
-                dates = dates[[date_col]]
+                dates = dates[[date_col, "row_id"]]
 
                 #Check for duplicates
-                duplicates = dates.index[dates.index.duplicated()]
+                duplicates = dates[dates.index.duplicated()]
                 if not duplicates.empty:
                     # Raise the custom exception if duplicates are found
-                    raise DuplicateDateError(duplicates[0], ts_id, id)
+                    raise DuplicateDateError(duplicates.index[0], duplicates["row_id"][0], ts_id, id)
             
                 #Check that dates are in order.
                 dates_not_in_order = dates[dates.index.sort_values() != dates.index]
                 if not dates_not_in_order.empty:
                     first_wrong_date = dates_not_in_order.iloc[0].name
-                    raise DatetimesNotInOrder(first_wrong_date, ts_id, id)
+                    first_wrong_date_index = dates_not_in_order.iloc[0]["row_id"]
+                    raise DatetimesNotInOrder(first_wrong_date, first_wrong_date_index, ts_id, id)
     
                         
             #Check that all timeseries in a multiple timeseries file have the same number of components
