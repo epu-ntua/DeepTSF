@@ -79,9 +79,8 @@ def check_and_convert_column_types(df, intended_types):
     for i, (column, intended_type) in enumerate(zip(df.columns, intended_types)):
         actual_type = df[column].dtype
         if intended_type == str:
-            for index, row in df.iterrows():
+            for row_id, row in df.iterrows():
                 value = row[column]
-                row_id = row.index                
                 pure_float = False
                 try:
                     float_value = float(value)
@@ -249,7 +248,9 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         #Check that dates are in order.
         dates_not_in_order = ts[ts.index.sort_values() != ts.index]
         if not dates_not_in_order.empty:
-            first_wrong_date = dates_not_in_order.iloc[0].name
+            for i in range(1, len(ts.index)):
+                if ts.index[i] < ts.index[i - 1]:
+                    first_wrong_date = ts.index[i]
             raise DatetimesNotInOrder(first_wrong_date=first_wrong_date, row_id=first_wrong_date)
 
         #Infering resolution for single timeseries
@@ -329,7 +330,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         #Check each component individualy
         for ts_id in np.unique(ts["Timeseries ID"]):
             for id in np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"]):
-                dates = ts[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)]
+                dates = ts[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)].copy()
                 dates["row_id"] = dates.index
                 dates.index = dates[date_col]
                 dates = dates[[date_col, "row_id"]]
@@ -343,14 +344,17 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                 #Check that dates are in order.
                 dates_not_in_order = dates[dates.index.sort_values() != dates.index]
                 if not dates_not_in_order.empty:
-                    first_wrong_date = dates_not_in_order.iloc[0].name
-                    first_wrong_date_index = dates_not_in_order.iloc[0]["row_id"]
+                    for i in range(1, len(dates.index)):
+                        if dates.index[i] < dates.index[i - 1]:
+                            first_wrong_date = dates.index[i]
+                            first_wrong_date_index = dates.iloc[i]["row_id"]
                     raise DatetimesNotInOrder(first_wrong_date, first_wrong_date_index, ts_id, id)
     
                         
             #Check that all timeseries in a multiple timeseries file have the same number of components
-            if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
-                raise DifferentComponentDimensions()
+            comp_dict = {ts_id: len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"])}
+            if len(set(comp_dict.values())) != 1:
+                raise DifferentComponentDimensions(comp_dict)
         
         #Infering resolution for multiple ts
         ts_l, id_l, ts_id_l, resolution = multiple_ts_file_to_dfs(series_csv, None, format=format)

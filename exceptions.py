@@ -39,7 +39,7 @@ class WrongColumnNames(Exception):
         if format == "short":
             self.message = f'Column names provided: {columns}. For {format} format, series_csv must have at least {col_num} columns named {names} in any order.'
         elif format == "long":
-            self.message = f'Column names provided: {columns}. For {format} format, series_csv must have {col_num} columns in the beginning named {names} in any order.'
+            self.message = f'Column names provided: {columns}. For {format} format, series_csv must have {col_num} columns named {names} in any order.'
         else:
             self.message = f'Column names provided: {columns}. For single time series, series_csv must have {col_num} columns named {names}.'
         super().__init__(self.message)
@@ -52,7 +52,7 @@ class WrongDateFormat(Exception):
 
 class DuplicateDateError(Exception):
     """Exception raised for duplicate dates in the series."""
-    def __init__(self, duplicate_date, id_row, ts_id=None, id=None):
+    def __init__(self, duplicate_date, row_id, ts_id=None, id=None):
         if ts_id == None:
             self.message = f"Timeseries can not have any duplicate dates. First duplicate: {duplicate_date} in row with id {row_id}"
         else:
@@ -79,8 +79,9 @@ class DifferentComponentDimensions(Exception):
     """
     Exception raised if not all timeseries in a multiple timeseries file have the same number of components.
     """
-    def __init__(self):
-        self.message = f'Not all timeseries in multiple timeseries file have the same number of components.'
+    def __init__(self, comp_dict):
+        self.message = f'Not all timeseries in multiple timeseries file have the same number of components:\n'
+        self.message += "\n".join(f"Timeseries {key} has {value} component(s)" for key, value in comp_dict.items())
         super().__init__(self.message)
 
 class NanInSet(Exception):
