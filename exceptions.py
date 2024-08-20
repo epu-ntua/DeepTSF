@@ -39,7 +39,7 @@ class WrongColumnNames(Exception):
         if format == "short":
             self.message = f'Column names provided: {columns}. For {format} format, series_csv must have at least {col_num} columns named {names} in any order.'
         elif format == "long":
-            self.message = f'Column names provided: {columns}. For {format} format, series_csv must have {col_num} columnsin the beginning named {names} in any order.'
+            self.message = f'Column names provided: {columns}. For {format} format, series_csv must have {col_num} columns in the beginning named {names} in any order.'
         else:
             self.message = f'Column names provided: {columns}. For single time series, series_csv must have {col_num} columns named {names}.'
         super().__init__(self.message)

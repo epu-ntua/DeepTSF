@@ -1,6 +1,7 @@
 """
 Downloads the RDN dataset and saves it as an artifact. ALso need to include interaction with weather apis here.
 """
+import re
 import requests
 import tempfile
 import os
@@ -254,11 +255,13 @@ The columns that can be present in the short format csv have the following meani
         #Setting format dependant names
         if format == "long":
             date_col = "Datetime"
-            val_cols = ["Value"]
+            des_columns = ['Datetime', 'ID', 'Timeseries ID', 'Value']
+            rest_cols = [col for col in list(ts.columns) if col not in des_columns]
             intended_col_types = ['datetime64[ns]', str, str, float]
         else:
             date_col = "Date"
-            val_cols = [col for col in list(ts.columns) if col not in ['Date', 'ID', 'Timeseries ID']]
+            des_columns = ['Date', 'ID', 'Timeseries ID']
+            rest_cols = [col for col in list(ts.columns) if col not in des_columns]
             try:
                 intended_col_types = ['datetime64[ns]', str, str] + [float for _ in range(len(ts.columns) - 3)]
             except:
@@ -270,23 +273,22 @@ The columns that can be present in the short format csv have the following meani
 
         #Check present columns according to format
         if format == "short":
-            des_columns = ['Date', 'ID', 'Timeseries ID']
-
-            try:
-                ts = ts[['Date', 'ID', 'Timeseries ID'] + val_cols]
-            except:
-                pass
+            if set(des_columns).issubset(set(list(ts.columns))):
+                try:
+                    ts = ts[des_columns + rest_cols]
+                except:
+                    pass
             
             #Check that all columns 'Date', 'ID', 'Timeseries ID' and only time columns exist in that order.
-            if not des_columns == list(ts.columns)[:3] and any(not isinstance(e, pd.Timestamp) for e in (set(list(ts.columns))).difference(set(des_columns))):
+            if not (des_columns == list(ts.columns)[:3] and all(bool(re.match(r'^\d{2}:\d{2}:\d{2}$', e)) for e in (set(list(ts.columns))).difference(set(des_columns)))):
                 raise WrongColumnNames(list(ts.columns), len(des_columns) + 1, des_columns + ['and the rest should all be time columns'], "short")
         else:
-            try:
-                ts = ts[['Datetime', 'ID', 'Timeseries ID', 'Value']]
-            except:
-                pass
+            if set(des_columns).issubset(set(list(ts.columns))):
+                try:
+                    ts = ts[des_columns + rest_cols]
+                except:
+                    pass
 
-            des_columns = ['Datetime', 'ID', 'Timeseries ID', 'Value']
             #Check that only columns 'Datetime', 'ID', 'Timeseries ID', 'Value' exist in that order.
             if not des_columns == list(ts.columns):
                 raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns, "long")
