@@ -79,18 +79,14 @@ def check_and_convert_column_types(df, intended_types):
     for i, (column, intended_type) in enumerate(zip(df.columns, intended_types)):
         actual_type = df[column].dtype
         if intended_type == str:
+            df[column] = df[column].astype(intended_type)
+            float_pattern = re.compile(r'^\d+\.\d+$')
             for row_id, row in df.iterrows():
                 value = row[column]
-                pure_float = False
-                try:
-                    float_value = float(value)
-                    assert str(int(value)) != str(value)
-                    pure_float = True
-                except Exception as e:
-                    pure_float = False
 
-                if pure_float:
-                    raise ValueError(f"Column '{column}' must strictly be str or int, and not float. First value to be float: {value} in row with id {row_id}")
+                # Check if the string matches the float pattern
+                if float_pattern.match(value):
+                     raise ValueError(f"Column '{column}' must strictly be str or int, and not float. First value to be float: {value} in row with id {row_id}")
 
         if actual_type != intended_type:
             try:
