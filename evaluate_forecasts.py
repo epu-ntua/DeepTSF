@@ -448,8 +448,8 @@ def predict(x: darts.TimeSeries,
     past_covs_list = []
     future_covs_list = []
     for sample in x:
-        index = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length)]
-        index_future = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
+        index = [datetime.datetime.fromtimestamp(sample[-1], datetime.UTC).tz_localize(UTC) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length)]
+        index_future = [datetime.datetime.fromtimestamp(sample[-1], datetime.UTC).tz_localize(UTC) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
         sample = np.array(sample, dtype=np.float32)
         data = sample[:shap_input_length]
         ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Value"]))
@@ -555,8 +555,18 @@ def call_shap(n_past_covs: int,
     """
 
     shap.initjs()
-    explainer = shap.KernelExplainer(lambda x : predict(x, n_past_covs, n_future_covs, shap_input_length, shap_output_length, model, scaler_list, scale), background, num_samples=num_samples)
+    explainer = shap.KernelExplainer(lambda x : predict(x, 
+                                                        n_past_covs, 
+                                                        n_future_covs, 
+                                                        shap_input_length, 
+                                                        shap_output_length, 
+                                                        model, 
+                                                        scaler_list, 
+                                                        scale), background, num_samples=num_samples)
+
     shap_values = explainer.shap_values(data, nsamples="auto", normalize=False)
+    print("DATA",data)
+    print("VALUES", shap_values)
     plt.close()
     interprtmpdir = tempfile.mkdtemp()
     sample = random.randint(0, len(data) - 1)
@@ -573,7 +583,7 @@ def call_shap(n_past_covs: int,
         plt.close()
         bar_plot_store_json(shap_values[out], data, f"{interprtmpdir}/summary_plot_bar_data_out_{out}.json")
         shap.force_plot(explainer.expected_value[out],shap_values[out][sample,:], data.iloc[sample,:],  matplotlib = True, show = False)
-        plt.savefig(f"{interprtmpdir}/force_plot_of_{sample}_sample_starting_at_{datetime.datetime.utcfromtimestamp(data.iloc[sample][-1])}_{out}_output.png")
+        plt.savefig(f"{interprtmpdir}/force_plot_of_{sample}_sample_starting_at_{datetime.datetime.fromtimestamp(data.iloc[sample][-1], datetime.UTC).tz_localize(UTC)}_{out}_output.png")
         plt.close()
 
         print("\nUploading SHAP interpretation results to MLflow server...")
@@ -734,6 +744,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     future_covariates_uri = none_checker(future_covs_uri)
     past_covariates_uri = none_checker(past_covs_uri)
     evaluate_all_ts = truth_checker(evaluate_all_ts)
+    shap_input_length = none_checker(shap_input_length)
     try:
         size = int(size)
     except:
@@ -933,6 +944,9 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             resolution=resolution,
                                             id_l=None if not multiple else id_l[eval_i])
             if analyze_with_shap:
+
+                if shap_input_length == None:
+                    raise ValueError(f"The model that was chosen does not support parameter input_chunk_length, and therefore needs shap_input_length to be defined explicitelly")
                 data, background = build_shap_dataset(size=size,
                                                 train=series_split['train'],
                                                 test=series_split['test']\
