@@ -442,8 +442,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             logging.info(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
         print("")
 
-        print("\Validating on series:\n")
-        logging.info("\Validating on series:\n")
+        print("Validating on series:\n")
+        logging.info("Validating on series:\n")
         if multiple:
             for i, series in enumerate(series_transformed['val']):
                 print(f"Timeseries ID: {ts_id_l[i][0]} starting at {series.time_index[0]} and ending at {series.time_index[-1]}")

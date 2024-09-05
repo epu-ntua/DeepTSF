@@ -222,12 +222,12 @@ def backtester(model,
         "nrmse_min_max": rmse_darts(
             test_series,
             backtest_series) / (
-            test_series.pd_dataframe().max()[0]- 
-            test_series.pd_dataframe().min()[0]),
+            test_series.pd_dataframe().max().iloc[0]- 
+            test_series.pd_dataframe().min().iloc[0]),
         "nrmse_mean": rmse_darts(
             test_series,
             backtest_series) / (
-            test_series.pd_dataframe().mean()[0])
+            test_series.pd_dataframe().mean().iloc[0])
     }
     if min(test_series.min(axis=1).values()) > 0 and min(backtest_series.min(axis=1).values()) > 0:
         metrics["mape"] = mape_darts(
@@ -448,8 +448,8 @@ def predict(x: darts.TimeSeries,
     past_covs_list = []
     future_covs_list = []
     for sample in x:
-        index = [datetime.datetime.fromtimestamp(sample[-1], datetime.UTC).tz_localize(UTC) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length)]
-        index_future = [datetime.datetime.fromtimestamp(sample[-1], datetime.UTC).tz_localize(UTC) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
+        index = [pd.to_datetime(sample[-1], unit='s').tz_localize(None) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length)]
+        index_future = [pd.to_datetime(sample[-1], unit='s').tz_localize(None) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
         sample = np.array(sample, dtype=np.float32)
         data = sample[:shap_input_length]
         ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Value"]))
@@ -565,31 +565,30 @@ def call_shap(n_past_covs: int,
                                                         scale), background, num_samples=num_samples)
 
     shap_values = explainer.shap_values(data, nsamples="auto", normalize=False)
-    print("DATA",data)
-    print("VALUES", shap_values)
     plt.close()
     interprtmpdir = tempfile.mkdtemp()
     sample = random.randint(0, len(data) - 1)
     for out in [0, shap_output_length//2, shap_output_length-1]:
-        shap.summary_plot(shap_values[out], data, show=False)
+        shap.summary_plot(shap_values[:, : , out], data, show=False)
         plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
         plt.close()
         os.remove(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
-        shap.summary_plot(shap_values[out], data, show=False)
+        shap.summary_plot(shap_values[:, :, out], data, show=False)
         plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
         plt.close()
-        shap.summary_plot(shap_values[out], data, plot_type='bar', show=False)
+        shap.summary_plot(shap_values[:, :, out], data, plot_type='bar', show=False)
         plt.savefig(f"{interprtmpdir}/summary_plot_bar_graph_out_{out}.png")
         plt.close()
-        bar_plot_store_json(shap_values[out], data, f"{interprtmpdir}/summary_plot_bar_data_out_{out}.json")
-        shap.force_plot(explainer.expected_value[out],shap_values[out][sample,:], data.iloc[sample,:],  matplotlib = True, show = False)
-        plt.savefig(f"{interprtmpdir}/force_plot_of_{sample}_sample_starting_at_{datetime.datetime.fromtimestamp(data.iloc[sample][-1], datetime.UTC).tz_localize(UTC)}_{out}_output.png")
+        bar_plot_store_json(shap_values[:, :, out], data, f"{interprtmpdir}/summary_plot_bar_data_out_{out}.json")
+        shap.force_plot(explainer.expected_value[out],shap_values[:, :, out][sample,:], data.iloc[sample,:],  matplotlib = True, show = False)
+        str_ = f"{interprtmpdir}/force_plot_of_{sample}_sample_starting_at_{str(pd.to_datetime(data.iloc[sample].iloc[-1], unit='s').tz_localize(None)).replace(":", "_")}_{out}_output.png"
+        plt.savefig(str_)
         plt.close()
 
-        print("\nUploading SHAP interpretation results to MLflow server...")
-        logging.info("\nUploading SHAP interpretation results to MLflow server...")
+    print("\nUploading SHAP interpretation results to MLflow server...")
+    logging.info("\nUploading SHAP interpretation results to MLflow server...")
 
-        mlflow.log_artifacts(interprtmpdir, "interpretation")
+    mlflow.log_artifacts(interprtmpdir, "interpretation")
 
 
 
@@ -774,7 +773,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     #                                     f'series_transformed_start.html'))
     
     if pv_ensemble:
-        print("\Subtracting pv forecast from series to be fed to model")
+        print("\nSubtracting pv forecast from series to be fed to model")
         logging.info("\nSubtracting pv forecast from series to be fed to model")
 
         for i in range(len(series_transformed)):

@@ -1038,9 +1038,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs,
         ts_list = [[pd.read_csv(series_csv,
                          delimiter=',',
                          header=0,
-                         index_col=0,
-                         parse_dates=True,
-                         infer_datetime_format=True)]]
+                         index_col=0)]]
         
         ts_list[0][0].index = pd.to_datetime(ts_list[0][0].index)
         id_l, ts_id_l = [["Timeseries"]], [["Timeseries"]] 
@@ -1209,8 +1207,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs,
 
                     
                     else:
-                        print("\nSkipping the creation of time covariates")
-                        logging.info("\nSkipping the creation of time covariates")
+                        print("\nSkipping the creation of time covariates...")
+                        logging.info("\nSkipping the creation of time covariates...")
                         ts_list_covariates, id_l_covariates, ts_id_l_covariates = None, None, None
                 if rmv_outliers:
                     print("\nStoring removed values from outlier detection as csv locally...")
