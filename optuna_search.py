@@ -1,5 +1,5 @@
 import pretty_errors
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
 from exceptions import EvalSeriesNotFound
 from preprocessing import scale_covariates, split_dataset, split_nans, filtering
 from darts.utils.missing_values import extract_subseries
@@ -82,7 +82,22 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 # stop training when validation loss does not decrease more than 0.05 (`min_delta`) over
 # a period of 5 epochs (`patience`)
-def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False, curr_loss=0, model=None, darts_model=None, scale="False", scalers_dir=None, features_dir=None, opt_all_results=None, past_covariates=None, future_covariates=None, evaluate_all_ts=False):
+def log_optuna(study, 
+               opt_tmpdir, 
+               hyperparams_entrypoint, 
+               mlrun, 
+               log_model=False, 
+               curr_loss=0, 
+               model=None, 
+               darts_model=None, 
+               scale="False", 
+               scalers_dir=None, 
+               features_dir=None, 
+               opt_all_results=None, 
+               past_covariates=None, 
+               future_covariates=None, 
+               evaluate_all_ts=False,
+               scale_covs=True):
     scale = truth_checker(scale)
     if evaluate_all_ts: 
         mlflow.log_artifacts(opt_all_results, "optuna_val_results_all_timeseries")
@@ -102,7 +117,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
             logs_path = forest_dir
             model_type = "pkl"
 
-        if scale:
+        if scale or scale_covs:
             source_dir = scalers_dir
             target_dir = logs_path
             file_names = os.listdir(source_dir)
@@ -113,8 +128,13 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
         ## Create and move model info in logs path
         model_info_dict = {
             "darts_forecasting_model":  model.__class__.__name__,
-            "run_id": mlrun.info.run_id
-        }
+            "run_id": mlrun.info.run_id,
+            "scale": scale,
+            "scale_covs": scale_covs,
+            "past_covs": past_covariates is not None,
+            "future_covs": future_covariates is not None,
+            }
+        
         with open('model_info.yml', mode='w') as outfile:
             yaml.dump(
                 model_info_dict,
@@ -154,6 +174,21 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
                 f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_series.pkl')
         else:
             mlflow.set_tag('scaler_uri', 'None')
+
+        if scale_covs and past_covariates is not None:
+            mlflow.set_tag(
+                'scaler_past_covariates_uri',
+                f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_past_covariates.pkl')
+        else:
+            mlflow.set_tag('scaler_past_covariates_uri', 'None')
+
+        if scale_covs and future_covariates is not None:
+            mlflow.set_tag(
+                'scaler_future_covariates_uri',
+                f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_future_covariates.pkl')
+        else:
+            mlflow.set_tag('scaler_future_covariates_uri', 'None')
+
 
         mlflow.set_tag(
             'ts_id_l_uri',
@@ -339,7 +374,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                     model=model, darts_model=darts_model, scale=scale, scalers_dir=scalers_dir, 
                     features_dir=features_dir, opt_all_results=opt_all_results, 
                     past_covariates=train_past_covariates, future_covariates=train_future_covariates, 
-                    evaluate_all_ts=evaluate_all_ts)
+                    evaluate_all_ts=evaluate_all_ts, scale_covs=scale_covs)
 
                 return metrics[loss_function]
 
@@ -433,8 +468,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     ######################
     # Load series and covariates datasets
     time_col = "Datetime"
-    series, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
-                local_path=series_csv,
+    series, id_l, ts_id_l = load_local_csv_or_df_as_darts_timeseries(
+                local_path_or_df=series_csv,
                 name='series',
                 time_col=time_col,
                 last_date=test_end_date,
@@ -443,8 +478,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 format=format)
     
     if future_covariates is not None:
-        future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
-                local_path=future_covs_csv,
+        future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_or_df_as_darts_timeseries(
+                local_path_or_df=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
                 last_date=test_end_date,
@@ -454,8 +489,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     else:
         future_covariates, id_l_future_covs, ts_id_l_future_covs = None, None, None
     if past_covariates is not None:
-        past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
-                local_path=past_covs_csv,
+        past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_or_df_as_darts_timeseries(
+                local_path_or_df=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
                 last_date=test_end_date,
@@ -600,6 +635,14 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             ts_id_l=ts_id_l_past_covs,
             format=format
             )
+    
+    if scale_covs and future_covariates is not None:
+            pickle.dump(future_covariates_transformed["transformer"], open(f"{scalers_dir}/scaler_future_covariates.pkl", "wb"))
+
+    if scale_covs and past_covariates is not None:
+            pickle.dump(past_covariates_transformed["transformer"], open(f"{scalers_dir}/scaler_past_covariates.pkl", "wb"))
+
+
 
     ######################
     # Model training
@@ -868,8 +911,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     ## load series from MLflow
     series_path = download_online_file(
         client, series_uri, "series.csv") if mode == 'remote' else series_uri
-    series, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
-        local_path=series_path,
+    series, id_l, ts_id_l = load_local_csv_or_df_as_darts_timeseries(
+        local_path_or_df=series_path,
         last_date=test_end_date,
         multiple=multiple,
         resolution=resolution,
@@ -1225,7 +1268,7 @@ def optuna_search(series_csv, series_uri, future_covs_csv, future_covs_uri,
                        loss_function, opt_all_results, evaluate_all_ts, num_samples, pv_ensemble, format),
                        n_trials=n_trials, n_jobs = 1)
 
-            log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, opt_all_results=opt_all_results, evaluate_all_ts=evaluate_all_ts)
+            log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, opt_all_results=opt_all_results, evaluate_all_ts=evaluate_all_ts, scale_covs=scale_covs)
 
             return
 

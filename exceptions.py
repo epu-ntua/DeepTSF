@@ -163,3 +163,14 @@ class ComponentTooShortError(Exception):
         self.message = f"Component {id} of timeseries {ts_id} is too short (length = {length})"
         super().__init__(self.message)
 
+class TSIDNotFoundInferenceError(Exception):
+    """Exception raised when ts_id_pred is not found in ts_id_l of a multiple ts during inference."""
+    def __init__(self, ts_id_pred, stored):
+        self.ts_id_pred = ts_id_pred
+        self.message = f"Time series id (ts_id_pred) {ts_id_pred} not found in"
+        if stored: 
+            self.message += " stored ts_id_l which the model was trained on"
+        else:
+            self.message += " multiple series file provided by the user"
+        super().__init__(self.message)
+

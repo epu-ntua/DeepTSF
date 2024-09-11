@@ -364,41 +364,43 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             
     return ts, resolution
 
-def make_multiple(ts_covs, series_csv, inf_resolution, format):
-    """
-    In case covariates.
+# Depricated #
 
-    Parameters
-    ----------
-    series_csv
-        The path to the local file of the series to be validated
-    multiple
-        Whether to train on multiple timeseries
-    resolution
-        The resolution of the dataset
-    from_database
-        Whether the dataset was from MongoDB
-    covariates
-        If the function is called for the main dataset, then this equal to "series".
-        If it is called for the past / future covariate series, then it is equal to
-        "past" / "future" respectively. 
+# def make_multiple(ts_covs, series_csv, inf_resolution, format):
+#     """
+#     In case covariates.
 
-    Returns
-    -------
-    (pandas.DataFrame, int)
-        A tuple consisting of the resulting dataframe from series_csv as well as the resolution
-    """
+#     Parameters
+#     ----------
+#     series_csv
+#         The path to the local file of the series to be validated
+#     multiple
+#         Whether to train on multiple timeseries
+#     resolution
+#         The resolution of the dataset
+#     from_database
+#         Whether the dataset was from MongoDB
+#     covariates
+#         If the function is called for the main dataset, then this equal to "series".
+#         If it is called for the past / future covariate series, then it is equal to
+#         "past" / "future" respectively. 
+
+#     Returns
+#     -------
+#     (pandas.DataFrame, int)
+#         A tuple consisting of the resulting dataframe from series_csv as well as the resolution
+#     """
 
 
-    if series_csv != None:
-        ts_list, _, _, _, ts_id_l = multiple_ts_file_to_dfs(series_csv, inf_resolution, format=format)
+#     if series_csv != None:
+#         ts_list, _, _, _, ts_id_l = multiple_ts_file_to_dfs(series_csv, inf_resolution, format=format)
 
-        ts_list_covs = [[ts_covs] for _ in range(len(ts_list))]
-        id_l_covs = [[str(list(ts_covs.columns)[0]) + "_" + ts_id_l[i]] for i in range(len(ts_list))]
-    else:
-        ts_list_covs = [[ts_covs]]
-        id_l_covs = [[list(ts_covs.columns)[0]]]
-    return multiple_dfs_to_ts_file(ts_list_covs, id_l_covs, id_l_covs, id_l_covs, id_l_covs, "", save=False, format=format)
+#         ts_list_covs = [[ts_covs] for _ in range(len(ts_list))]
+#         id_l_covs = [[str(list(ts_covs.columns)[0]) + "_" + ts_id_l[i]] for i in range(len(ts_list))]
+#     else:
+#         ts_list_covs = [[ts_covs]]
+#         id_l_covs = [[list(ts_covs.columns)[0]]]
+#     return multiple_dfs_to_ts_file(ts_list_covs, id_l_covs, id_l_covs, id_l_covs, id_l_covs, "", save=False, format=format)
 
 from pymongo import MongoClient
 import pandas as pd
@@ -539,23 +541,11 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
             past_covs_fname = past_covs_csv.split(os.path.sep)[-1]
             local_path_past_covs = past_covs_csv.split(os.path.sep)[:-1]
 
-            #try:
             ts_past_covs, _ = read_and_validate_input(past_covs_csv,
                                                               multiple=True,
                                                               from_database=from_database,
                                                               covariates="past",
                                                               format=format)
-            # except:
-            #     ts_past_covs, inf_resolution = read_and_validate_input(past_covs_csv,
-            #                                                                day_first,
-            #                                                                multiple=False,
-            #                                                                from_database=from_database,
-            #                                                                covariates="past")
-            #     ts_past_covs = make_multiple(ts_past_covs,
-            #                                      series_csv,
-            #                                      day_first,
-            #                                      str(inf_resolution))
-                
             local_path_past_covs = local_path_past_covs.replace("'", "") if "'" in local_path_past_covs else local_path_past_covs
             past_covs_filename = os.path.join(*local_path_past_covs, past_covs_fname)
 
@@ -576,23 +566,11 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
             future_covs_fname = future_covs_csv.split(os.path.sep)[-1]
             local_path_future_covs = future_covs_csv.split(os.path.sep)[:-1]
 
-            try:
-                ts_future_covs, _ = read_and_validate_input(future_covs_csv,
+            ts_future_covs, _ = read_and_validate_input(future_covs_csv,
                                                               multiple=True,
                                                               from_database=from_database,
                                                               covariates="future",
                                                               format=format)
-            #TODO Catch this exception more robustly
-            except:
-                ts_future_covs, inf_resolution = read_and_validate_input(future_covs_csv,
-                                                                           multiple=False,
-                                                                           from_database=from_database,
-                                                                           covariates="future",
-                                                                           format=format)
-                ts_future_covs = make_multiple(ts_future_covs,
-                                                 series_csv,
-                                                 inf_resolution,
-                                                 format=format)
                                     
             local_path_future_covs = local_path_future_covs.replace("'", "") if "'" in local_path_future_covs else local_path_future_covs
             future_covs_filename = os.path.join(*local_path_future_covs, future_covs_fname)

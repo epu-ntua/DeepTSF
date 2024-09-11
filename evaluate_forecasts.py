@@ -1,6 +1,6 @@
 import pretty_errors
 from exceptions import EvalSeriesNotFound
-from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
+from utils import none_checker, truth_checker, download_online_file, load_local_csv_or_df_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
 from darts.utils.missing_values import extract_subseries
 from functools import reduce
 from darts.metrics import mape as mape_darts
@@ -759,8 +759,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     ## load series from MLflow
     series_path = download_online_file(
         client, series_uri, "series.csv") if mode == 'remote' else series_uri
-    series, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
-        local_path=series_path,
+    series, id_l, ts_id_l = load_local_csv_or_df_as_darts_timeseries(
+        local_path_or_df=series_path,
         last_date=test_end_date,
         multiple=multiple,
         resolution=resolution,
@@ -801,8 +801,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     if future_covariates_uri is not None:
         future_covs_path = download_online_file(
             client, future_covariates_uri, "future_covariates.csv") if mode == 'remote' else future_covariates_uri
-        future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
-            local_path=future_covs_path,
+        future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_or_df_as_darts_timeseries(
+            local_path_or_df=future_covs_path,
             last_date=test_end_date,
             multiple=True,
             resolution=resolution,
@@ -813,8 +813,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     if past_covariates_uri is not None:
         past_covs_path = download_online_file(
             client, past_covariates_uri, "past_covariates.csv") if mode == 'remote' else past_covariates_uri
-        past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
-            local_path=past_covs_path,
+        past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_or_df_as_darts_timeseries(
+            local_path_or_df=past_covs_path,
             last_date=test_end_date,
             multiple=True,
             resolution=resolution,
