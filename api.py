@@ -80,7 +80,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://deeptsf.toolbox.epu.ntua.gr", 
+                   "https://dagster.deeptsf.toolbox.epu.ntua.gr", 
+                   "https://keycloak.toolbox.epu.ntua.gr"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
