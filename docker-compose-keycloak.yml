@@ -10,10 +10,10 @@ services:
       context: .
       dockerfile: ./Dockerfile_keycloak
     restart: always
-    ports:
-      - '8080:8080'
+    # ports:
+    #  - '8081:8081'
     expose:
-      - 8080
+      - 8081
     stdin_open: true
     # deploy: # use this configuration for GPU usage (if GPU available)
     #   resources:
