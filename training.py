@@ -1,5 +1,5 @@
 import pretty_errors
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict, get_pv_forecast, to_seconds #, log_curves
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, get_pv_forecast, to_seconds #, log_curves
 from preprocessing import scale_covariates, split_dataset, split_nans
 
 # the following are used through eval(darts_model + 'Model')
@@ -275,8 +275,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         ######################
         # Load series and covariates datasets
         time_col = "Datetime"
-        series, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
-                local_path=series_csv,
+        series, id_l, ts_id_l = load_local_csv_or_df_as_darts_timeseries(
+                local_path_or_df=series_csv,
                 name='series',
                 time_col=time_col,
                 last_date=test_end_date,
@@ -284,8 +284,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 resolution=resolution,
                 format=format)
         if future_covariates is not None:
-            future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
-                local_path=future_covs_csv,
+            future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_or_df_as_darts_timeseries(
+                local_path_or_df=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
                 last_date=test_end_date,
@@ -295,8 +295,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         else:
             future_covariates, id_l_future_covs, ts_id_l_future_covs = None, None, None
         if past_covariates is not None:
-            past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
-                local_path=past_covs_csv,
+            past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_or_df_as_darts_timeseries(
+                local_path_or_df=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
                 last_date=test_end_date,
@@ -398,6 +398,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             )
         if scale:
             pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
+
         pickle.dump(ts_id_l, open(f"{scalers_dir}/ts_id_l.pkl", "wb"))
         ## scale future covariates
         future_covariates_transformed = scale_covariates(
@@ -421,6 +422,12 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             ts_id_l=ts_id_l_past_covs,
             format=format,
             )
+        
+        if scale_covs and future_covariates is not None:
+            pickle.dump(future_covariates_transformed["transformer"], open(f"{scalers_dir}/scaler_future_covariates.pkl", "wb"))
+
+        if scale_covs and past_covariates is not None:
+            pickle.dump(past_covariates_transformed["transformer"], open(f"{scalers_dir}/scaler_past_covariates.pkl", "wb"))
 
         ######################
         # Model training
@@ -589,7 +596,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         target_dir = logs_path
         
         ## Move scaler in logs path
-        if scale:
+        if scale or scale_covs:
             source_dir = scalers_dir
             file_names = os.listdir(source_dir)
             for file_name in file_names:
@@ -599,7 +606,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         ## Create and move model info in logs path
         model_info_dict = {
             "darts_forecasting_model":  model.__class__.__name__,
-            "run_id": mlrun.info.run_id
+            "run_id": mlrun.info.run_id,
+            "scale": scale,
+            "scale_covs": scale_covs,
+            "past_covs": past_covariates is not None,
+            "future_covs": future_covariates is not None,
             }
         with open('model_info.yml', mode='w') as outfile:
             yaml.dump(
@@ -640,12 +651,27 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         mlflow.log_artifacts(features_dir, "features")
 
         if scale:
-            # mlflow.log_artifacts(scalers_dir, f"{mlflow_model_path}/scalers")
             mlflow.set_tag(
                 'scaler_uri',
                 f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_series.pkl')
         else:
             mlflow.set_tag('scaler_uri', 'None')
+
+        if scale_covs and past_covariates is not None:
+            mlflow.set_tag(
+                'scaler_past_covariates_uri',
+                f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_past_covariates.pkl')
+        else:
+            mlflow.set_tag('scaler_past_covariates_uri', 'None')
+
+        if scale_covs and future_covariates is not None:
+            mlflow.set_tag(
+                'scaler_future_covariates_uri',
+                f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_future_covariates.pkl')
+        else:
+            mlflow.set_tag('scaler_future_covariates_uri', 'None')
+
+
         mlflow.set_tag(
             'ts_id_l_uri',
             f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/ts_id_l.pkl')
