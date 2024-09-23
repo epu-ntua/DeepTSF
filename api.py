@@ -11,7 +11,7 @@ from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils import load_artifacts, to_seconds, change_form, make_time_list
+from utils import load_artifacts, to_seconds, change_form, make_time_list, truth_checker
 import psutil, nvsmi
 import os
 from dotenv import load_dotenv
@@ -24,6 +24,7 @@ import datetime
 from typing import Tuple
 from math import nan
 import bson
+from minio import Minio
 
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
@@ -38,6 +39,13 @@ mongo_url = f"mongodb://{user}:{password}@{address}"
 
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
+MINIO_SSL = truth_checker(os.environ.get("MINIO_SSL"))
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
+
 
 # allows automated type check with pydantic
 # class ModelName(str, Enum):
@@ -650,6 +658,18 @@ async def get_metric_list(run_id: str):
     metrix_response = {"labels":[i for i in metrix.keys()], "data": [i for i in metrix.values()]}
     return metrix_response
 
+@engineer_router.get('/serving/get_result', tags=['Model Serving'])
+async def get_result(pyfunc_model_folder: str, params: dict):
+
+    # Load model as a PyFuncModel.
+    print("\nLoading pyfunc model...")
+    loaded_model = mlflow.pyfunc.load_model(client, pyfunc_model_folder)
+
+    # Predict on a Pandas DataFrame.
+    print("\nPyfunc model prediction...")
+    predictions = loaded_model.predict(input)
+
+    return predictions
 
 @admin_router.get('/system_monitoring/get_cpu_usage', tags=['System Monitoring'])
 async def get_cpu_usage():
