@@ -1,7 +1,17 @@
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://github.com/epu-ntua/DeepTSF/blob//License.txt)
-# DeepTSF
+<p align="center">
+  <a href="https://doi.org/10.1016/j.softx.2024.101758">
+    <img alt="DeepTSF" src="https://github.com/epu-ntua/DeepTSF/blob/9071bad248bd13256d703e565fb49dc88ba8d77a/docs/version1all.png" width="150" />
+  </a>
+</p>
+<p align="center">
+    ✨ DeepTSF is designed to enable codeless machine learning operations for time series forecasting ✨
+</p>
 
-This is the repository for DeepTSF timeseries forecasting tool. The whitepaper for this project can be found in [1]. For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation). 
+<p align="center">
+    🙌 Refer to <b><a href="https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation">https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation</a></b> for the documentation 📖
+</p>
+
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://github.com/epu-ntua/DeepTSF/blob//License.txt)
 
 ## Installation
 
