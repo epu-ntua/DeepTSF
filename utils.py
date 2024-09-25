@@ -1429,7 +1429,7 @@ def multiple_ts_file_to_dfs(series_csv: Union[str, pd.DataFrame] = "../../RDN/Lo
         a sublist corresponds to a component of that time series.
     """
 
-    if type(ts) == str:
+    if type(series_csv) == str:
         ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,

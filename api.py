@@ -256,9 +256,6 @@ async def get_model_names(resolution: str, multiple: bool):
         {"model_name": "ARIMA", "hparams": hparams_arima},
         ]
     
-    # Multiple does not work with Naive
-    if multiple:
-        del models[0]
     
     return models
 
