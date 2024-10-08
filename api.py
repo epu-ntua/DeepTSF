@@ -723,8 +723,8 @@ async def get_result(request: ForecastRequest) -> str:
         print("\nPyfunc model prediction...")
 
         predictions = loaded_model.predict(request.__dict__)
-
-        return JSONResponse(content=predictions.to_dict(orient="records"))
+        predictions.index = predictions.index.strftime('%Y-%m-%dT%H:%M:%S')
+        return JSONResponse(content=predictions.to_dict(orient="split", index=True))
 
     except Exception as e:
         print(f"There was an error in inference of series: {e}")
