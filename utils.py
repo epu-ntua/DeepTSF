@@ -1465,9 +1465,9 @@ def multiple_ts_file_to_dfs(series_csv: Union[str, pd.DataFrame] = "../../RDN/Lo
             curr_comp = curr_ts[curr_ts["ID"] == id]
             if format == 'short':
                 curr_comp = pd.melt(curr_comp, id_vars=['Date', 'ID', 'Timeseries ID'], var_name='Time', value_name=value_name)
-                curr_comp.loc["Datetime"] = pd.to_datetime(curr_comp['Date'].dt.strftime("%Y-%m-%d") + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
+                curr_comp["Datetime"] = pd.to_datetime(curr_comp['Date'].dt.strftime("%Y-%m-%d") + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
             else:
-                curr_comp.loc["Datetime"] = pd.to_datetime(curr_comp["Datetime"])
+                curr_comp["Datetime"] = pd.to_datetime(curr_comp["Datetime"])
             curr_comp = curr_comp.set_index("Datetime")
             series = curr_comp[value_name].sort_index().dropna()
 

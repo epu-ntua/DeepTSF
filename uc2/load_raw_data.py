@@ -361,11 +361,11 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                     raise DatetimesNotInOrder(first_wrong_date, first_wrong_date_index, ts_id, id)
     
                         
-            #Check that all timeseries in a multiple timeseries file have the same number of components
-            print("Check 8: Check that all timeseries in a multiple timeseries file have the same number of components")
-            comp_dict = {ts_id: len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"])}
-            if len(set(comp_dict.values())) != 1:
-                raise DifferentComponentDimensions(comp_dict)
+        #Check that all timeseries in a multiple timeseries file have the same number of components
+        print("Check 8: Check that all timeseries in a multiple timeseries file have the same number of components")
+        comp_dict = {ts_id: len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"])}
+        if len(set(comp_dict.values())) != 1:
+            raise DifferentComponentDimensions(comp_dict)
         
         #Infering resolution for multiple ts
         print("Check 9: Infering resolution for multiple ts and checking if all ts have the same one")
