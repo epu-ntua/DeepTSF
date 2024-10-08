@@ -2,9 +2,12 @@ from enum import Enum
 import uvicorn
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import Optional, Dict
 import pandas as pd
 import mlflow
-from utils import ConfigParser
+from utils import ConfigParser, load_model
 import tempfile
 from uc2.load_raw_data import read_and_validate_input
 from exceptions import DatetimesNotInOrder, WrongColumnNames
@@ -21,7 +24,6 @@ from app.config import settings
 import pymongo
 from pymongo import MongoClient
 import datetime
-from typing import Tuple
 from math import nan
 import bson
 from minio import Minio
@@ -45,7 +47,6 @@ AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
 MINIO_SSL = truth_checker(os.environ.get("MINIO_SSL"))
 client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
-
 
 # allows automated type check with pydantic
 # class ModelName(str, Enum):
@@ -90,7 +91,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://deeptsf.toolbox.epu.ntua.gr", 
                    "https://dagster.deeptsf.toolbox.epu.ntua.gr", 
-                   "https://keycloak.toolbox.epu.ntua.gr"],
+                   "https://keycloak.toolbox.epu.ntua.gr",
+                   "http://localhost:3000", 
+                   "http://localhost:8086"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -657,18 +660,75 @@ async def get_metric_list(run_id: str):
     metrix_response = {"labels":[i for i in metrix.keys()], "data": [i for i in metrix.values()]}
     return metrix_response
 
-@engineer_router.get('/serving/get_result', tags=['Model Serving'])
-async def get_result(pyfunc_model_folder: str, params: dict):
+class ForecastRequest(BaseModel):
+    pyfunc_model_folder: str
+    timesteps_ahead: int
+    series_uri: Optional[str] = None
+    multiple_file_type: Optional[bool] = False
+    weather_covariates: Optional[bool] = False
+    resolution: Optional[str] = "1h"
+    ts_id_pred: Optional[str] = "None"
+    series: Optional[str] = None
+    past_covariates: Optional[str] = None
+    past_covariates_uri: Optional[str] = None
+    future_covariates: Optional[str] = None
+    future_covariates_uri: Optional[str] = None
+    roll_size: Optional[int] = 24
+    batch_size: Optional[int] = 16
+    format: Optional[str] = "long"
 
-    # Load model as a PyFuncModel.
-    print("\nLoading pyfunc model...")
-    loaded_model = mlflow.pyfunc.load_model(client, pyfunc_model_folder)
 
-    # Predict on a Pandas DataFrame.
-    print("\nPyfunc model prediction...")
-    predictions = loaded_model.predict(input)
+@engineer_router.post('/serving/get_result', tags=['Model Serving'])
+async def get_result(request: ForecastRequest) -> str: 
+    """
+    Function to handle serving MLflow models with required parameters.
+    
+    This endpoint expects a JSON body with the following structure:
+    - pyfunc_model_folder: Path or URI to the MLflow model to be served.
+    - timesteps_ahead: The number of timesteps to predict ahead.
+    - series_uri: URI for the time series data (optional if `series` is provided).
+    - multiple_file_type: Boolean, indicates if the input inference dataset is multiple files.
+    - weather_covariates: Boolean, whether weather covariates are used.
+    - resolution: Time resolution for the time series and covariates.
+    - ts_id_pred: Time series ID for prediction (required if `multiple_file_type` is True).
+    - series: JSON object containing the series data (optional if `series_uri` is provided).
+    - past_covariates: JSON object for past covariates (optional).
+    - past_covariates_uri: URI for the past covariates (optional).
+    - future_covariates: JSON object for future covariates (optional).
+    - future_covariates_uri: URI for the future covariates (optional).
+    - roll_size: Specifies the rolling size for predictions.
+    - batch_size: Specifies the batch size for predictions.
+    - format: Specifies the format of the input data ("long" or "short").
+    
+    Returns:
+    - Predictions based on the provided model and input data.
+    """
+    try:
 
-    return predictions
+        # Load model as a PyFuncModel.
+        print("\nLoading pyfunc model...")
+        loaded_model = mlflow.pyfunc.load_model(request.pyfunc_model_folder)
+
+        request.series = pd.read_json(request.series)
+        # if not request.multiple_file_type:
+        #     request.series = request.series.rename_axis("Datetime")
+
+        if request.past_covariates != None:
+            request.past_covariates = pd.read_json(request.past_covariates)
+
+        if request.future_covariates != None:
+            request.future_covariates = pd.read_json(request.future_covariates)
+
+        # Predict on a Pandas DataFrame.
+        print("\nPyfunc model prediction...")
+
+        predictions = loaded_model.predict(request.__dict__)
+
+        return JSONResponse(content=predictions.to_dict(orient="records"))
+
+    except Exception as e:
+        print(f"There was an error in inference of series: {e}")
+        raise HTTPException(status_code=415, detail=f"There was an error in inference of series: {e}")
 
 @admin_router.get('/system_monitoring/get_cpu_usage', tags=['System Monitoring'])
 async def get_cpu_usage():

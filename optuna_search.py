@@ -991,13 +991,14 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                             pv_ensemble=pv_ensemble,
                                             resolution=resolution)
             
-            eval_results[eval_i] = list(map(str, ts_id_l[eval_i])) + [validation_results["metrics"]["smape"],
+            eval_results[eval_i] = [str(ts_id_l[eval_i][0])] + [validation_results["metrics"]["smape"],
                                                                       validation_results["metrics"]["mase"],
                                                                       validation_results["metrics"]["mae"],
                                                                       validation_results["metrics"]["rmse"],
                                                                       validation_results["metrics"]["mape"],
                                                                       validation_results["metrics"]["nrmse_min_max"],
                                                                       validation_results["metrics"]["nrmse_mean"]]
+        print(eval_results)
 
         eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape", "nrmse_min_max", "nrmse_mean"])
         trial_num = len(study.trials_dataframe()) - 1

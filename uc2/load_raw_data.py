@@ -209,11 +209,12 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     ######## NON MULTIPLE ########
     if not multiple:
         #Dataframe can not be empty or have just one row
+        print("Check 1: Dataframe can not be empty or have just one row")
         if len(ts) <= 1:
             raise EmptyDataframe(from_database)
 
         #CORRECT COLUMNS PRESENT
-        
+        print("Check 2: Correct columns present")
         #Check that column Datetime is used as index, and that Value is the only other column in the csv for the series csv
         if covariates == "series" and not (len(ts.columns) == 1 and ts.columns[0] == "Value" and ts.index.name == 'Datetime'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', "Value"])
@@ -223,6 +224,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
         #TYPE CHECKS
 
+        print("Check 3: Check date index column has correct format and type")
         #Check date index column has correct format
         check_datetime_format(ts.index, ts.index)
         ts.index = pd.to_datetime(ts.index)
@@ -232,15 +234,18 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         if index_type != pd.Timestamp:
             raise TypeError(f"The index column Datetime must be of type pd.Timestamp.")
 
+        print("Check 4: Check Value column type")
         #Check Value column type
         ts = check_and_convert_column_types(ts, [float])
 
+        print("Check 5: Check for duplicates")
         #Check for duplicates
         duplicates = ts.index[ts.index.duplicated()]
         if not duplicates.empty:
             # Raise the custom exception if duplicates are found
             raise DuplicateDateError(duplicates[0], duplicates[0])
-            
+
+        print("Check 6: Check that dates are in order") 
         #Check that dates are in order.
         dates_not_in_order = ts[ts.index.sort_values() != ts.index]
         if not dates_not_in_order.empty:
@@ -249,12 +254,15 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                     first_wrong_date = ts.index[i]
             raise DatetimesNotInOrder(first_wrong_date=first_wrong_date, row_id=first_wrong_date)
 
+        print("Check 7: Infering resolution for single timeseries") 
         #Infering resolution for single timeseries
         resolution = to_standard_form(pd.to_timedelta(np.diff(ts.index).min()))
 
 
     ######## MULTIPLE ########
     else:
+        
+        print("Check 1: Dataframe can not be empty")
         #Dataframe can not be empty
         if len(ts) == 0:
             raise EmptyDataframe(from_database)
@@ -279,11 +287,13 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                 intended_col_types = ['datetime64[ns]', str, str] + [float for _ in range(len(ts.columns) - 3)]
             except:
                 pass
-
+        
+        print("Check 2: Check if the index is of integer type")
         # Check if the index is of integer type
         if not pd.api.types.is_integer_dtype(ts.index):
             raise NonIntegerMultipleIndexError(ts.index.dtype)
 
+        print("Check 3: Check present columns according to format")
         #Check present columns according to format
         if format == "short":
             if set(des_columns).issubset(set(list(ts.columns))):
@@ -307,7 +317,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                 raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns, "long")
 
         #TYPE CHECKS
-    
+
+        print("Check 4: Check index range and missing values")
         # Expected complete index range
         expected_index = pd.Index(range(len(ts)))
     
@@ -316,14 +327,17 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         if not missing_index.empty:
             raise MissingMultipleIndexError(missing_index[0])
 
+        print("Check 5: Check date column has correct format")
         #Check date column has correct format
         check_datetime_format(ts[date_col], ts.index, format)
         ts[date_col] = pd.to_datetime(ts[date_col])
 
+        print("Check 6: Check column types and if needed, convert them")
         #Check column types and if needed, convert them
         ts = check_and_convert_column_types(ts, intended_col_types)
 
         #Check each component individualy
+        print("Check 7: each component individualy for duplicates and out of order dates")
         for ts_id in np.unique(ts["Timeseries ID"]):
             for id in np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"]):
                 dates = ts[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)].copy()
@@ -348,11 +362,13 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     
                         
             #Check that all timeseries in a multiple timeseries file have the same number of components
+            print("Check 8: Check that all timeseries in a multiple timeseries file have the same number of components")
             comp_dict = {ts_id: len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"])}
             if len(set(comp_dict.values())) != 1:
                 raise DifferentComponentDimensions(comp_dict)
         
         #Infering resolution for multiple ts
+        print("Check 9: Infering resolution for multiple ts and checking if all ts have the same one")
         ts_l, id_l, ts_id_l, resolution = multiple_ts_file_to_dfs(series_csv, None, format=format)
 
         if allow_empty_series:
@@ -501,15 +517,15 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
         series_csv = f'{tmpdir}/load.csv'
 
     elif series_uri != "None":
-        download_file_path = download_online_file(series_uri, dst_filename="series.csv")
+        download_file_path = download_online_file(client, series_uri, dst_filename="series.csv")
         series_csv = download_file_path
 
     if past_covs_uri != None:
-        download_file_path = download_online_file(past_covs_uri, dst_filename="past_covs.csv")
+        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past_covs.csv")
         past_covs_csv = download_file_path
 
     if future_covs_uri != None:
-        download_file_path = download_online_file(future_covs_uri, dst_filename="future_covs.csv")
+        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future_covs.csv")
         future_covs_csv = download_file_path
 
     series_csv = series_csv.replace('/', os.path.sep)

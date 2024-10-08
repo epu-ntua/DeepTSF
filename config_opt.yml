@@ -455,6 +455,12 @@ hyperparameters:
     output_chunk_length: 24
     random_state: 0
 
+  LightGBM_f_covs_example:
+    lags: ["list", 1, 2]
+    lags_future_covariates: ["list", 1, 2]
+    output_chunk_length: 24
+    random_state: 0
+
   LightGBM_UC6_W4_plain_ds:
     lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
     random_state: 0 

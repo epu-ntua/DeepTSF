@@ -86,7 +86,7 @@ class _MLflowPLDartsModelWrapper:
 
         # Parse
         model_input_parsed = parse_uri_prediction_input(client, model_input, self.model, self.ts_id_l)
-
+        # print("SERIES", model_input_parsed['series'])
         # Transform
         if self.transformer is not None:
             print('\nTransforming series...')
@@ -103,19 +103,32 @@ class _MLflowPLDartsModelWrapper:
             model_input_parsed['future_covariates'] = self.transformer_future_covs[model_input_parsed["idx_in_train_dataset"]].transform(
                 model_input_parsed['future_covariates'])
 
-        # Predict 
-        predictions = self.model.predict(
-            n=model_input_parsed['timesteps_ahead'],
-            roll_size=model_input_parsed['roll_size'],
-            series=model_input_parsed['series'],
-            future_covariates=model_input_parsed['future_covariates'],
-            past_covariates=model_input_parsed['past_covariates'],
-            batch_size=model_input_parsed['batch_size'])
+        # Predict
+        predict_dict = {
+            "n" : model_input_parsed['timesteps_ahead'],
+            "series" : model_input_parsed['series'],
+        }
+
+        if model_input_parsed['roll_size'] != None:
+            predict_dict["roll_size"]=model_input_parsed['roll_size']
+        
+        if model_input_parsed['future_covariates'] != None:
+            predict_dict["future_covariates"]=model_input_parsed['future_covariates']
+        
+        if model_input_parsed['past_covariates'] != None:
+            predict_dict["past_covariates"]=model_input_parsed['past_covariates']
+
+        if model_input_parsed['batch_size'] != None:
+            predict_dict["batch_size"]=model_input_parsed['batch_size']
+
+        predictions = self.model.predict(**predict_dict)
+
+        # print("PREDICTIONS", predictions)
 
         ## Untransform
         if self.transformer is not None:
             print('\nInverse transforming series...')
-            predictions = self.transformer[model_input_parsed["predict_series_idx"]].inverse_transform(predictions)
+            predictions = self.transformer[model_input_parsed["idx_in_train_dataset"]].inverse_transform(predictions)
 
         # Return as DataFrame
         if batched:
@@ -146,7 +159,7 @@ def _load_pyfunc(model_folder):
     model = load_model(client, model_root_dir=model_folder, mode="local")
     model_info = load_local_model_info(model_root_dir=model_folder)
     #Loading scalers
-    if bool(model_info["scaler"]):
+    if bool(model_info["scale"]):
         scaler = load_scaler(scaler_uri=f"{model_folder}/scaler_series.pkl", mode="local")
     else:
         scaler = None

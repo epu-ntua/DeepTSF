@@ -971,11 +971,11 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs,
 
     # If uri is given, covariates will be downloaded from there
     if past_covs_uri != None:
-        download_file_path = download_online_file(past_covs_uri, dst_filename="past_covs.csv")
+        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past_covs.csv")
         past_covs_csv = download_file_path
 
     if future_covs_uri != None:
-        download_file_path = download_online_file(future_covs_uri, dst_filename="future_covs.csv")
+        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future_covs.csv")
         future_covs_csv = download_file_path
 
     ## Process parameters from click and MLProject

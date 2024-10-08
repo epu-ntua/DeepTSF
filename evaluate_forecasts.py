@@ -905,7 +905,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             pv_ensemble=pv_ensemble,
                                             resolution=resolution,
                                             id_l=None if not multiple else id_l[eval_i])
-                eval_results[eval_i] = list(map(str, ts_id_l[eval_i][:1])) + [evaluation_results["metrics"]["smape"],
+                eval_results[eval_i] = [str(ts_id_l[eval_i][0])] + [evaluation_results["metrics"]["smape"],
                                                                               evaluation_results["metrics"]["mase"],
                                                                               evaluation_results["metrics"]["mae"],
                                                                               evaluation_results["metrics"]["rmse"],

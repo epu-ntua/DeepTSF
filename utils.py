@@ -1197,10 +1197,16 @@ def load_local_csv_or_df_as_darts_timeseries(local_path_or_df,
             covariates = covariate_l
         else:
             id_l, ts_id_l = [[]], [[]]
-            covariates = darts.TimeSeries.from_csv(
-                local_path_or_df, time_col=time_col,
-                fill_missing_dates=True,
-                freq=None)
+            if type(local_path_or_df) == pd.DataFrame:
+                covariates = darts.TimeSeries.from_dataframe(
+                    local_path_or_df,
+                    fill_missing_dates=True,
+                    freq=None)
+            else:
+                covariates = darts.TimeSeries.from_csv(
+                    local_path_or_df, time_col=time_col,
+                    fill_missing_dates=True,
+                    freq=None)
             covariates = covariates.astype(np.float32)
             if last_date is not None:
                 try:
@@ -1212,7 +1218,7 @@ def load_local_csv_or_df_as_darts_timeseries(local_path_or_df,
             f"\nBad {name} file.  The model won't include {name}...")
         logging.info(
             f"\nBad {name} file. The model won't include {name}...")
-        covariates = None
+        covariates, id_l, ts_id_l = None, None, None
     return covariates, id_l, ts_id_l
     
 def load_csv_or_df_to_ts_inference(local_path_or_df,
@@ -1235,7 +1241,7 @@ def load_csv_or_df_to_ts_inference(local_path_or_df,
     # Find index (idx) of series in the provided multiple file that the user wishes to apply inference on 
     if multiple_file_type:
         if idx_in_infrence_dataset == None:
-            ts_ids = [elem[0] for elem in ts_id_l_series]
+            ts_ids = [str(elem[0]) for elem in ts_id_l_series]
             if ts_id_pred not in ts_ids:
                 raise TSIDNotFoundInferenceError(ts_id_pred, stored=False)
             idx_in_infrence_dataset = ts_ids.index(ts_id_pred)
@@ -1271,20 +1277,21 @@ def parse_uri_prediction_input(client,
     """
 
     # str to int
-    batch_size = int(model_input["batch_size"])
-    roll_size = int(model_input["roll_size"])
+    batch_size = model_input["batch_size"]
+    roll_size = model_input["roll_size"]
 
 
-    multiple_file_type = truth_checker(model_input["multiple_file_type"])
+    multiple_file_type = model_input["multiple_file_type"]
     weather_covariates = model_input["weather_covariates"]
     resolution = model_input["resolution"]
-    ts_id_pred = model_input["ts_id_pred"]
+    ts_id_pred = str(model_input["ts_id_pred"])
+    format = model_input["format"]
 
     # URIs
     series_uri = none_checker(model_input['series_uri'])
     if series_uri is not None: 
         series = series_uri
-    elif series is not None:
+    elif model_input["series"] is not None:
         series = model_input["series"]
     else:
         raise MandatoryArgNotSet("series", [["series_uri", "None"]])
@@ -1304,15 +1311,12 @@ def parse_uri_prediction_input(client,
 
     
     ## Horizon
-    timesteps_ahead = int(
-        model_input["timesteps_ahead"]) if model_input["timesteps_ahead"] is not None else model.output_chunk_length
+    timesteps_ahead = model_input["timesteps_ahead"] if model_input["timesteps_ahead"] is not None else model.output_chunk_length
     
     ## roll size
-    roll_size = int(
-        model_input["roll_size"]) if model_input["roll_size"] is not None else model.output_chunk_length
+    roll_size = model_input["roll_size"] 
 
-    batch_size = int(model_input["batch_size"]
-                     ) if model_input["batch_size"] is not None else 1
+    batch_size =model_input["batch_size"]
 
     if type(series) == str and ('runs:/' in series or 's3://mlflow-bucket/' in series or series.startswith('http://')):
         print('\nDownloading remote file of recent time series history...')
@@ -1320,7 +1324,7 @@ def parse_uri_prediction_input(client,
 
     # If model was trained on multiple series, find index (idx_in_train_dataset) of series that the user wishes to apply inference on
     if ts_id_l != [[]]:
-        ts_ids = [elem[0] for elem in ts_id_l]
+        ts_ids = [str(elem[0]) for elem in ts_id_l]
         if ts_id_pred not in ts_ids:
             raise TSIDNotFoundInferenceError(ts_id_pred, stored=True)
         idx_in_train_dataset = ts_ids.index(ts_id_pred)
@@ -1461,9 +1465,9 @@ def multiple_ts_file_to_dfs(series_csv: Union[str, pd.DataFrame] = "../../RDN/Lo
             curr_comp = curr_ts[curr_ts["ID"] == id]
             if format == 'short':
                 curr_comp = pd.melt(curr_comp, id_vars=['Date', 'ID', 'Timeseries ID'], var_name='Time', value_name=value_name)
-                curr_comp["Datetime"] = pd.to_datetime(curr_comp['Date'].dt.strftime("%Y-%m-%d") + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
+                curr_comp.loc["Datetime"] = pd.to_datetime(curr_comp['Date'].dt.strftime("%Y-%m-%d") + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
             else:
-                curr_comp["Datetime"] = pd.to_datetime(curr_comp["Datetime"])
+                curr_comp.loc["Datetime"] = pd.to_datetime(curr_comp["Datetime"])
             curr_comp = curr_comp.set_index("Datetime")
             series = curr_comp[value_name].sort_index().dropna()
 
