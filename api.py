@@ -87,17 +87,26 @@ app = FastAPI(
     },
 )
 
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["https://deeptsf.toolbox.epu.ntua.gr", 
+#                    "https://dagster.deeptsf.toolbox.epu.ntua.gr", 
+#                    "https://keycloak.toolbox.epu.ntua.gr",
+#                    "http://localhost:3000", 
+#                    "http://localhost:8086"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://deeptsf.toolbox.epu.ntua.gr", 
-                   "https://dagster.deeptsf.toolbox.epu.ntua.gr", 
-                   "https://keycloak.toolbox.epu.ntua.gr",
-                   "http://localhost:3000", 
-                   "http://localhost:8086"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # creating routers
 # admin validator passed as dependency
