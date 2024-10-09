@@ -1,4 +1,4 @@
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://github.com/I-NERGY/DeepTSF/blob//License.txt)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/epu-ntua/DeepTSF/blob/master/README.md)
 # DeepTSF
 
 This is the repository for DeepTSF timeseries forecasting tool. The whitepaper for this project can be found in [1]. For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/I-NERGY/DeepTSF/wiki/DeepTSF-documentation). 
