@@ -2,16 +2,20 @@ from enum import Enum
 import uvicorn
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends
+from fastapi.responses import JSONResponse
+import json
+from pydantic import BaseModel
+from typing import Optional, Dict
 import pandas as pd
 import mlflow
-from utils import ConfigParser
+from utils import ConfigParser, load_model
 import tempfile
 from uc2.load_raw_data import read_and_validate_input
 from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils import load_artifacts, to_seconds, change_form, make_time_list
+from utils import load_artifacts, to_seconds, change_form, make_time_list, truth_checker
 import psutil, nvsmi
 import os
 from dotenv import load_dotenv
@@ -21,9 +25,9 @@ from app.config import settings
 import pymongo
 from pymongo import MongoClient
 import datetime
-from typing import Tuple
 from math import nan
 import bson
+from minio import Minio
 
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
@@ -38,6 +42,12 @@ mongo_url = f"mongodb://{user}:{password}@{address}"
 
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
+MINIO_SSL = truth_checker(os.environ.get("MINIO_SSL"))
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
 
 # allows automated type check with pydantic
 # class ModelName(str, Enum):
@@ -78,6 +88,18 @@ app = FastAPI(
     },
 )
 
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["https://deeptsf.toolbox.epu.ntua.gr", 
+#                    "https://dagster.deeptsf.toolbox.epu.ntua.gr", 
+#                    "https://keycloak.toolbox.epu.ntua.gr",
+#                    "http://localhost:3000", 
+#                    "http://localhost:8086"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -85,6 +107,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # creating routers
 # admin validator passed as dependency
@@ -254,9 +277,6 @@ async def get_model_names(resolution: str, multiple: bool):
         {"model_name": "ARIMA", "hparams": hparams_arima},
         ]
     
-    # Multiple does not work with Naive
-    if multiple:
-        del models[0]
     
     return models
 
@@ -266,28 +286,25 @@ async def get_metric_names():
     return metrics
 
 
-def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_series=False, format='long'):
+def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='long'):
 
     fileExtension = fname.split(".")[-1].lower() == "csv"
     if not fileExtension:
         print("Unsupported file type provided. Please upload CSV file")
         raise HTTPException(status_code=415, detail="Unsupported file type provided. Please upload CSV file")
     try:
-        ts, resolution = read_and_validate_input(series_csv=fname, day_first=day_first, 
+        ts, resolution = read_and_validate_input(series_csv=fname, 
                                                  multiple=multiple, allow_empty_series=allow_empty_series, 
                                                  format=format, log_to_mlflow=False)
-    except WrongColumnNames:
-        print("There was an error validating the file. Please reupload CSV with correct column names")
-        raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with correct column names")
-    except DatetimesNotInOrder:
-        print("There was an error validating the file. Datetimes are not in order")
-        raise HTTPException(status_code=415, detail="There was an error validating the file. Datetimes are not in order")
+    except Exception as e:
+        print(f"There was an error validating the file: {e}")
+        raise HTTPException(status_code=415, detail=f"There was an error validating the file: {e}")
     
     resolutions = make_time_list(resolution=resolution)    
     return ts, resolutions
 
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
-async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True), 
+async def create_upload_csv_file(file: UploadFile = File(...), 
                                  multiple: bool = Form(default=False), format: str = Form(default=False)):
 
     # Store uploaded dataset to backend
@@ -308,7 +325,7 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
 
     # Validation
     print("Validating file...") 
-    ts, resolutions = csv_validator(fname, day_first, multiple, format=format)
+    ts, resolutions = csv_validator(fname, multiple, format=format)
 
     if multiple:
         if format == "long":
@@ -380,7 +397,7 @@ async def retrieve_uc2_dataset():
     client.close()
     # Validate_csv
     multiple = False
-    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple, format='short')
+    ts, resolutions = csv_validator(fname, multiple=multiple, format='short')
     return {"message": "Validation successful",
         "fname": fname,
         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
@@ -448,7 +465,7 @@ async def retrieve_uc6_dataset(series_name: str):
     client.close()
     # Validate_csv
     multiple = True
-    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple, format='short')
+    ts, resolutions = csv_validator(fname, multiple=multiple, format='short')
     return {"message": "Validation successful",
         "fname": fname,
         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
@@ -653,6 +670,92 @@ async def get_metric_list(run_id: str):
     metrix_response = {"labels":[i for i in metrix.keys()], "data": [i for i in metrix.values()]}
     return metrix_response
 
+class ForecastRequest(BaseModel):
+    pyfunc_model_folder: str
+    timesteps_ahead: int
+    series_uri: Optional[str] = None
+    multiple_file_type: Optional[bool] = False
+    weather_covariates: Optional[bool] = False
+    resolution: Optional[str] = "1h"
+    ts_id_pred: Optional[str] = "None"
+    series: Optional[Dict] = None
+    past_covariates: Optional[Dict] = None
+    past_covariates_uri: Optional[str] = None
+    future_covariates: Optional[Dict] = None
+    future_covariates_uri: Optional[str] = None
+    roll_size: Optional[int] = 24
+    batch_size: Optional[int] = 16
+    format: Optional[str] = "long"
+
+
+@engineer_router.post('/serving/get_result', tags=['Model Serving'])
+async def get_result(request: ForecastRequest) -> str: 
+    """
+    Function to handle serving MLflow models with required parameters.
+    
+    This endpoint expects a JSON body with the following structure:
+    - pyfunc_model_folder: Path or URI to the MLflow model to be served.
+    - timesteps_ahead: The number of timesteps to predict ahead.
+    - series_uri: URI for the time series data (optional if `series` is provided).
+    - multiple_file_type: Boolean, indicates if the input inference dataset is multiple files.
+    - weather_covariates: Boolean, whether weather covariates are used.
+    - resolution: Time resolution for the time series and covariates.
+    - ts_id_pred: Time series ID for prediction (required if `multiple_file_type` is True).
+    - series: JSON object containing the series data (optional if `series_uri` is provided).
+    - past_covariates: JSON object for past covariates (optional).
+    - past_covariates_uri: URI for the past covariates (optional).
+    - future_covariates: JSON object for future covariates (optional).
+    - future_covariates_uri: URI for the future covariates (optional).
+    - roll_size: Specifies the rolling size for predictions.
+    - batch_size: Specifies the batch size for predictions.
+    - format: Specifies the format of the input data ("long" or "short").
+    
+    Returns:
+    - Predictions based on the provided model and input data.
+    """
+    try:
+
+        # Load model as a PyFuncModel.
+        print("\nLoading pyfunc model...")
+        loaded_model = mlflow.pyfunc.load_model(request.pyfunc_model_folder)
+
+        request.series = pd.DataFrame.from_dict(request.series)
+
+        if not request.multiple_file_type:
+            request.series.index = pd.to_datetime(request.series.index)
+        elif request.format == "long":
+            request.series["Datetime"] = pd.to_datetime(request.series["Datetime"])
+        else:
+            request.series["Date"] = pd.to_datetime(request.series["Date"])
+
+        if request.past_covariates != None:
+            request.past_covariates = pd.DataFrame.from_dict(request.past_covariates)
+
+            if request.format == "long":
+                request.past_covariates["Datetime"] = pd.to_datetime(request.past_covariates["Datetime"])
+            else:
+                request.past_covariates["Date"] = pd.to_datetime(request.past_covariates["Date"])
+
+
+        if request.future_covariates != None:
+            request.future_covariates = pd.DataFrame.from_dict(request.future_covariates)
+
+            if request.format == "long":
+                request.future_covariates["Datetime"] = pd.to_datetime(request.future_covariates["Datetime"])
+            else:
+                request.future_covariates["Date"] = pd.to_datetime(request.future_covariates["Date"])
+
+
+        # Predict on a Pandas DataFrame.
+        print("\nPyfunc model prediction...")
+
+        predictions = loaded_model.predict(request.__dict__)
+        predictions.index = predictions.index.strftime('%Y-%m-%dT%H:%M:%S')
+        return JSONResponse(content=json.loads(predictions.to_json(orient='columns', index=True)))
+
+    except Exception as e:
+        print(f"There was an error in inference of series: {e}")
+        raise HTTPException(status_code=415, detail=f"There was an error in inference of series: {e}")
 
 @admin_router.get('/system_monitoring/get_cpu_usage', tags=['System Monitoring'])
 async def get_cpu_usage():

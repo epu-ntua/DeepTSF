@@ -14,7 +14,7 @@ import numpy as np
 load_dotenv()
 from tqdm import tqdm
 import logging
-from exceptions import MandatoryArgNotSet, NotValidConfig, EmptySeries, DifferentFrequenciesMultipleTS
+from exceptions import MandatoryArgNotSet, NotValidConfig, EmptySeries, DifferentFrequenciesMultipleTS, ComponentTooShortError, TSIDNotFoundInferenceError
 import json
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
@@ -42,6 +42,7 @@ import holidays
 from pytz import timezone
 import pytz
 from datetime import datetime
+from typing import Union, List, Tuple
 
 class ConfigParser:
     def __init__(self, config_file=f'{cur_dir}/config.yml', config_string=None):
@@ -306,6 +307,12 @@ def load_pl_model_from_server(model_root_dir):
     best_model = load_local_pl_model(os.path.join(
         local_dir, mlflow_relative_model_root_dir))
     return best_model
+
+def load_local_model_info(model_root_dir):
+
+    return load_yaml_as_dict(
+        os.path.join(model_root_dir, 'model_info.yml'))
+
 
 
 def load_model(client, model_root_dir, mode="remote"):
@@ -1152,18 +1159,19 @@ def add_weather_covariates(start, end, res_future, id_l_future_covs, ts_id_l_fut
             ts_id_l_future_covs[i].extend([ts_id_l[i][0] for _ in range(len(covs))])
     return res_future, id_l_future_covs, ts_id_l_future_covs
 
-def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Datetime', last_date=None, multiple = False, day_first=True, resolution="15min", format="long"):
-
-    import logging
-    import darts
-    import numpy as np
-    import pandas as pd
+def load_local_csv_or_df_as_darts_timeseries(local_path_or_df, 
+                                       name='Time Series', 
+                                       time_col='Datetime', 
+                                       last_date=None, 
+                                       multiple = False, 
+                                       resolution="15min", 
+                                       format="long"):
 
     try:
         if multiple:
             #TODO Fix this too (
             #file_name, format)
-            ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=day_first, resolution=resolution, format=format)
+            ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv=local_path_or_df, resolution=resolution, format=format)
             covariate_l  = []
 
             print("\nTurning dataframes to timeseries...")
@@ -1189,10 +1197,16 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             covariates = covariate_l
         else:
             id_l, ts_id_l = [[]], [[]]
-            covariates = darts.TimeSeries.from_csv(
-                local_path, time_col=time_col,
-                fill_missing_dates=True,
-                freq=None)
+            if type(local_path_or_df) == pd.DataFrame:
+                covariates = darts.TimeSeries.from_dataframe(
+                    local_path_or_df,
+                    fill_missing_dates=True,
+                    freq=None)
+            else:
+                covariates = darts.TimeSeries.from_csv(
+                    local_path_or_df, time_col=time_col,
+                    fill_missing_dates=True,
+                    freq=None)
             covariates = covariates.astype(np.float32)
             if last_date is not None:
                 try:
@@ -1204,85 +1218,156 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             f"\nBad {name} file.  The model won't include {name}...")
         logging.info(
             f"\nBad {name} file. The model won't include {name}...")
-        covariates = None
+        covariates, id_l, ts_id_l = None, None, None
     return covariates, id_l, ts_id_l
+    
+def load_csv_or_df_to_ts_inference(local_path_or_df,
+                                   name,
+                                   multiple_file_type,
+                                   resolution,
+                                   format,
+                                   ts_id_pred,
+                                   idx_in_infrence_dataset=None):
+    
+    series, id_l, ts_id_l_series = load_local_csv_or_df_as_darts_timeseries(
+                                            local_path_or_df=local_path_or_df,
+                                            name=name,
+                                            time_col='Datetime',
+                                            last_date=None,
+                                            multiple=multiple_file_type,
+                                            resolution=resolution,
+                                            format=format)
+        
+    # Find index (idx) of series in the provided multiple file that the user wishes to apply inference on 
+    if multiple_file_type:
+        if idx_in_infrence_dataset == None:
+            ts_ids = [str(elem[0]) for elem in ts_id_l_series]
+            if ts_id_pred not in ts_ids:
+                raise TSIDNotFoundInferenceError(ts_id_pred, stored=False)
+            idx_in_infrence_dataset = ts_ids.index(ts_id_pred)
+        series = [series[idx_in_infrence_dataset]]
+
+    else:
+        series = [series]
+
+    return series, idx_in_infrence_dataset
 
 
-def parse_uri_prediction_input(client, model_input: dict, model, ts_id_l) -> dict:
 
-    series_uri = model_input['series_uri']
+def parse_uri_prediction_input(client, 
+                               model_input: dict, 
+                               model, 
+                               ts_id_l) -> dict:
+
+    """
+    {"timesteps_ahead": int, 
+    "series_uri": str,
+    "multiple_file_type": bool,
+    "weather_covariates": bool (TODO ?),
+    "resolution": str,
+    "ts_id_pred", str,
+    "series": json file, 
+    "past_covariates": json file, 
+    "past_covariates_uri": str,
+    "future_covariates": json file, 
+    "future_covariates_uri": str,
+    "roll_size": int, 
+    "batch_size": int,
+    "format: int}
+    """
 
     # str to int
-    batch_size = int(model_input["batch_size"])
-    roll_size = int(model_input["roll_size"])
-    forecast_horizon = int(model_input["n"])
+    batch_size = model_input["batch_size"]
+    roll_size = model_input["roll_size"]
 
-    multiple = truth_checker(model_input["multiple"])
+
+    multiple_file_type = model_input["multiple_file_type"]
     weather_covariates = model_input["weather_covariates"]
     resolution = model_input["resolution"]
-    ts_id_pred = model_input["ts_id_pred"]
-    #multiple, resolution and weather_covariates now compulsory
+    ts_id_pred = str(model_input["ts_id_pred"])
+    format = model_input["format"]
 
-    ## Horizon
-    n = int(
-        model_input["n"]) if model_input["n"] is not None else model.output_chunk_length
-    roll_size = int(
-        model_input["roll_size"]) if model_input["roll_size"] is not None else model.output_chunk_length
-
-    ## TODO: future and past covariates (load and transform to darts)
-    past_covariates_uri = model_input["past_covariates_uri"]
-    future_covariates_uri = model_input["future_covariates_uri"]
-
-    batch_size = int(model_input["batch_size"]
-                     ) if model_input["batch_size"] is not None else 1
-
-    if 'runs:/' in series_uri or 's3://mlflow-bucket/' in series_uri or series_uri.startswith('http://'):
-        print('\nDownloading remote file of recent time series history...')
-        series_uri = download_mlflow_file(client, series_uri)
-
-    if multiple:
-        predict_series_idx = [elem[0] for elem in ts_id_l].index(ts_id_pred)
-    else: 
-        predict_series_idx = 0
-
-    if "history" not in model_input:
-        history, id_l, ts_id_l_series = load_local_csv_as_darts_timeseries(
-            local_path=series_uri,
-            name='series',
-            time_col='Datetime',
-            last_date=None,
-            multiple=multiple,
-            resolution=model_input["resolution"],
-            format="long" )
-
-        
-        if multiple:
-             idx = [elem[0] for elem in ts_id_l_series].index(ts_id_pred)
-             history = [history[idx]]
-        else:
-            #TODO Fix multivariate
-            history = [history]
+    # URIs
+    series_uri = none_checker(model_input['series_uri'])
+    if series_uri is not None: 
+        series = series_uri
+    elif model_input["series"] is not None:
+        series = model_input["series"]
     else:
-            history = darts.TimeSeries.from_dataframe(
-                model_input["history"],
-                fill_missing_dates=True,
-                freq=None)
-            history = [history.astype(np.float32)]
+        raise MandatoryArgNotSet("series", [["series_uri", "None"]])
 
-    if none_checker(future_covariates_uri) is not None:
-        pass
-    #TODO
+    past_covariates_uri = none_checker(model_input["past_covariates_uri"])
+    if past_covariates_uri is not None: 
+        past_covariates = past_covariates_uri
+    else:
+        past_covariates = model_input["past_covariates"]
+
+    future_covariates_uri = none_checker(model_input["future_covariates_uri"])
+    if future_covariates_uri is not None: 
+        future_covariates = future_covariates_uri
+    else:
+        future_covariates = model_input["future_covariates"]
+        ## TODO Check what happends if all covs are None 
+
+    
+    ## Horizon
+    timesteps_ahead = model_input["timesteps_ahead"] if model_input["timesteps_ahead"] is not None else model.output_chunk_length
+    
+    ## roll size
+    roll_size = model_input["roll_size"] 
+
+    batch_size =model_input["batch_size"]
+
+    if type(series) == str and ('runs:/' in series or 's3://mlflow-bucket/' in series or series.startswith('http://')):
+        print('\nDownloading remote file of recent time series history...')
+        series = download_mlflow_file(client, series)
+
+    # If model was trained on multiple series, find index (idx_in_train_dataset) of series that the user wishes to apply inference on
+    if ts_id_l != [[]]:
+        ts_ids = [str(elem[0]) for elem in ts_id_l]
+        if ts_id_pred not in ts_ids:
+            raise TSIDNotFoundInferenceError(ts_id_pred, stored=True)
+        idx_in_train_dataset = ts_ids.index(ts_id_pred)
+    else: 
+        idx_in_train_dataset = 0
+
+    #Load series csv or df as darts timeseries
+    series, idx_in_infrence_dataset = load_csv_or_df_to_ts_inference(local_path_or_df=series,
+                                            name="series",
+                                            multiple_file_type=multiple_file_type,
+                                            resolution=model_input["resolution"],
+                                            format=format,
+                                            ts_id_pred=ts_id_pred)
+
+
+    #Do the same for covariates
+    if future_covariates is not None:
+        future_covariates, _ = load_csv_or_df_to_ts_inference(local_path_or_df=future_covariates,
+                                                           name="future covariates",
+                                                           multiple_file_type=True,
+                                                           resolution=model_input["resolution"],
+                                                           format=format,
+                                                           ts_id_pred=ts_id_pred,
+                                                           idx_in_infrence_dataset=idx_in_infrence_dataset)
+
     else:
         future_covariates = None
 
-    if none_checker(past_covariates_uri) is not None:
-        pass
+    if past_covariates is not None:
+        past_covariates, _ = load_csv_or_df_to_ts_inference(local_path_or_df=past_covariates,
+                                                           name="past covariates",
+                                                           multiple_file_type=True,
+                                                           resolution=model_input["resolution"],
+                                                           format=format,
+                                                           ts_id_pred=ts_id_pred,
+                                                           idx_in_infrence_dataset=idx_in_infrence_dataset)
+
     else:
         past_covariates = None
 
     if weather_covariates:
-        #TODO Fix that
-        covs_nans = get_weather_covariates(history[0].pd_dataframe().index[0], 
+        #TODO intergrate weather covariates to work with all kinds of datasets
+        covs_nans = get_weather_covariates(series[0].pd_dataframe().index[0], 
                                            pd.Timestamp(date.today()).ceil(freq='D') + pd.Timedelta("10D"), 
                                            weather_covariates,
                                            inference=True)
@@ -1298,66 +1383,70 @@ def parse_uri_prediction_input(client, model_input: dict, model, ts_id_l) -> dic
         future_covariates = [future_covariates]
 
     return {
-        "n": n,
-        "history": history,
+        "timesteps_ahead": timesteps_ahead,
+        "series": series,
         "roll_size": roll_size,
         "future_covariates": future_covariates,
         "past_covariates": past_covariates,
         "batch_size": batch_size,
-        "predict_series_idx": predict_series_idx,
-    }
+        "idx_in_train_dataset": idx_in_train_dataset,
+        }
 
-def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
-                            day_first: bool = True,
+def multiple_ts_file_to_dfs(series_csv: Union[str, pd.DataFrame] = "../../RDN/Load_Data/2009-2019-global-load.csv",
                             resolution: str = "15min",
                             value_name="Value",
                             format="long"):
     """
-    Reads the input multiple ts file, and returns a tuple containing a list of the time series it consists
-    of, along with their ids and timeseries ids. 
+    Reads the input multiple time series file or DataFrame, and returns a tuple containing 
+    a list of the time series it consists of, along with their ids and timeseries ids.
 
     Parameters
     ----------
-    series_csv
-        The file name of the csv to be read. It must be in the multiple ts form described in the documentation
-    day_first
-        Wether the day appears before the month in dates
-    resolution
-        The resolution of the dataset
-    value_name
-        The name of the value column of the returned dataframes
+    series_csv : str or pandas.DataFrame, optional
+        The file name of the CSV to be read, or a pandas DataFrame containing the data. 
+        If a string is provided, it must point to a valid CSV file in the multiple time series 
+        format described in the documentation. If a DataFrame is provided, it should already 
+        conform to the expected format.
+    resolution : str, optional
+        The resolution of the dataset (default is "15min").
+    value_name : str, optional
+        The name of the value column of the returned DataFrames (default is "Value").
+    format : str, optional
+        The format in which the data is returned (default is "long").
 
     Returns
     -------
     Tuple[List[List[pandas.DataFrame]], List[List[str]], List[List[str]]]
-        A tuple with the list of lists of dataframes to be returned, the ids 
-        of their components, and the timeseries ids. For example, if the function
-        reads a file with 2 time series (with ids ts_1 and ts_2), and each one 
-        consists of 3 components (with ids ts_1_1, ts_1_2, ts_1_3, ts_2_1, ts_2_2, ts_2_3),
-        then the function will return:
+        A tuple with the list of lists of DataFrames, the ids of their components, 
+        and the time series ids. For example, if the function reads a file or DataFrame 
+        with 2 time series (with ids ts_1 and ts_2), and each one consists of 3 components 
+        (with ids ts_1_1, ts_1_2, ts_1_3, ts_2_1, ts_2_2, ts_2_3), then the function will return:
+        
         (res, id_l, ts_id_l), where:
-        res = [[ts_1_comp_1, ts_1_comp_2, ts_1_comp_3], [ts_2_comp_1, ts_2_comp_2, ts_2_comp_3]]
-        id_l = [[ts_1_1, ts_1_2, ts_1_3], [ts_2_1, ts_2_2, ts_2_3]]
-        ts_id_l = [[ts_1, ts_1, ts_1], [ts_2, ts_2, ts_2]]
-        All of the above lists of lists have the same number of lists and each sublist the same
-        amount of elements as the sublist of any other list of lists in the corresponding location.
-        This is true because each sublist corresponds to a times eries, and each element of this
-        sublist corresponds to a component of this time series.
+        - res = [[ts_1_comp_1, ts_1_comp_2, ts_1_comp_3], [ts_2_comp_1, ts_2_comp_2, ts_2_comp_3]]
+        - id_l = [[ts_1_1, ts_1_2, ts_1_3], [ts_2_1, ts_2_2, ts_2_3]]
+        - ts_id_l = [[ts_1, ts_1, ts_1], [ts_2, ts_2, ts_2]]
+        
+        All of the above lists of lists have the same number of lists and each sublist 
+        contains the same number of elements across the corresponding location in the 
+        other lists. Each sublist corresponds to a time series, and each element within 
+        a sublist corresponds to a component of that time series.
     """
 
-    ts = pd.read_csv(series_csv,
+    if type(series_csv) == str:
+        ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,
                      index_col=0,
-                     parse_dates=(["Date"] if format=='short' else ["Datetime"]),
-                     dayfirst=day_first,
-                     engine='python',
-                     date_format='mixed')
-    
+                     engine='python')
+    else:
+        ts = series_csv
+        
     if format == "long":
         ts["Datetime"] = pd.to_datetime(ts["Datetime"])
     else:
         ts["Date"] = pd.to_datetime(ts["Date"])
+
 
     res = []
     id_l = []
@@ -1381,16 +1470,23 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                 curr_comp["Datetime"] = pd.to_datetime(curr_comp["Datetime"])
             curr_comp = curr_comp.set_index("Datetime")
             series = curr_comp[value_name].sort_index().dropna()
+
+            #Check if the length of a component is less than one
+            if len(series) <= 1:
+                raise ComponentTooShortError(len(series), ts_id, id)
+            
             if resolution!=None:
                 series = series.asfreq(resolution)
             elif first:
                 infered_resolution = to_standard_form(pd.to_timedelta(np.diff(series.index).min()))
                 series = series.asfreq(infered_resolution)
                 first = False
+                first_id = id
+                first_ts_id = ts_id
             else:
                 temp = to_standard_form(pd.to_timedelta(np.diff(series.index).min()))
                 if temp != infered_resolution:
-                    raise DifferentFrequenciesMultipleTS(temp, infered_resolution, id)
+                    raise DifferentFrequenciesMultipleTS(temp, id, ts_id, infered_resolution, first_id, first_ts_id)
                 else:
                     series = series.asfreq(temp)
                     infered_resolution = temp

@@ -48,14 +48,9 @@ def split_nans(covariates, past_covs, future_covs):
     if type(covariates) != list:
         covariates = [covariates]
 
-    print("TEST TEST TEST", covariates, len(covariates))
-
     for i, covariate in enumerate(covariates):
-        print(covariate)
         if covariate.pd_dataframe().isnull().sum().sum() > 0:
             covariate = extract_subseries(covariate, min_gap_size=1, mode='any')
-
-            print("TEST TEST TEST", covariate)
 
             print(f"Spliting train into {len(covariate)} consecutive series\n")
             logging.info(f"Spliting train into {len(covariate)} consecutive series\n")
@@ -171,6 +166,7 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale
                 for covariate_train, covariate_val, covariate_test, covariate in \
                 zip(covariates_train, covariates_val, covariates_test, covariates):
                     transformer = Scaler()
+                    print("COVTRAIN", covariate_train)
                     # TODO: future covariates are a priori known!
                     # i can fit on all dataset, but I won't do it as this function works for all covariates!
                     # this is a problem only if not a full year is contained in the training set

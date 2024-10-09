@@ -261,12 +261,13 @@ def remove_outliers(ts: pd.DataFrame,
 
     #Datetimes with NaN values are removed from the dataframe
     ts = ts.dropna()
-    #Removing all zero values if no negative values are present
-    if min(ts["Value"]) >= 0:
-        a = ts.loc[ts["Value"] <= 0]
-    else:
-        a = pd.DataFrame(columns=ts.columns)
-        a.index.name = ts.index.name
+
+    # #Removing all zero values if no negative values are present
+    # if min(ts["Value"]) >= 0:
+    #     a = ts.loc[ts["Value"] <= 0]
+    # else:
+    a = pd.DataFrame(columns=ts.columns)
+    a.index.name = ts.index.name
 
     #Calculating monthly mean and standard deviation and removing values
     #that are more than std_dev standard deviations away from the mean
@@ -672,7 +673,7 @@ def sum_wo_nans(arraylike):
     #function used to ingore nans in
     #case of summation, and if other
     #samples exist 
-    if np.isnan(arraylike).all():
+    if np.isnan(arraylike).any():
         return np.nan
     else:
         return np.sum(arraylike)
@@ -808,10 +809,6 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
     type=str,
     help="Whether to add time covariates to the timeseries."
 )
-@click.option("--day-first",
-    type=str,
-    default="true",
-    help="Whether the date has the day before the month")
 
 @click.option("--country",
     type=str,
@@ -948,7 +945,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
     type=str,
     help="Which file format to use. Only for multiple time series"
 )
-def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, 
+def etl(series_csv, series_uri, year_range, resolution, time_covs, 
         country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, 
         imputation_method, order, rmv_outliers, convert_to_local_tz, ts_used_id,
         infered_resolution_series, min_non_nan_interval, cut_date_val,
@@ -974,11 +971,11 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
     # If uri is given, covariates will be downloaded from there
     if past_covs_uri != None:
-        download_file_path = download_online_file(past_covs_uri, dst_filename="past_covs.csv")
+        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past_covs.csv")
         past_covs_csv = download_file_path
 
     if future_covs_uri != None:
-        download_file_path = download_online_file(future_covs_uri, dst_filename="future_covs.csv")
+        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future_covs.csv")
         future_covs_csv = download_file_path
 
     ## Process parameters from click and MLProject
@@ -994,7 +991,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     rmv_outliers = truth_checker(rmv_outliers)
     convert_to_local_tz = truth_checker(convert_to_local_tz)
     time_covs = truth_checker(time_covs)
-    day_first = truth_checker(day_first)
     multiple = truth_checker(multiple)   
     ts_used_id = none_checker(ts_used_id)
 
@@ -1004,17 +1000,17 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     #Read past / futute covariates
     if past_covs_csv != None:
         ts_list_past_covs, id_l_past_covs, ts_id_l_past_covs = \
-                multiple_ts_file_to_dfs(past_covs_csv, day_first, infered_resolution_past, format=format)
+                multiple_ts_file_to_dfs(past_covs_csv, infered_resolution_past, format=format)
     else:
         ts_list_past_covs, id_l_past_covs, ts_id_l_past_covs = [], [], []
     if future_covs_csv != None:
         ts_list_future_covs, id_l_future_covs, ts_id_l_future_covs = \
-                multiple_ts_file_to_dfs(future_covs_csv, day_first, infered_resolution_future, format=format)
+                multiple_ts_file_to_dfs(future_covs_csv, infered_resolution_future, format=format)
     else:
         ts_list_future_covs, id_l_future_covs, ts_id_l_future_covs = [], [], []
 
     if multiple:
-        ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, infered_resolution_series, format=format)
+        ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, infered_resolution_series, format=format)
         # selecting only ts_used_id from multiple ts if the user wants to
         if ts_used_id != None:
             try:
@@ -1042,10 +1038,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
         ts_list = [[pd.read_csv(series_csv,
                          delimiter=',',
                          header=0,
-                         index_col=0,
-                         parse_dates=True,
-                         dayfirst=day_first,
-                         infer_datetime_format=True)]]
+                         index_col=0)]]
         
         ts_list[0][0].index = pd.to_datetime(ts_list[0][0].index)
         id_l, ts_id_l = [["Timeseries"]], [["Timeseries"]] 
@@ -1072,7 +1065,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
     #TODO Chenck if series number == covariate series number
 
-    with mlflow.start_run(run_name='etl', nested=True) as mlrun:
+    with mlflow.start_run(tags={"mlflow.runName": "etl"}, nested=True) as mlrun:
         #these are the final dataframe lists to be returned from etl
         res_ = []
         res_past = []
@@ -1214,8 +1207,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
                     
                     else:
-                        print("\nSkipping the creation of time covariates")
-                        logging.info("\nSkipping the creation of time covariates")
+                        print("\nSkipping the creation of time covariates...")
+                        logging.info("\nSkipping the creation of time covariates...")
                         ts_list_covariates, id_l_covariates, ts_id_l_covariates = None, None, None
                 if rmv_outliers:
                     print("\nStoring removed values from outlier detection as csv locally...")

@@ -1,6 +1,6 @@
 import pretty_errors
 from exceptions import EvalSeriesNotFound
-from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
+from utils import none_checker, truth_checker, download_online_file, load_local_csv_or_df_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
 from darts.utils.missing_values import extract_subseries
 from functools import reduce
 from darts.metrics import mape as mape_darts
@@ -222,12 +222,12 @@ def backtester(model,
         "nrmse_min_max": rmse_darts(
             test_series,
             backtest_series) / (
-            test_series.pd_dataframe().max()[0]- 
-            test_series.pd_dataframe().min()[0]),
+            test_series.pd_dataframe().max().iloc[0]- 
+            test_series.pd_dataframe().min().iloc[0]),
         "nrmse_mean": rmse_darts(
             test_series,
             backtest_series) / (
-            test_series.pd_dataframe().mean()[0])
+            test_series.pd_dataframe().mean().iloc[0])
     }
     if min(test_series.min(axis=1).values()) > 0 and min(backtest_series.min(axis=1).values()) > 0:
         metrics["mape"] = mape_darts(
@@ -448,8 +448,8 @@ def predict(x: darts.TimeSeries,
     past_covs_list = []
     future_covs_list = []
     for sample in x:
-        index = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length)]
-        index_future = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
+        index = [pd.to_datetime(sample[-1], unit='s').tz_localize(None) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length)]
+        index_future = [pd.to_datetime(sample[-1], unit='s').tz_localize(None) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
         sample = np.array(sample, dtype=np.float32)
         data = sample[:shap_input_length]
         ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Value"]))
@@ -555,31 +555,40 @@ def call_shap(n_past_covs: int,
     """
 
     shap.initjs()
-    explainer = shap.KernelExplainer(lambda x : predict(x, n_past_covs, n_future_covs, shap_input_length, shap_output_length, model, scaler_list, scale), background, num_samples=num_samples)
+    explainer = shap.KernelExplainer(lambda x : predict(x, 
+                                                        n_past_covs, 
+                                                        n_future_covs, 
+                                                        shap_input_length, 
+                                                        shap_output_length, 
+                                                        model, 
+                                                        scaler_list, 
+                                                        scale), background, num_samples=num_samples)
+
     shap_values = explainer.shap_values(data, nsamples="auto", normalize=False)
     plt.close()
     interprtmpdir = tempfile.mkdtemp()
     sample = random.randint(0, len(data) - 1)
     for out in [0, shap_output_length//2, shap_output_length-1]:
-        shap.summary_plot(shap_values[out], data, show=False)
+        shap.summary_plot(shap_values[:, : , out], data, show=False)
         plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
         plt.close()
         os.remove(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
-        shap.summary_plot(shap_values[out], data, show=False)
+        shap.summary_plot(shap_values[:, :, out], data, show=False)
         plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
         plt.close()
-        shap.summary_plot(shap_values[out], data, plot_type='bar', show=False)
+        shap.summary_plot(shap_values[:, :, out], data, plot_type='bar', show=False)
         plt.savefig(f"{interprtmpdir}/summary_plot_bar_graph_out_{out}.png")
         plt.close()
-        bar_plot_store_json(shap_values[out], data, f"{interprtmpdir}/summary_plot_bar_data_out_{out}.json")
-        shap.force_plot(explainer.expected_value[out],shap_values[out][sample,:], data.iloc[sample,:],  matplotlib = True, show = False)
-        plt.savefig(f"{interprtmpdir}/force_plot_of_{sample}_sample_starting_at_{datetime.datetime.utcfromtimestamp(data.iloc[sample][-1])}_{out}_output.png")
+        bar_plot_store_json(shap_values[:, :, out], data, f"{interprtmpdir}/summary_plot_bar_data_out_{out}.json")
+        shap.force_plot(explainer.expected_value[out],shap_values[:, :, out][sample,:], data.iloc[sample,:],  matplotlib = True, show = False)
+        str_ = f"{interprtmpdir}/force_plot_of_{sample}_sample_starting_at_{str(pd.to_datetime(data.iloc[sample].iloc[-1], unit='s').tz_localize(None)).replace(":", "_")}_{out}_output.png"
+        plt.savefig(str_)
         plt.close()
 
-        print("\nUploading SHAP interpretation results to MLflow server...")
-        logging.info("\nUploading SHAP interpretation results to MLflow server...")
+    print("\nUploading SHAP interpretation results to MLflow server...")
+    logging.info("\nUploading SHAP interpretation results to MLflow server...")
 
-        mlflow.log_artifacts(interprtmpdir, "interpretation")
+    mlflow.log_artifacts(interprtmpdir, "interpretation")
 
 
 
@@ -676,11 +685,6 @@ def call_shap(n_past_covs: int,
               default='None',
               help="Val set start date [str: 'YYYYMMDD']",
               )
-@click.option("--day-first",
-    type=str,
-    default="true",
-    help="Whether the date has the day before the month")
-
 @click.option("--resolution",
     default="None",
     type=str,
@@ -720,7 +724,7 @@ def call_shap(n_past_covs: int,
 )
 def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, 
              forecast_horizon, stride, retrain, shap_input_length, shap_output_length, size, analyze_with_shap, multiple, eval_series, 
-             cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase, num_samples, pv_ensemble, format):
+             cut_date_val, resolution, eval_method, evaluate_all_ts, m_mase, num_samples, pv_ensemble, format):
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
     evaltmpdir = tempfile.mkdtemp()
@@ -739,6 +743,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     future_covariates_uri = none_checker(future_covs_uri)
     past_covariates_uri = none_checker(past_covs_uri)
     evaluate_all_ts = truth_checker(evaluate_all_ts)
+    shap_input_length = none_checker(shap_input_length)
     try:
         size = int(size)
     except:
@@ -754,11 +759,10 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     ## load series from MLflow
     series_path = download_online_file(
         client, series_uri, "series.csv") if mode == 'remote' else series_uri
-    series, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
-        local_path=series_path,
+    series, id_l, ts_id_l = load_local_csv_or_df_as_darts_timeseries(
+        local_path_or_df=series_path,
         last_date=test_end_date,
         multiple=multiple,
-        day_first=day_first,
         resolution=resolution,
         format=format)
     
@@ -769,7 +773,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     #                                     f'series_transformed_start.html'))
     
     if pv_ensemble:
-        print("\Subtracting pv forecast from series to be fed to model")
+        print("\nSubtracting pv forecast from series to be fed to model")
         logging.info("\nSubtracting pv forecast from series to be fed to model")
 
         for i in range(len(series_transformed)):
@@ -797,11 +801,10 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     if future_covariates_uri is not None:
         future_covs_path = download_online_file(
             client, future_covariates_uri, "future_covariates.csv") if mode == 'remote' else future_covariates_uri
-        future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
-            local_path=future_covs_path,
+        future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_or_df_as_darts_timeseries(
+            local_path_or_df=future_covs_path,
             last_date=test_end_date,
             multiple=True,
-            day_first=day_first,
             resolution=resolution,
             format=format)
     else:
@@ -810,11 +813,10 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     if past_covariates_uri is not None:
         past_covs_path = download_online_file(
             client, past_covariates_uri, "past_covariates.csv") if mode == 'remote' else past_covariates_uri
-        past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
-            local_path=past_covs_path,
+        past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_or_df_as_darts_timeseries(
+            local_path_or_df=past_covs_path,
             last_date=test_end_date,
             multiple=True,
-            day_first=day_first,
             resolution=resolution,
             format=format)
     else:
@@ -874,7 +876,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     if eval_i == -1 and evaluate_all_ts==False:
         raise EvalSeriesNotFound(eval_series)
     # Evaluate Model
-    with mlflow.start_run(run_name='eval', nested=True) as mlrun:
+    with mlflow.start_run(tags={"mlflow.runName": "eval"}, nested=True) as mlrun:
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
         if evaluate_all_ts and multiple:
@@ -903,7 +905,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             pv_ensemble=pv_ensemble,
                                             resolution=resolution,
                                             id_l=None if not multiple else id_l[eval_i])
-                eval_results[eval_i] = list(map(str, ts_id_l[eval_i][:1])) + [evaluation_results["metrics"]["smape"],
+                eval_results[eval_i] = [str(ts_id_l[eval_i][0])] + [evaluation_results["metrics"]["smape"],
                                                                               evaluation_results["metrics"]["mase"],
                                                                               evaluation_results["metrics"]["mae"],
                                                                               evaluation_results["metrics"]["rmse"],
@@ -941,6 +943,9 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             resolution=resolution,
                                             id_l=None if not multiple else id_l[eval_i])
             if analyze_with_shap:
+
+                if shap_input_length == None:
+                    raise ValueError(f"The model that was chosen does not support parameter input_chunk_length, and therefore needs shap_input_length to be defined explicitelly")
                 data, background = build_shap_dataset(size=size,
                                                 train=series_split['train'],
                                                 test=series_split['test']\
