@@ -3,6 +3,7 @@ import uvicorn
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
+import json
 from pydantic import BaseModel
 from typing import Optional, Dict
 import pandas as pd
@@ -677,10 +678,10 @@ class ForecastRequest(BaseModel):
     weather_covariates: Optional[bool] = False
     resolution: Optional[str] = "1h"
     ts_id_pred: Optional[str] = "None"
-    series: Optional[str] = None
-    past_covariates: Optional[str] = None
+    series: Optional[Dict] = None
+    past_covariates: Optional[Dict] = None
     past_covariates_uri: Optional[str] = None
-    future_covariates: Optional[str] = None
+    future_covariates: Optional[Dict] = None
     future_covariates_uri: Optional[str] = None
     roll_size: Optional[int] = 24
     batch_size: Optional[int] = 16
@@ -718,22 +719,39 @@ async def get_result(request: ForecastRequest) -> str:
         print("\nLoading pyfunc model...")
         loaded_model = mlflow.pyfunc.load_model(request.pyfunc_model_folder)
 
-        request.series = pd.read_json(request.series)
-        # if not request.multiple_file_type:
-        #     request.series = request.series.rename_axis("Datetime")
+        request.series = pd.DataFrame.from_dict(request.series)
+
+        if not request.multiple_file_type:
+            request.series.index = pd.to_datetime(request.series.index)
+        elif request.format == "long":
+            request.series["Datetime"] = pd.to_datetime(request.series["Datetime"])
+        else:
+            request.series["Date"] = pd.to_datetime(request.series["Date"])
 
         if request.past_covariates != None:
-            request.past_covariates = pd.read_json(request.past_covariates)
+            request.past_covariates = pd.DataFrame.from_dict(request.past_covariates)
+
+            if request.format == "long":
+                request.past_covariates["Datetime"] = pd.to_datetime(request.past_covariates["Datetime"])
+            else:
+                request.past_covariates["Date"] = pd.to_datetime(request.past_covariates["Date"])
+
 
         if request.future_covariates != None:
-            request.future_covariates = pd.read_json(request.future_covariates)
+            request.future_covariates = pd.DataFrame.from_dict(request.future_covariates)
+
+            if request.format == "long":
+                request.future_covariates["Datetime"] = pd.to_datetime(request.future_covariates["Datetime"])
+            else:
+                request.future_covariates["Date"] = pd.to_datetime(request.future_covariates["Date"])
+
 
         # Predict on a Pandas DataFrame.
         print("\nPyfunc model prediction...")
 
         predictions = loaded_model.predict(request.__dict__)
         predictions.index = predictions.index.strftime('%Y-%m-%dT%H:%M:%S')
-        return JSONResponse(content=predictions.to_dict(orient="split", index=True))
+        return JSONResponse(content=json.loads(predictions.to_json(orient='columns', index=True)))
 
     except Exception as e:
         print(f"There was an error in inference of series: {e}")
