@@ -1,13 +1,23 @@
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/epu-ntua/DeepTSF/blob/dev/LICENSE.txt)
-# DeepTSF
+<p align="center">
+  <a href="https://doi.org/10.1016/j.softx.2024.101758">
+    <img alt="DeepTSF" src="https://github.com/epu-ntua/DeepTSF/blob/9071bad248bd13256d703e565fb49dc88ba8d77a/docs/version1all.png" width="150" />
+  </a>
+</p>
+<p align="center">
+    ✨ DeepTSF is designed to enable codeless machine learning operations for time series forecasting ✨
+</p>
 
-This is the repository for DeepTSF timeseries forecasting tool. The whitepaper for this project can be found in [1]. For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/I-NERGY/DeepTSF/wiki/DeepTSF-documentation). 
+<p align="center">
+    🙌 Refer to <b><a href="https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation">https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation</a></b> for the documentation 📖
+</p>
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/epu-ntua/DeepTSF/blob/dev/LICENSE.txt)
 
 ## Installation
 
 To set up DeepTSF on your local system, you need clone the main branch of this repository:
 
-```git clone https://github.com/I-NERGY/DeepTSF.git```
+```git clone https://github.com/epu-ntua/DeepTSF.git```
 
 Alternatively you can use the dedicated Github release instead of cloning the main branch.
 
@@ -69,7 +79,7 @@ pipeline parameterization and functionalities such as hyperparameter tuning.
 
 To run DeepTSF on your system you first have to install the mlflow tracking and minio server.
 
-```git clone https://github.com/I-NERGY/mlflow-tracking-server.git```
+```git clone https://github.com/epu-ntua/mlflow-tracking-server.git```
 
 ```cd mlflow-server```
 
@@ -103,7 +113,7 @@ Please do not omit this step as this environment variable will not get inherited
 
 ```export MLFLOW_TRACKING_URI=https://localhost:5000```
 
-For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/I-NERGY/DeepTSF/wiki/DeepTSF-documentation). 
+For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation). 
 
 ## References
 [1] S. Pelekis et al., “DeepTSF: Codeless machine learning operations for time series forecasting,” SoftwareX, vol. 27, p. 101758, Sep. 2024, doi: [10.1016/J.SOFTX.2024.101758](https://doi.org/10.1016/j.softx.2024.101758). <br>
