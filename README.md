@@ -11,7 +11,7 @@
     🙌 Refer to <b><a href="https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation">https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation</a></b> for the documentation 📖
 </p>
 
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://github.com/epu-ntua/DeepTSF/blob//License.txt)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/epu-ntua/DeepTSF/blob/dev/LICENSE.txt)
 
 ## Installation
 
