@@ -347,6 +347,14 @@ def load_model(client, model_root_dir, mode="remote"):
         model = load_local_pkl_as_object(model_uri)
     return model
 
+def get_run_tag(run_id, tag_key):
+    # Get the run details using the run_id
+    run = mlflow.get_run(run_id)
+    
+    # Extract the tag from the run's data
+    tag_value = run.data.tags.get(tag_key, None)
+    
+    return tag_value
 
 def load_scaler(scaler_uri=None, mode="remote"):
 

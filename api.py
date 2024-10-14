@@ -15,7 +15,7 @@ from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils import load_artifacts, to_seconds, change_form, make_time_list, truth_checker
+from utils import load_artifacts, to_seconds, change_form, make_time_list, truth_checker, get_run_tag
 import psutil, nvsmi
 import os
 from dotenv import load_dotenv
@@ -671,7 +671,7 @@ async def get_metric_list(run_id: str):
     return metrix_response
 
 class ForecastRequest(BaseModel):
-    pyfunc_model_folder: str
+    run_id: str
     timesteps_ahead: int
     series_uri: Optional[str] = None
     multiple_file_type: Optional[bool] = False
@@ -717,7 +717,8 @@ async def get_result(request: ForecastRequest) -> str:
 
         # Load model as a PyFuncModel.
         print("\nLoading pyfunc model...")
-        loaded_model = mlflow.pyfunc.load_model(request.pyfunc_model_folder)
+        pyfunc_model_folder = get_run_tag(request.run_id, "pyfunc_model_folder")
+        loaded_model = mlflow.pyfunc.load_model(pyfunc_model_folder)
 
         request.series = pd.DataFrame.from_dict(request.series)
 
