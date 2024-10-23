@@ -1,0 +1,5 @@
+name: deeptsf_backend
+version: 1.0.0
+apiVersion: v2
+description: deeptsf backend
+appVersion: 1.0.0

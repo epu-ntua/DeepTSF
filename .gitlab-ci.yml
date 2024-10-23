@@ -1,0 +1,44 @@
+stages:
+  - build-app
+  - deploy-dev
+
+# Build the Docker image for the React app and push it to Harbor
+build-app:
+  stage: build-app
+  image: harbor.deployai.eu/cvm-public/ci-tools
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+  script:
+    - echo "Building Docker image for deeptsf backend..."
+    - docker build -t ${HARBOR_HOST}/iccs/deeptsf_backend:latest deeptsf_backend
+    - echo "Logging into Harbor using Robot Account..."
+    - echo ${HARBOR_RW_PASSWORD} | docker login ${HARBOR_HOST} -u ${HARBOR_RW_USER} --password-stdin
+    - echo "Pushing Docker image to Harbor..."
+    - docker push ${HARBOR_HOST}/iccs/deeptsf_backend:latest
+  only:
+    - main
+  tags:
+    - shared
+
+# Deploy the app using Helm and Rancher
+deploy-dev:
+  stage: deploy-dev
+  image: harbor.deployai.eu/cvm-public/ci-tools
+  dependencies:
+    - build-app
+  before_script:
+    - echo "Secure the KUBECONFIG file"
+    - chmod 600 ${KUBECONFIG}
+  script:
+    - echo "Checking Kubernetes cluster connectivity..."
+    - kubectl get nodes
+    - echo "Deploying to Rancher using Helm..."
+    - helm upgrade --install deeptsf_backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_RW_PASSWORD} --set registry.username=${HARBOR_RW_USER} --set registry.registry=${HARBOR_HOST} --set commitHash=${CI_COMMIT_SHA} 
+  only:
+    - main
+  tags:
+    - shared
+  environment:
+    name: dev

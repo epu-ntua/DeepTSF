@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Release.Name }}-{{ .Values.app.service.name }}"
+  labels:
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.app.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.app.service.name }}
+      release: {{ .Release.Name }} 
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.app.service.name }}
+        release: {{ .Release.Name }}
+    spec:
+      imagePullSecrets: 
+      - name: {{ .Release.Name }}-image-pull-secret
+      containers:
+      - name: deeptsf_backend
+        image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
+        imagePullPolicy: Always
+        resources:
+          limits:
+            memory: {{ .Values.app.memory_limit | quote }}
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-{{ .Values.app.service.name }}-cm
+        ports:
+        - containerPort: 80

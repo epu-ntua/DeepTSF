@@ -1,0 +1,17 @@
+app:
+  host: deeptsf-backend.dev.deployai.eu
+  service:
+    name: deeptsf_backend
+  image:
+    repository: harbor.deployai.eu/iccs/deeptsf_backend
+    tag: latest
+  # env:
+  #   APP_BACKEND_URL: "https://deeptsf.dev.deployai.eu/"
+  replicas: 1
+  memory_limit: 4Gi
+
+ingress:
+  enabled: true
+  tlsSecretName: deeptsf-tls
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"

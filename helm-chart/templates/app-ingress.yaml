@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-{{ .Values.app.service.name }}-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+  labels:
+    release: {{ .Release.Name }}
+
+spec:
+  tls:
+    - hosts:
+        - {{ .Values.app.host }}
+      secretName: "{{ .Release.Name }}-tls"
+  rules:
+    - host: {{ .Values.app.host }}
+      https:
+        paths:
+          - backend:
+              service:
+                name: "{{ .Release.Name }}-{{ .Values.app.service.name }}"
+                port:
+                  number: 80
+            path: /
+            pathType: Prefix
