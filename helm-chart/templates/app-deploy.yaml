@@ -28,5 +28,16 @@ spec:
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-{{ .Values.app.service.name }}-cm
+        env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-secret
+              key: access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-secret
+              key: secret-access-key
         ports:
         - containerPort: 80
