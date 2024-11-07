@@ -1,9 +1,9 @@
 app:
   host: deeptsf-backend.dev.deployai.eu
   service:
-    name: deeptsf_backend
+    name: deeptsf-backend
   image:
-    repository: ${HARBOR_HOST}/iccs/deeptsf_backend
+    repository: ${HARBOR_HOST}/iccs/deeptsf-backend
     tag: latest
   env:
     APP_BACKEND_URL: "deeptsf-backend.dev.deployai.eu"
