@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: "{{ .Release.Name }}-{{ .Values.app.service.name }}"
+  name: {{ include "deeptsf-backend.fullname" . }}
   labels:
     release: {{ .Release.Name }}
 spec:
@@ -19,14 +19,17 @@ spec:
       imagePullSecrets: 
       - name: {{ .Release.Name }}-image-pull-secret
       containers:
-      - name: deeptsf-backend
+      - name: {{ include "deeptsf-backend.name" . | replace "_" "-" }}
         image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
         imagePullPolicy: Always
         resources:
           limits:
             memory: {{ .Values.app.memory_limit | quote }}
+        env:
+          - name: MINIO_SSL
+            value: {{ .Values.minio.ssl | quote }}
         envFrom:
         - configMapRef:
-            name: {{ .Release.Name }}-{{ .Values.app.service.name }}-cm
+            name: {{ include "deeptsf-backend.fullname" . }}-cm
         ports:
         - containerPort: 80

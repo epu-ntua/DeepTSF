@@ -15,6 +15,8 @@ RUN wget \
 
 RUN conda --version
 
+ENV MINIO_SSL false
+
 WORKDIR /app 
 
 COPY ./conda.yaml ./conda.yaml

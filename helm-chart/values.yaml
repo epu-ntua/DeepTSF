@@ -10,6 +10,9 @@ app:
   replicas: 1
   memory_limit: 4Gi
 
+minio:
+  ssl: false
+
 ingress:
   enabled: true
   tlsSecretName: deeptsf-backend-tls
