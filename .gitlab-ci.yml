@@ -20,9 +20,7 @@ build-app:
     - echo "Pushing Docker image to Harbor..."
     - docker push ${HARBOR_HOST}/iccs/deeptsf_backend:latest
   only:
-    - main
-    - develop
-    - merge_requests
+    - master
   tags:
     - shared
 
@@ -41,9 +39,7 @@ deploy-dev:
     - echo "Deploying to Rancher using Helm..."
     - helm upgrade --install deeptsf_backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set commitHash=${CI_COMMIT_SHA}
   only:
-    - main
-    - develop
-    - merge_requests
+    - master
   tags:
     - shared
   environment:
