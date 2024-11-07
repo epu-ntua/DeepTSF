@@ -1,14 +1,7 @@
-{{/*
-Return the fully qualified name of the resource
-*/}}
-{{- define "deeptsf-backend.fullname" -}}
-{{- printf "%s-%s" .Release.Name "deeptsf-backend" | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "deeptsf-backend.fullname" . }}
+  name: "{{ .Release.Name }}-{{ .Values.app.service.name }}"
   labels:
     release: {{ .Release.Name }}
 spec:
@@ -26,17 +19,14 @@ spec:
       imagePullSecrets: 
       - name: {{ .Release.Name }}-image-pull-secret
       containers:
-      - name: {{ include "deeptsf-backend.name" . | replace "_" "-" }}
+      - name: deeptsf-backend
         image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
         imagePullPolicy: Always
         resources:
           limits:
             memory: {{ .Values.app.memory_limit | quote }}
-        env:
-          - name: MINIO_SSL
-            value: {{ .Values.minio.ssl | quote }}
         envFrom:
         - configMapRef:
-            name: {{ include "deeptsf-backend.fullname" . }}-cm
+            name: {{ .Release.Name }}-{{ .Values.app.service.name }}-cm
         ports:
         - containerPort: 80
