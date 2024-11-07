@@ -1,4 +1,4 @@
-name: deeptsf_backend
+name: deeptsf-backend
 version: 1.0.0
 apiVersion: v2
 description: "deeptsf-backend"
