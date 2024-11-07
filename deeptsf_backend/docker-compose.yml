@@ -1,26 +1,17 @@
 version: '3.3'
-# to run this you need to create a .env file with the contents of .env_keycloak and fill the missing variables.
 services:
-
   backend:
     container_name: DeepTSF-backend
     hostname: DeepTSF-backend
-    #image: pelekhs/load-forecasting-pipeline:0.1
-    # build:
-    #   context: .
-    #   dockerfile: ./Dockerfile_keycloak
-    # restart: always
-    # ports:
-    #  - '8081:8081'
+    build:
+      context: .
+      # dockerfile: ./Dockerfile_keycloak
+    restart: always
     expose:
       - 8081
+    ports:
+      - "8081:8081"
     stdin_open: true
-    # deploy: # use this configuration for GPU usage (if GPU available)
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities: [gpu]
     env_file:
       - .env
     networks:

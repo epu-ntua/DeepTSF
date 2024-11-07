@@ -10,6 +10,8 @@ build-app:
     - docker:dind
   variables:
     DOCKER_DRIVER: overlay2
+  before_script:
+    - docker info
   script:
     - echo "Building Docker image for deeptsf backend..."
     - docker build -t ${HARBOR_HOST}/iccs/deeptsf_backend:latest deeptsf_backend
