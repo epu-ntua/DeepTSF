@@ -12,8 +12,8 @@ services:
     ports:
       - "8081:8081"
     stdin_open: true
-    env_file:
-      - .env
+    # env_file:
+    #   - .env
     networks:
        - inergy_network
 
