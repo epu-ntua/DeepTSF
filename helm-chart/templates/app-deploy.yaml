@@ -19,7 +19,7 @@ spec:
       imagePullSecrets: 
       - name: {{ .Release.Name }}-image-pull-secret
       containers:
-      - name: deeptsf_backend
+      - name: deeptsf-backend
         image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
         imagePullPolicy: Always
         resources:
