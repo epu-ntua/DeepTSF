@@ -14,11 +14,11 @@ build-app:
     - docker info
   script:
     - echo "Building Docker image for deeptsf backend..."
-    - docker build -t ${HARBOR_HOST}/iccs/deeptsf_backend:latest deeptsf_backend
+    - docker build -t ${HARBOR_HOST}/iccs/deeptsf-backend:latest deeptsf_backend
     - echo "Logging into Harbor using Robot Account..."
     - echo ${HARBOR_ROBOT_PASSWORD} | docker login ${HARBOR_HOST} -u ${HARBOR_ROBOT_USER} --password-stdin
     - echo "Pushing Docker image to Harbor..."
-    - docker push ${HARBOR_HOST}/iccs/deeptsf_backend:latest
+    - docker push ${HARBOR_HOST}/iccs/deeptsf-backend:latest
   only:
     - master
   tags:
@@ -37,7 +37,7 @@ deploy-dev:
     - echo "Checking Kubernetes cluster connectivity..."
     - kubectl get nodes
     - echo "Deploying to Rancher using Helm..."
-    - helm upgrade --install deeptsf_backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set commitHash=${CI_COMMIT_SHA}
+    - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set commitHash=${CI_COMMIT_SHA}
   only:
     - master
   tags:
