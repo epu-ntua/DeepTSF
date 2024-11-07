@@ -1,3 +1,10 @@
+{{/*
+Return the fully qualified name of the resource
+*/}}
+{{- define "deeptsf-backend.fullname" -}}
+{{- printf "%s-%s" .Release.Name "deeptsf-backend" | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
