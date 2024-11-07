@@ -18,26 +18,6 @@ spec:
     spec:
       imagePullSecrets: 
       - name: {{ .Release.Name }}-image-pull-secret
-      initContainers:
-      - name: minio-init
-        image: minio/minio:latest
-        command: ["sh", "-c", "mc alias set myminio $MINIO_CLIENT_URL $AWS_ACCESS_KEY_ID $AWS_SECRET_ACCESS_KEY && mc mb myminio/mybucket"]
-        env:
-        - name: MINIO_CLIENT_URL
-          valueFrom:
-            secretKeyRef:
-              name: minio-secret
-              key: client-url
-        - name: AWS_ACCESS_KEY_ID
-          valueFrom:
-            secretKeyRef:
-              name: aws-secret
-              key: access-key-id
-        - name: AWS_SECRET_ACCESS_KEY
-          valueFrom:
-            secretKeyRef:
-              name: aws-secret
-              key: secret-access-key
       containers:
       - name: deeptsf-backend
         image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
