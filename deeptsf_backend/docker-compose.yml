@@ -6,10 +6,10 @@ services:
     container_name: DeepTSF-backend
     hostname: DeepTSF-backend
     #image: pelekhs/load-forecasting-pipeline:0.1
-    build:
-      context: .
-      dockerfile: ./Dockerfile_keycloak
-    restart: always
+    # build:
+    #   context: .
+    #   dockerfile: ./Dockerfile_keycloak
+    # restart: always
     # ports:
     #  - '8081:8081'
     expose:
@@ -24,8 +24,8 @@ services:
     env_file:
       - .env
     networks:
-       - keycloak_net
+       - inergy_network
 
 networks:
-  keycloak_net:
+  inergy_network:
     external: true
