@@ -21,6 +21,8 @@ build-app:
     - docker push ${HARBOR_HOST}/iccs/deeptsf_backend:latest
   only:
     - main
+    - develop
+    - merge_requests
   tags:
     - shared
 
@@ -40,6 +42,8 @@ deploy-dev:
     - helm upgrade --install deeptsf_backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_RW_PASSWORD} --set registry.username=${HARBOR_RW_USER} --set registry.registry=${HARBOR_HOST} --set commitHash=${CI_COMMIT_SHA}
   only:
     - main
+    - develop
+    - merge_requests
   tags:
     - shared
   environment:
