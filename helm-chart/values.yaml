@@ -6,7 +6,7 @@ app:
     repository: ${HARBOR_HOST}/iccs/deeptsf_backend
     tag: latest
   env:
-    APP_BACKEND_URL: ""
+    APP_BACKEND_URL: "deeptsf-backend.dev.deployai.eu"
   replicas: 1
   memory_limit: 4Gi
 
