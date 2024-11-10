@@ -25,6 +25,24 @@ services:
       - .env
     networks:
        - keycloak_net
+  
+  worker:
+    build:
+      dockerfile: ./celery_DeepTSF/Dockerfile
+      context: .
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    # volumes:
+    #   - ./shared:/shared:ro
+    networks:
+       - keycloak_net
+
+  redis:
+    image: redis:7-alpine
+    networks:
+       - keycloak_net
 
   dagster:
     container_name: DeepTSF--dagster-orchestrator

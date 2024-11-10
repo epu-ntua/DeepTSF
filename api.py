@@ -1,8 +1,12 @@
 from enum import Enum
 import uvicorn
 import httpx
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect
+import asyncio
 from fastapi.responses import JSONResponse
+from celery import Celery
+from celery_DeepTSF.tasks import upload_and_validate_csv
+from celery.result import AsyncResult
 import json
 from pydantic import BaseModel
 from typing import Optional, Dict
@@ -21,6 +25,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import APIRouter
 from app.auth import admin_validator, scientist_validator, engineer_validator, common_validator, oauth2_scheme
+from app.auth_wbsockets import websocket_scientist_validator
 from app.config import settings
 import pymongo
 from pymongo import MongoClient
@@ -48,9 +53,7 @@ AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
 MINIO_SSL = truth_checker(os.environ.get("MINIO_SSL"))
 client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
-
-# allows automated type check with pydantic
-# class ModelName(str, Enum):
+CELERY_BROKER_URL= os.environ.get("CELERY_BROKER_URL")
 
 tags_metadata = [
     {"name": "MLflow Info", "description": "REST APIs for retrieving elements from MLflow"},
@@ -118,6 +121,8 @@ admin_router = APIRouter(
 scientist_router = APIRouter(
     dependencies=[Depends(scientist_validator)]
 )
+
+
 engineer_router = APIRouter(
     dependencies=[Depends(engineer_validator)]
 )
@@ -130,6 +135,11 @@ if os.getenv("USE_KEYCLOAK", 'True') == 'False':
     scientist_router.dependencies = []
     engineer_router.dependencies = []
     common_router.dependencies = []
+    scientist_router_websockets = APIRouter()
+else:
+    scientist_router_websockets = APIRouter(
+        dependencies=[Depends(websocket_scientist_validator)]
+)
 
 # implement this method for login functionality
 # @app.post('/token')
@@ -285,7 +295,6 @@ async def get_model_names(resolution: str, multiple: bool):
 async def get_metric_names():
     return metrics
 
-
 def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='long'):
 
     fileExtension = fname.split(".")[-1].lower() == "csv"
@@ -344,6 +353,100 @@ async def create_upload_csv_file(file: UploadFile = File(...),
             "ts_used_id": None,
             "evaluate_all_ts": True if multiple else None
             }
+
+@scientist_router.post('/upload/uploadCSVfile_celery', tags=['Experimentation Pipeline'])
+async def create_upload_csv_file(file: UploadFile = File(...), 
+                                 multiple: bool = Form(default=False), format: str = Form(default=False)):
+
+    # Store uploaded dataset to backend
+    print("Uploading file...")
+    try:
+        # write locally
+        local_dir = tempfile.mkdtemp()
+        contents = await file.read()
+    except Exception:
+        raise HTTPException(status_code=415, detail="There was an error uploading the file")
+        #return {"message": "There was an error uploading the file"}
+    finally:
+        await file.close()
+
+    # Enqueue the Celery task
+    task = upload_and_validate_csv.delay(contents, file.filename, multiple, format)
+
+    # Return task ID to the client
+    return {"task_id": task.id, "status": "Task submitted"}
+
+# @app.get('/task-status/{task_id}')
+# def get_task_status(task_id: str):
+#     print(task_id)
+#     task_result = AsyncResult(task_id)
+#     print(task_result)
+#     if task_result.state == 'PENDING':
+#         return {"status": "Task is pending"}
+#     elif task_result.state == 'PROGRESS':
+#         # If the task is in progress, retrieve progress info from task meta
+#         progress = task_result.info or {}
+#         return {
+#             "status": "Task is in progress",
+#             "current": progress.get("current", 0),
+#             "total": progress.get("total", 100),
+#             "message": progress.get("status", "Processing")
+#         }
+#     elif task_result.state == 'SUCCESS':
+#         return {"status": "Task completed", "result": task_result.result}
+#     elif task_result.state == 'FAILURE':
+#         return {"status": "Task failed", "error": str(task_result.info)}
+#     else:
+#         return {"status": "Unknown status"}
+
+@scientist_router_websockets.websocket("/ws/task-status/{task_id}")
+async def websocket_task_status(websocket: WebSocket, task_id: str):
+    await websocket.accept()
+    try:
+        while True:
+            # Retrieve task state and progress
+            task_result = AsyncResult(task_id)
+            task_state = task_result.state
+            task_info = task_result.info or {}
+
+            # Prepare the response message
+            if task_state == 'PENDING':
+                response = {"status": "Task is pending"}
+            elif task_state == 'PROGRESS':
+                response = {
+                    "status": "Task is in progress",
+                    "current": task_info.get("current", 0),
+                    "total": task_info.get("total", 100),
+                    "message": task_info.get("status", "Processing")
+                }
+            elif task_state == 'SUCCESS':
+                print(task_result.result)
+                response = {"status": "Task completed", "result": task_result.result}
+                await websocket.send_json(response)
+                break  # Task completed, exit the loop
+            elif task_state == 'FAILURE':
+                response = {"status": "Task failed", "error": str(task_result.info)}
+                await websocket.send_json(response)
+                break  # Task failed, exit the loop
+            else:
+                response = {"status": "Unknown status"}
+
+            # Send the current task state to the client
+            await websocket.send_json(response)
+
+            # Wait a bit before the next check
+            await asyncio.sleep(1)
+
+    except WebSocketDisconnect:
+        print("Client disconnected from task status WebSocket")
+
+@scientist_router_websockets.websocket("/ws/test")
+async def websocket_test(websocket: WebSocket):
+    await websocket.accept()
+    while True:
+        await websocket.send_json({"status": "Connection working"})
+        await asyncio.sleep(1)
+
 
 def store_df_to_csv(df, csv_name, index):
     local_dir = tempfile.mkdtemp()
@@ -825,6 +928,7 @@ async def get_info(token: str = Depends(oauth2_scheme)):
 app.include_router(admin_router)
 app.include_router(scientist_router)
 app.include_router(engineer_router)
+app.include_router(scientist_router_websockets)
 if os.getenv("USE_KEYCLOAK", 'True') == 'True':
     app.include_router(common_router)
 

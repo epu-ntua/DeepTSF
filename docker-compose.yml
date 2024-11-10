@@ -118,6 +118,10 @@ services:
       true
     env_file:
       - .env
+    # volumes:
+    #   - ./shared:/shared
+    depends_on:
+      - redis
     # Uses all .env parameters
     # deploy: # activate this if you want gpu usage
     #   resources:
@@ -128,6 +132,23 @@ services:
     networks:
        - load-forecasting-net
 
+  worker:
+    build:
+      dockerfile: ./celery_DeepTSF/Dockerfile
+      context: .
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    # volumes:
+    #   - ./shared:/shared:ro
+    networks:
+       - load-forecasting-net
+  redis:
+    image: redis:7-alpine
+    networks:
+       - load-forecasting-net
+       
   dagster:
     container_name: deeptsf_dagster
     hostname: deeptsf_dagster
