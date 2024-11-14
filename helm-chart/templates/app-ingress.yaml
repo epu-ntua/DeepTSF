@@ -1,9 +1,13 @@
+{{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ .Release.Name }}-{{ .Values.app.service.name }}-ingress
   annotations:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    {{- range $key, $value := .Values.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
   labels:
     release: {{ .Release.Name }}
 
@@ -11,10 +15,10 @@ spec:
   tls:
     - hosts:
         - {{ .Values.app.host }}
-      secretName: "{{ .Release.Name }}-tls"
+      secretName: "{{ .Values.ingress.tlsSecretName }}"
   rules:
     - host: {{ .Values.app.host }}
-      https:
+      http:
         paths:
           - backend:
               service:
@@ -23,3 +27,4 @@ spec:
                   number: 80
             path: /
             pathType: Prefix
+{{- end }}
