@@ -32,12 +32,12 @@ spec:
         - name: AWS_ACCESS_KEY_ID
           valueFrom:
             secretKeyRef:
-              name: aws-secret
-              key: access-key-id
+              name: AWS_SECRET
+              key: AWS_ACCESS_KEY_ID
         - name: AWS_SECRET_ACCESS_KEY
           valueFrom:
             secretKeyRef:
-              name: aws-secret
-              key: secret-access-key
+              name: AWS_SECRET
+              key: AWS_SECRET_ACCESS_KEY
         ports:
         - containerPort: 80
