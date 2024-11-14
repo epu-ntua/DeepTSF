@@ -37,7 +37,7 @@ deploy-dev:
     - echo "Checking Kubernetes cluster connectivity..."
     - kubectl get nodes
     - echo "Deploying to Rancher using Helm..."
-    - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set commitHash=${CI_COMMIT_SHA}
+    - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set commitHash=${CI_COMMIT_SHA} --set app.env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set app.env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
   only:
     - master
   tags:
