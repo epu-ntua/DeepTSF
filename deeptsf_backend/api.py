@@ -43,10 +43,10 @@ mongo_url = f"mongodb://{user}:{password}@{address}"
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
-AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
-MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
-MINIO_SSL = truth_checker(os.environ.get("MINIO_SSL"))
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.getenv("MINIO_CLIENT_URL")
+MINIO_SSL = truth_checker(os.getenv("MINIO_SSL"))
 client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
 
 # allows automated type check with pydantic
@@ -90,10 +90,10 @@ app = FastAPI(
 
 # app.add_middleware(
 #     CORSMiddleware,
-#     allow_origins=["https://deeptsf.toolbox.epu.ntua.gr", 
-#                    "https://dagster.deeptsf.toolbox.epu.ntua.gr", 
+#     allow_origins=["https://deeptsf.toolbox.epu.ntua.gr",
+#                    "https://dagster.deeptsf.toolbox.epu.ntua.gr",
 #                    "https://keycloak.toolbox.epu.ntua.gr",
-#                    "http://localhost:3000", 
+#                    "http://localhost:3000",
 #                    "http://localhost:8086"],
 #     allow_credentials=True,
 #     allow_methods=["*"],
@@ -538,8 +538,8 @@ async def get_experimentation_pipeline_hparam_entrypoints():
     entrypoints = ConfigParser().read_entrypoints()
     return entrypoints
 
-#@app.get('/experimentation_pipeline/etl/get_resolutions/')
-#async def get_resolutions():
+# @app.get('/experimentation_pipeline/etl/get_resolutions/')
+# async def get_resolutions():
 #    return ResolutionMinutes.dict()
 
 @admin_router.get('/get_mlflow_tracking_uri', tags=['MLflow Info'])
@@ -947,12 +947,12 @@ if os.getenv("USE_KEYCLOAK", 'True') == 'True':
 #             resampled_df = resampled_df.reset_index()
 #             resampled_df.to_csv(output_file_path, mode='a', header=False, index=False)
 #         return last_document_id
-    
+
 # @scientist_router.get('/db_integration/retrieve_dataset/uc7/', tags=['MongoDB integration'])
 # async def retrieve_uc7_dataset(start_date:str, end_date: str):
 #     # default resolution for uc7 initial dataset
 #     resolution = 60
-    
+
 #     collection = os.environ.get('MONGO_COLLECTION_UC7')
 
 #     # Connect to DB and get file
@@ -974,7 +974,7 @@ if os.getenv("USE_KEYCLOAK", 'True') == 'True':
 #     # output_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'archive{start_date}_{end_date}.csv')
 #     local_dir = tempfile.mkdtemp()
 #     output_file_path = os.path.join(local_dir, f'archive_{start_date}_{end_date}.csv')
-    
+
 #     try:
 #         start_date = datetime.datetime.strptime(start_date, "%Y%m%d")
 #         end_date = datetime.datetime.strptime(end_date, "%Y%m%d")
@@ -1007,19 +1007,19 @@ if os.getenv("USE_KEYCLOAK", 'True') == 'True':
 #         # drop duplicates and reorder
 #         df = pd.read_csv(output_file_path)
 #         df.drop_duplicates(inplace=True)
-        
+
 #         # only keep APIU for load forecasting (this is a requirement to avoid DifferentComponentDimensions error in Darts)
 #         df = df[~df['ID'].str.contains("Ameno")].reset_index(drop=True)
 
 #         # TODO: remove series that have been cut on NaNs
 #         ## Look for 'Timeseries ID' that have NaNs on the end date and remove them entirely.
-        
+
 #         # sort dates
 #         df = df.sort_values(by=['Date', 'Timeseries ID'], ascending=[True, True]).reset_index(drop=True)
-        
+
 #         # store to csv
 #         df.to_csv(output_file_path, index=True)
-        
+
 #         print(df.head())
 #         print(f'\nOutput csv path: {output_file_path}\n')
 
