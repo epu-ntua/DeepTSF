@@ -10,6 +10,13 @@ app:
     AWS_SECRET_ACCESS_KEY: ""
     MINIO_CLIENT_URL: ""
     MINIO_SSL: ""
+    MLFLOW_TRACKING_URI: ""
+    MLFLOW_S3_ENDPOINT_URL: ""
+    MINIO_ACCESS_KEY: ""
+    MINIO_SECRET_KEY: ""
+    USE_KEYCLOAK: ""
+
+
   replicas: 1
   memory_limit: 4Gi
 
