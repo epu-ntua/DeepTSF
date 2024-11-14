@@ -33,5 +33,9 @@ spec:
           value: {{ required "AWS_ACCESS_KEY_ID environment variable is required" .Values.app.env.AWS_ACCESS_KEY_ID | quote }}
         - name: AWS_SECRET_ACCESS_KEY
           value: {{ required "AWS_SECRET_ACCESS_KEY environment variable is required" .Values.app.env.AWS_SECRET_ACCESS_KEY | quote }}
+        - name: MINIO_CLIENT_URL
+          value: {{ required "MINIO_CLIENT_URL environment variable is required" .Values.app.env.MINIO_CLIENT_URL | quote }}
+        - name: MINIO_SSL
+          value: {{ required "MINIO_SSL environment variable is required" .Values.app.env.MINIO_SSL | quote }}
         ports:
         - containerPort: 80
