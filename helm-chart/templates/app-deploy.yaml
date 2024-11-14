@@ -30,8 +30,8 @@ spec:
             name: {{ .Release.Name }}-{{ .Values.app.service.name }}-cm
         env:
         - name: AWS_ACCESS_KEY_ID
-          value: {{ .Values.app.env.AWS_ACCESS_KEY_ID | default (required "AWS_ACCESS_KEY_ID environment variable is required" .Env.AWS_ACCESS_KEY_ID) | quote }}
+          value: {{ required "AWS_ACCESS_KEY_ID environment variable is required" .Values.app.env.AWS_ACCESS_KEY_ID | quote }}
         - name: AWS_SECRET_ACCESS_KEY
-          value: {{ .Values.app.env.AWS_SECRET_ACCESS_KEY | default (required "AWS_SECRET_ACCESS_KEY environment variable is required" .Env.AWS_SECRET_ACCESS_KEY) | quote }}
+          value: {{ required "AWS_SECRET_ACCESS_KEY environment variable is required" .Values.app.env.AWS_SECRET_ACCESS_KEY | quote }}
         ports:
         - containerPort: 80
