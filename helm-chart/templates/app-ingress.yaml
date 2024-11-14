@@ -20,11 +20,11 @@ spec:
     - host: {{ .Values.app.host }}
       http:
         paths:
-          - backend:
+          - path: /
+            pathType: Prefix
+            backend:
               service:
                 name: "{{ .Release.Name }}-{{ .Values.app.service.name }}"
                 port:
                   number: 80
-            path: /
-            pathType: Prefix
 {{- end }}
