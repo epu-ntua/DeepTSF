@@ -112,17 +112,17 @@ app.add_middleware(
 # creating routers
 # admin validator passed as dependency
 admin_router = APIRouter(
-    dependencies=[Depends()]
+    dependencies=[Depends(admin_validator)]
 )
 # scientist validator passed as dependency
 scientist_router = APIRouter(
-    dependencies=[Depends()]
+    dependencies=[Depends(scientist_validator)]
 )
 engineer_router = APIRouter(
-    dependencies=[Depends()]
+    dependencies=[Depends(engineer_validator)]
 )
 common_router = APIRouter(
-    dependencies=[Depends()]
+    dependencies=[Depends(common_validator)]
 )
 
 if os.getenv("USE_KEYCLOAK", 'True') == 'False':
