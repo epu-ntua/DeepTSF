@@ -47,6 +47,8 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 MINIO_CLIENT_URL = os.getenv("MINIO_CLIENT_URL")
 MINIO_SSL = truth_checker(os.getenv("MINIO_SSL"))
+USE_KEYCLOAK = truth_checker(os.getenv("USE_KEYCLOAK"))
+
 client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
 
 # allows automated type check with pydantic
@@ -125,7 +127,7 @@ common_router = APIRouter(
     dependencies=[Depends(common_validator)]
 )
 
-if os.getenv("USE_KEYCLOAK", 'True') == 'False':
+if USE_KEYCLOAK:
     admin_router.dependencies = []
     scientist_router.dependencies = []
     engineer_router.dependencies = []
@@ -825,7 +827,7 @@ async def get_info(token: str = Depends(oauth2_scheme)):
 app.include_router(admin_router)
 app.include_router(scientist_router)
 app.include_router(engineer_router)
-if os.getenv("USE_KEYCLOAK", 'True') == 'True':
+if USE_KEYCLOAK:
     app.include_router(common_router)
 
 # if __name__ == "__main__":
