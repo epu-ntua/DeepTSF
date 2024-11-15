@@ -125,11 +125,11 @@ common_router = APIRouter(
     dependencies=[Depends(common_validator)]
 )
 
-# if os.getenv("USE_KEYCLOAK", 'True') == 'False':
-admin_router.dependencies = []
-scientist_router.dependencies = []
-engineer_router.dependencies = []
-common_router.dependencies = []
+if os.getenv("USE_KEYCLOAK", 'True') == 'False':
+    admin_router.dependencies = []
+    scientist_router.dependencies = []
+    engineer_router.dependencies = []
+    common_router.dependencies = []
 
 # implement this method for login functionality
 # @app.post('/token')
@@ -825,8 +825,8 @@ async def get_info(token: str = Depends(oauth2_scheme)):
 app.include_router(admin_router)
 app.include_router(scientist_router)
 app.include_router(engineer_router)
-# if os.getenv("USE_KEYCLOAK", 'True') == 'True':
-#     app.include_router(common_router)
+if os.getenv("USE_KEYCLOAK", 'True') == 'True':
+    app.include_router(common_router)
 
 # if __name__ == "__main__":
 #     uvicorn.run('api:app', reload=True)
