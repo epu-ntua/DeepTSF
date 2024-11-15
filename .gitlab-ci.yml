@@ -45,7 +45,7 @@ deploy-dev:
   environment:
     name: dev
   variables:
-    MINIO_CLIENT_URL: ${MINIO_CLIENT_URL}
+    MINIO_CLIENT_URL: $MINIO_CLIENT_URL
     MINIO_SSL: ${MINIO_SSL}
     AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
     AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
