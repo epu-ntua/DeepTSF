@@ -127,7 +127,7 @@ common_router = APIRouter(
     dependencies=[Depends(common_validator)]
 )
 
-if USE_KEYCLOAK:
+if not USE_KEYCLOAK:
     admin_router.dependencies = []
     scientist_router.dependencies = []
     engineer_router.dependencies = []
