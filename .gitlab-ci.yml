@@ -37,21 +37,13 @@ deploy-dev:
     - echo "Checking Kubernetes cluster connectivity..."
     - kubectl get nodes
     - echo "Deploying to Rancher using Helm..."
-    - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set commitHash=${CI_COMMIT_SHA} --set app.env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set app.env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set app.env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set app.env.MINIO_SSL=${MINIO_SSL}
+    - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set commitHash=${CI_COMMIT_SHA} --set app.env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set app.env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set app.env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set app.env.MINIO_SSL=${MINIO_SSL} --set app.env.MLFLOW_TRACKING_URI= ${MLFLOW_TRACKING_URI} --set app.env.MLFLOW_S3_ENDPOINT_URL = ${MLFLOW_S3_ENDPOINT_URL} --set app.env.MINIO_ACCESS_KEY = ${MINIO_ACCESS_KEY} --set app.env.MINIO_SECRET_KEY = ${MINIO_SECRET_KEY} --set app.env.USE_KEYCLOAK = ${USE_KEYCLOAK}
   only:
     - master
   tags:
     - shared
   environment:
     name: dev
-  # variables:
-  #   MINIO_CLIENT_URL: $MINIO_CLIENT_URL
-  #   MINIO_SSL: ${MINIO_SSL}
-  #   AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-  #   AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-  #   MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
-  #   MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
-  #   MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-  #   MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-  #   USE_KEYCLOAK: ${USE_KEYCLOAK}
-    
+
+
+
