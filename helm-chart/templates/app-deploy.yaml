@@ -37,5 +37,15 @@ spec:
           value: {{ required "MINIO_CLIENT_URL environment variable is required" .Values.app.env.MINIO_CLIENT_URL | quote }}
         - name: MINIO_SSL
           value: {{ required "MINIO_SSL environment variable is required" .Values.app.env.MINIO_SSL | quote }}
+        - name: MLFLOW_TRACKING_URI
+          value: {{ required "MLFLOW_TRACKING_URI environment variable is required" .Values.app.env.MLFLOW_TRACKING_URI | quote }}
+        - name: MLFLOW_S3_ENDPOINT_URL
+          value: {{ required "MLFLOW_S3_ENDPOINT_URL environment variable is required" .Values.app.env.MLFLOW_S3_ENDPOINT_URL | quote }}
+        - name: MINIO_ACCESS_KEY
+          value: {{ required "MINIO_ACCESS_KEY environment variable is required" .Values.app.env.MINIO_ACCESS_KEY | quote }}
+        - name: MINIO_SECRET_KEY
+          value: {{ required "MINIO_SECRET_KEY environment variable is required" .Values.app.env.MINIO_SECRET_KEY | quote }}
+        - name: USE_KEYCLOAK
+          value: {{ required "USE_KEYCLOAK environment variable is required" .Values.app.env.USE_KEYCLOAK | quote }}
         ports:
         - containerPort: 80
