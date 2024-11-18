@@ -14,7 +14,7 @@ RUN conda env create -f conda.yaml
 SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
 
 # Install additional dependencies
-RUN pip install dagster dagster-webserver dagster-shell
+RUN pip install dagster==1.8.13 dagster-webserver==1.8.13 dagster-shell==0.24.13
 RUN pip install protobuf==3.20.*
 RUN pip install minio
 
