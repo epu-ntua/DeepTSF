@@ -15,8 +15,9 @@ app:
     MINIO_ACCESS_KEY: ""
     MINIO_SECRET_KEY: ""
     USE_KEYCLOAK: ""
-
-
+    KEYCLOAK_ID: ""
+    KEYCLOAK_SECRET: ""
+    TOKEN_ISSUER_URL: ""
   replicas: 1
   memory_limit: 4Gi
 
