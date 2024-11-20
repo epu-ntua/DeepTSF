@@ -47,5 +47,11 @@ spec:
           value: {{ required "MINIO_SECRET_KEY environment variable is required" .Values.app.env.MINIO_SECRET_KEY | quote }}
         - name: USE_KEYCLOAK
           value: {{ required "USE_KEYCLOAK environment variable is required" .Values.app.env.USE_KEYCLOAK | quote }}
+        - name: KEYCLOAK_ID
+          value: {{ required "KEYCLOAK_ID environment variable is required" .Values.app.env.KEYCLOAK_ID | quote }}
+        - name: KEYCLOAK_SECRET
+          value: {{ required "KEYCLOAK_SECRET environment variable is required" .Values.app.env.KEYCLOAK_SECRET | quote }}
+        - name: TOKEN_ISSUER_URL
+          value: {{ required "TOKEN_ISSUER_URL environment variable is required" .Values.app.env.TOKEN_ISSUER_URL | quote }}
         ports:
         - containerPort: 80
