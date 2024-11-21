@@ -327,22 +327,32 @@ async def create_upload_csv_file(file: UploadFile = File(...),
 
     # Validation
     print("Validating file...") 
-    ts, resolutions = csv_validator(fname, multiple, format=format)
+    # ts, resolutions = csv_validator(fname, multiple, format=format)
 
-    if multiple:
-        if format == "long":
-            dataset_start_multiple = ts.iloc[0]['Datetime']
-            dataset_end_multiple = ts.iloc[-1]['Datetime']
-        else:
-            dataset_start_multiple = ts.iloc[0]['Date']
-            dataset_end_multiple = ts.iloc[-1]['Date']
+    # if multiple:
+    #     if format == "long":
+    #         dataset_start_multiple = ts.iloc[0]['Datetime']
+    #         dataset_end_multiple = ts.iloc[-1]['Datetime']
+    #     else:
+    #         dataset_start_multiple = ts.iloc[0]['Date']
+    #         dataset_end_multiple = ts.iloc[-1]['Date']
     
+    # return {"message": "Validation successful", 
+    #         "fname": fname,
+    #         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else dataset_start_multiple,
+    #         "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else dataset_start_multiple + timedelta(days=10),
+    #         "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else dataset_end_multiple,
+    #         "allowed_resolutions": resolutions,
+    #         "ts_used_id": None,
+    #         "evaluate_all_ts": True if multiple else None
+    #         }
+
     return {"message": "Validation successful", 
             "fname": fname,
-            "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else dataset_start_multiple,
-            "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else dataset_start_multiple + timedelta(days=10),
-            "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else dataset_end_multiple,
-            "allowed_resolutions": resolutions,
+            "dataset_start": "2020-01-01",
+            "allowed_validation_start": "2020-06-01",
+            "dataset_end": "2021-01-01",
+            "allowed_resolutions": "1h",
             "ts_used_id": None,
             "evaluate_all_ts": True if multiple else None
             }
