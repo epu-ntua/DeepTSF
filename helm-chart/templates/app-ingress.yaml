@@ -5,6 +5,7 @@ metadata:
   name: {{ .Release.Name }}-{{ .Values.app.service.name }}-ingress
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
     {{- range $key, $value := .Values.ingress.annotations }}
     {{ $key }}: {{ $value | quote }}
     {{- end }}
