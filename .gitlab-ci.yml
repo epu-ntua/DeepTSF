@@ -23,7 +23,8 @@ build-app:
 
 
     - echo "Building Docker image for dagster..."
-    - docker build -t ${HARBOR_HOST}/iccs/deeptsf-dagster:latest deeptsf_backend/dagster-deeptsf/config
+    - cd deeptsf_backend/dagster-deeptsf/
+    - docker build -t ${HARBOR_HOST}/iccs/deeptsf-dagster:latest config
     - echo "Pushing Docker image to Harbor..."
     - docker push ${HARBOR_HOST}/iccs/deeptsf-dagster:latest
 
