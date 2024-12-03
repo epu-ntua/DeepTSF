@@ -12,7 +12,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: "{{ .Release.Name }}-{{ .Values.backend.service.name }}"
+                name: "{{ .Release.Name }}-deeptsf-backend"
                 port:
                   number: 80
     - host: {{ .Values.dagster.host }}
@@ -22,7 +22,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: "{{ .Release.Name }}-{{ .Values.dagster.service.name }}"
+                name: "{{ .Release.Name }}-deeptsf-dagster"
                 port:
                   number: 80
 
