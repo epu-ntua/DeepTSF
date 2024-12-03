@@ -1,28 +1,39 @@
-app:
+backend:
   host: deeptsf-backend.dev.deployai.eu
   service:
     name: deeptsf-backend
   image:
     repository: harbor.deployai.eu/iccs/deeptsf-backend
     tag: latest
-  env:
-    AWS_ACCESS_KEY_ID: ""
-    AWS_SECRET_ACCESS_KEY: ""
-    MINIO_CLIENT_URL: ""
-    MINIO_SSL: ""
-    MLFLOW_TRACKING_URI: ""
-    MLFLOW_S3_ENDPOINT_URL: ""
-    MINIO_ACCESS_KEY: ""
-    MINIO_SECRET_KEY: ""
-    USE_KEYCLOAK: ""
-    KEYCLOAK_ID: ""
-    KEYCLOAK_SECRET: ""
-    TOKEN_ISSUER_URL: ""
+  replicas: 1
+  memory_limit: 4Gi
+
+dagster:
+  host: deeptsf-dagster.dev.deployai.eu
+  service:
+    name: deeptsf-dagster
+  image:
+    repository: harbor.deployai.eu/iccs/deeptsf-dagster
+    tag: latest
   replicas: 1
   memory_limit: 4Gi
 
 minio:
   ssl: false
+
+env:
+  AWS_ACCESS_KEY_ID: ""
+  AWS_SECRET_ACCESS_KEY: ""
+  MINIO_CLIENT_URL: ""
+  MINIO_SSL: ""
+  MLFLOW_TRACKING_URI: ""
+  MLFLOW_S3_ENDPOINT_URL: ""
+  MINIO_ACCESS_KEY: ""
+  MINIO_SECRET_KEY: ""
+  USE_KEYCLOAK: ""
+  KEYCLOAK_ID: ""
+  KEYCLOAK_SECRET: ""
+  TOKEN_ISSUER_URL: ""
 
 ingress:
   enabled: true
