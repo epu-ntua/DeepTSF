@@ -37,6 +37,6 @@ env:
 
 ingress:
   enabled: true
-  tlsSecretName: deeptsf-backend-tls
+  tlsSecretName: deeptsf-tls
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
