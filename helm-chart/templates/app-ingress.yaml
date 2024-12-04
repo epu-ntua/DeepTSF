@@ -9,12 +9,12 @@ spec:
       http:
         paths:
           - backend:
-            service:
-              name: "{{ .Release.Name }}-deeptsf-backend"
-              port:
-                number: 80
-          path: / 
-          pathType: Prefix 
+              service:
+                name: "{{ .Release.Name }}-deeptsf-backend"
+                port:
+                  number: 80
+            path: / 
+            pathType: Prefix 
     - host: {{ .Values.dagster.host }}
       http:
         paths:
