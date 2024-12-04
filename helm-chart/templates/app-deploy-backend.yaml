@@ -18,19 +18,20 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: "{{ .Release.Name }}-{{ .Values.backend.service.name }}"
+  name: "{{ .Release.Name }}-backend"
   labels:
+    app: "{{ .Release.Name }}-backend"
     release: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.backend.replicas }}
   selector:
     matchLabels:
-      app: {{ .Values.backend.service.name }}
+      app: "{{ .Release.Name }}-backend"
       release: {{ .Release.Name }} 
   template:
     metadata:
       labels:
-        app: {{ .Values.backend.service.name }}
+        app: "{{ .Release.Name }}-backend"
         release: {{ .Release.Name }}
     spec:
       imagePullSecrets: 

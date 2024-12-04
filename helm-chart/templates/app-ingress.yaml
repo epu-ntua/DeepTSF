@@ -13,8 +13,8 @@ spec:
               name: "{{ .Release.Name }}-deeptsf-backend"
               port:
                 number: 80
-            path: / 
-            pathType: Prefix 
+          path: / 
+          pathType: Prefix 
     - host: {{ .Values.dagster.host }}
       http:
         paths:

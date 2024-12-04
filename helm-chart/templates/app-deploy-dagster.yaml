@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: "{{ .Release.Name }}-{{ .Values.dagster.service.name }}"
+  name: "{{ .Release.Name }}-deeptsf-dagster"
   labels:
     release: {{ .Release.Name }}
 spec:
@@ -18,19 +18,20 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: "{{ .Release.Name }}-{{ .Values.dagster.service.name }}"
+  name: "{{ .Release.Name }}-dagster"
   labels:
+    app: "{{ .Release.Name }}-dagster"
     release: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.dagster.replicas }}
   selector:
     matchLabels:
-      app: {{ .Values.dagster.service.name }}
+      app: "{{ .Release.Name }}-dagster"
       release: {{ .Release.Name }} 
   template:
     metadata:
       labels:
-        app: {{ .Values.dagster.service.name }}
+        app: "{{ .Release.Name }}-dagster"
         release: {{ .Release.Name }}
     spec:
       imagePullSecrets: 
