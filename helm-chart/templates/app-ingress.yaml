@@ -13,11 +13,6 @@ metadata:
     release: {{ .Release.Name }}
 
 spec:
-  tls:
-    - hosts:
-        - {{ .Values.backend.host }}
-        - {{ .Values.dagster.host }}
-      secretName: "{{ .Values.ingress.tlsSecretName }}"
   rules:
     - host: {{ .Values.backend.host }}
       http:
