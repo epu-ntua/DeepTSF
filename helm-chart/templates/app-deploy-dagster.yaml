@@ -43,9 +43,9 @@ spec:
         resources:
           limits:
             memory: {{ .Values.dagster.memory_limit | quote }}
-        envFrom:
-        - configMapRef:
-            name: {{ .Release.Name }}-{{ .Values.dagster.service.name }}-cm
+        # envFrom:
+        # - configMapRef:
+        #     name: {{ .Release.Name }}-{{ .Values.dagster.service.name }}-cm
         env:
         - name: AWS_ACCESS_KEY_ID
           value: {{ required "AWS_ACCESS_KEY_ID environment variable is required" .Values.env.AWS_ACCESS_KEY_ID | quote }}
