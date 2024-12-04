@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: "{{ .Release.Name }}-{{ .Values.backend.service.name }}"
+  name: "{{ .Release.Name }}-deeptsf-backend"
   labels:
     release: {{ .Release.Name }}
 spec:
