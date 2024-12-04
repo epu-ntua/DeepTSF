@@ -2,8 +2,22 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Release.Name }}-ingress
+  name: {{ .Release.Name }}-deeptsf-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    {{- range $key, $value := .Values.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+  labels:
+    release: {{ .Release.Name }}
+
 spec:
+  tls:
+    - hosts:
+        - {{ .Values.backend.host }}
+        - {{ .Values.dagster.host }}
+      secretName: "{{ .Values.ingress.tlsSecretName }}"
   rules:
     - host: {{ .Values.backend.host }}
       http:
