@@ -36,7 +36,7 @@ spec:
               service: 
                 name: "{{ .Release.Name }}-deeptsf-dagster" 
                 port: 
-                  number: 80
+                  number: 81
             path: / 
             pathType: Prefix 
 

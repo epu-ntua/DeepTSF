@@ -8,7 +8,7 @@ spec:
   type: ClusterIP
   ports:
     - name: http
-      port: 80
+      port: 81
       protocol: TCP
       targetPort: 8006
   selector:
@@ -72,5 +72,4 @@ spec:
         - name: TOKEN_ISSUER_URL
           value: {{ required "TOKEN_ISSUER_URL environment variable is required" .Values.env.TOKEN_ISSUER_URL | quote }}
         ports:
-        - containerPort: 8081
         - containerPort: 8006
