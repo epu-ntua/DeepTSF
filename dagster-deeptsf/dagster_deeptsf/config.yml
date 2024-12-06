@@ -1,0 +1,998 @@
+hyperparameters:
+  nbeats_test:
+    input_chunk_length: 24
+    output_chunk_length: 24
+    num_stacks: 10
+    num_blocks: 1
+    num_layers: 3
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 16
+
+  lstm0_1:
+     model: RNN
+     n_rnn_layers: 1
+     hidden_dim:  128
+     n_epochs: 10
+     input_chunk_length: 24
+     training_length: 24
+     random_state: 0
+     nr_epochs_val_period: 2
+     dropout: 0
+     learning_rate: 0.0008
+     likelihood: Gaussian
+     batch_size: 32
+
+  arima:
+    
+  test:
+    model: LSTM
+    n_rnn_layers: 1
+    hidden_dim: 2  #128
+    n_epochs: 1
+    input_chunk_length: 96
+    training_length: 96
+    random_state: 0
+    nr_epochs_val_period: 1
+    dropout: 0
+    learning_rate: 0.009
+    # likelihood: Gaussian
+    batch_size: 2048
+
+  test2:
+    model: LSTM
+    n_rnn_layers: 1
+    input_chunk_length: 96
+    output_chunk_length: 96
+    hidden_size:  1
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.01
+    batch_size: 2048
+
+  # lstm0_1:
+  #   model: LSTM
+  #   n_rnn_layers: 1
+  #   hidden_dim:  20 #128
+  #   n_epochs: 200
+  #   input_chunk_length: 96
+  #   training_length: 96
+  #   random_state: 0
+  #   nr_epochs_val_period: 2
+  #   dropout: 0
+  #   learning_rate: 0.0008
+  #   # likelihood: Gaussian
+  #   batch_size: 1024
+
+  # lstm0_2:
+  #   model: LSTM
+  #   n_rnn_layers: 1
+  #   hidden_dim:  20 #128
+  #   n_epochs: 130
+  #   input_chunk_length: 192
+  #   training_length: 192
+  #   random_state: 0
+  #   nr_epochs_val_period: 2
+  #   dropout: 0
+  #   learning_rate: 0.0008
+  #   # likelihood: Gaussian
+  #   batch_size: 1024
+
+  # lstm0_3:
+  #   model: LSTM
+  #   n_rnn_layers: 1
+  #   hidden_dim:  20 #128
+  #   n_epochs: 150
+  #   input_chunk_length: 288
+  #   training_length: 288
+  #   random_state: 0
+  #   nr_epochs_val_period: 2
+  #   dropout: 0
+  #   learning_rate: 0.0008
+  #   # likelihood: Gaussian
+  #   batch_size: 1024
+
+  # lstm0_4:
+  #   model: LSTM
+  #   n_rnn_layers: 1
+  #   hidden_dim:  20 #128
+  #   n_epochs: 180
+  #   input_chunk_length: 384
+  #   training_length: 384
+  #   random_state: 0
+  #   nr_epochs_val_period: 2
+  #   dropout: 0
+  #   learning_rate: 0.0008
+  #   # likelihood: Gaussian
+  #   batch_size: 1024
+
+  # lstm0_7:
+  #   model: LSTM
+  #   n_rnn_layers: 1
+  #   hidden_dim:  20 #128
+  #   n_epochs: 220
+  #   input_chunk_length: 672
+  #   training_length: 672
+  #   random_state: 0
+  #   nr_epochs_val_period: 2
+  #   dropout: 0
+  #   learning_rate: 0.0008
+  #   # likelihood: Gaussian
+  #   batch_size: 1024
+
+  # lstm1_1:
+  #   model: LSTM
+  #   n_rnn_layers: 2
+  #   hidden_dim:  64 #128
+  #   n_epochs: 150
+  #   input_chunk_length: 96
+  #   training_length: 96
+  #   random_state: 0
+  #   nr_epochs_val_period: 2
+  #   dropout: 0
+  #   learning_rate: 0.001
+  #   # likelihood: Gaussian
+  #   batch_size: 1024
+
+  # lstm1_2:
+  #   model: LSTM
+  #   n_rnn_layers: 2
+  #   hidden_dim:  64 #128
+  #   n_epochs: 150
+  #   input_chunk_length: 192
+  #   training_length: 192
+  #   random_state: 0
+  #   nr_epochs_val_period: 2
+  #   dropout: 0
+  #   learning_rate: 0.001
+  #   # likelihood: Gaussian
+  #   batch_size: 1024
+
+  # lstm1_3:
+  #   model: LSTM
+  #   n_rnn_layers: 2
+  #   hidden_dim:  64 #128
+  #   n_epochs: 100
+  #   input_chunk_length: 288
+  #   training_length: 288
+  #   random_state: 0
+  #   nr_epochs_val_period: 2
+  #   dropout: 0
+  #   learning_rate: 0.001
+  #   # likelihood: Gaussian
+  #   batch_size: 1024
+
+  # lstm1_4:
+  #   model: LSTM
+  #   n_rnn_layers: 2
+  #   hidden_dim:  64 #128
+  #   n_epochs: 100
+  #   input_chunk_length: 384
+  #   training_length: 384
+  #   random_state: 0
+  #   nr_epochs_val_period: 2
+  #   dropout: 0
+  #   learning_rate: 0.001
+  #   # likelihood: Gaussian
+  #   batch_size: 1024
+
+  transformer_test:
+    input_chunk_length: 48
+    output_chunk_length: 1
+    d_model: 64
+    nhead: 4
+    num_encoder_layers: 3
+    num_decoder_layers: 3
+    dim_feedforward: 512
+    dropout: 0.1 
+    activation: 'relu'
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+    
+  nhits_test:
+    input_chunk_length: 48
+    output_chunk_length: 1
+    num_stacks: 3
+    num_blocks: 3
+    num_layers: 3
+    layer_widths: 64
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+
+# Seasonal naive models 
+  naive_d:
+    days_seasonality: 1
+
+  naive_w:
+    days_seasonality: 7
+
+# LSTM
+  lstm_example:
+    model: LSTM
+    n_rnn_layers: 2
+    hidden_dim:  64 #128
+    n_epochs: 1
+    input_chunk_length: 672
+    training_length: 672
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    # likelihood: Gaussian
+    batch_size: 1024
+
+  lstm1_7:
+    model: LSTM
+    n_rnn_layers: 2
+    hidden_dim:  64 #128
+    n_epochs: 100
+    input_chunk_length: 672
+    training_length: 672
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    # likelihood: Gaussian
+    batch_size: 1024
+
+  blocklstm0_4:
+    model: LSTM
+    n_rnn_layers: 1
+    input_chunk_length: 384
+    output_chunk_length: 96
+    hidden_size:  20
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.0008
+    batch_size: 1024
+
+  testrnnshap:
+    model: LSTM
+    n_rnn_layers: 1
+    input_chunk_length: 384
+    output_chunk_length: 96
+    hidden_size:  20
+    n_epochs: 1
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.0008
+    batch_size: 1024
+
+  blocklstm0_7:
+    model: LSTM
+    n_rnn_layers: 1
+    input_chunk_length: 672
+    output_chunk_length: 96
+    hidden_size:  20
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.0009
+    batch_size: 1024
+
+  blocklstm0_10:
+    model: LSTM
+    n_rnn_layers: 1
+    input_chunk_length: 960
+    output_chunk_length: 96
+    hidden_size:  20
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.0009
+    batch_size: 1024
+
+  blocklstm1_4:
+    model: LSTM
+    n_rnn_layers: 2
+    input_chunk_length: 384
+    output_chunk_length: 96
+    hidden_size:  64
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    batch_size: 1024
+
+  blocklstm1_7:
+    model: LSTM
+    n_rnn_layers: 2
+    input_chunk_length: 672
+    output_chunk_length: 96
+    hidden_size:  64
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    batch_size: 1024
+
+  blocklstm1_10:
+    model: LSTM
+    n_rnn_layers: 2
+    input_chunk_length: 960
+    output_chunk_length: 96
+    hidden_size:  64
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    batch_size: 1024
+
+  nbeats_uc_5d:
+    input_chunk_length: 1440
+    output_chunk_length: 288
+    num_stacks: 20
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+    
+  nbeats0_4:
+    input_chunk_length: 384
+    output_chunk_length: 96
+    num_stacks: 20
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  nbeats0_7:
+    input_chunk_length: 672
+    output_chunk_length: 96
+    num_stacks: 20
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  nbeats0_10:
+    input_chunk_length: 960
+    output_chunk_length: 96
+    num_stacks: 20
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  nbeats1_4:
+    input_chunk_length: 384
+    output_chunk_length: 96
+    num_stacks: 25
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 128
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  nbeats1_7:
+    input_chunk_length: 672
+    output_chunk_length: 96
+    num_stacks: 25
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 128
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  nbeats1_10:
+    input_chunk_length: 960
+    output_chunk_length: 96
+    num_stacks: 25
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 128
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  nbeats2_4:
+    input_chunk_length: 384
+    output_chunk_length: 96
+    num_stacks: 30
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 512
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  nbeats2_7:
+    input_chunk_length: 672
+    output_chunk_length: 96
+    num_stacks: 30
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 512
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  nbeats2_10:
+    input_chunk_length: 960
+    output_chunk_length: 96
+    num_stacks: 30
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 512
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  NBEATS_best_paper:
+    input_chunk_length: 192
+    output_chunk_length: 24
+    num_stacks: 3
+    num_blocks: 6
+    num_layers: 3
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 200
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1536
+
+  testtcn:
+    input_chunk_length: 384
+    output_chunk_length: 96
+    kernel_size: 3
+    num_filters: 3
+    dilation_base: 2
+    weight_norm: True
+    dropout: 0
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 1
+    batch_size: 1024
+
+  testtcnshap:
+    input_chunk_length: 96
+    output_chunk_length: 24
+    kernel_size: 3
+    num_filters: 3
+    dilation_base: 2
+    weight_norm: True
+    dropout: 0
+    n_epochs: 1
+    random_state: 0
+    nr_epochs_val_period: 1
+    batch_size: 1024
+
+  testnbeats:
+    input_chunk_length: 672
+    output_chunk_length: 96
+    num_stacks: 25
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 128
+    expansion_coefficient_dim: 5
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 2048
+
+# Generally speaking, for a receptive field with no holes, the kernel size k has to be at least as big as the dilation base b.
+  tcn0_4:
+    input_chunk_length: 384
+    output_chunk_length: 96
+    kernel_size: 3
+    num_filters: 3
+    dilation_base: 2
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  tcn0_7:
+    input_chunk_length: 672
+    output_chunk_length: 96
+    kernel_size: 3
+    num_filters: 3
+    dilation_base: 2
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  tcn0_10:
+    input_chunk_length: 960
+    output_chunk_length: 96
+    kernel_size: 3
+    num_filters: 3
+    dilation_base: 2
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  tcn1_4:
+    input_chunk_length: 384
+    output_chunk_length: 96
+    kernel_size: 5
+    num_filters: 5
+    dilation_base: 3
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  tcn1_7:
+    input_chunk_length: 672
+    output_chunk_length: 96
+    kernel_size: 5
+    num_filters: 5
+    dilation_base: 3
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  tcn1_10:
+    input_chunk_length: 960
+    output_chunk_length: 96
+    kernel_size: 5
+    num_filters: 5
+    dilation_base: 3
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  tcn3_4:
+    input_chunk_length: 384
+    output_chunk_length: 96
+    kernel_size: 13
+    num_filters: 9
+    dilation_base: 9
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  tcn3_7:
+    input_chunk_length: 672
+    output_chunk_length: 96
+    kernel_size: 13
+    num_filters: 9
+    dilation_base: 9
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  tcn3_10:
+    input_chunk_length: 960
+    output_chunk_length: 96
+    kernel_size: 13
+    num_filters: 9
+    dilation_base: 9
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  lgbm_1_2_3_4_96_672_covs_1_1:
+    lags: [-1, -2, -3, -4, -96, -672]
+    lags_past_covariates: null
+    lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  lgbm_384_covs_1_1:
+    lags: 384
+    lags_past_covariates: null
+    lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  lgbm_672_covs_1_1:
+    lags: 672
+    lags_past_covariates: null
+    lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  lgbm_672_nocovs:
+    lags: 672
+    lags_past_covariates: null
+    lags_future_covariates: None
+    future_covs_as_tuple: false
+    random_state: 0
+
+  lgbm_7d_5_mins:
+    lags: 2016
+    lags_past_covariates: null
+    lags_future_covariates: None
+    future_covs_as_tuple: false
+    random_state: 0
+  
+  lgbm_288_covs_1_1:
+    lags: 288
+    lags_past_covariates: null
+    lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  lgbm_96_covs_1_1:
+    lags: 96
+    lags_past_covariates: null
+    lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  rf_1_2_3_4_96_672_covs_1_1:
+    lags: [-1, -2, -3, -4, -96, -672]
+    lags_past_covariates: null
+    lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  rf_672_covs_1_1:
+    lags: 672
+    lags_past_covariates: null
+    lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  rf_384_covs_1_1:
+    lags: 384
+    lags_past_covariates: null
+    lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  rf_288_covs_1_1:
+    lags: 288
+    lags_past_covariates: null
+    lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  rf_96_covs_1_1:
+    lags: 96
+    lags_past_covariates: null
+    lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  tcn_interpretability_test:
+    input_chunk_length: 96
+    output_chunk_length: 24
+    kernel_size: 3
+    num_filters: 3
+    dilation_base: 2
+    weight_norm: True
+    dropout: 0
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  lgbm_w_opt_test:
+    lags: 672
+    lags_past_covariates: null
+    lags_future_covariates_opt_test: ["list", [1, 1], [2, 2]]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  lgbm_thesis:
+    lags: 120
+    lags_past_covariates: null
+    lags_future_covariates: [1,1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  nbeats_best_thesis:
+    input_chunk_length : 264
+    output_chunk_length : 24
+    num_stacks : 6
+    num_blocks : 1
+    num_layers : 2
+    generic_architecture : True
+    layer_widths : 64 
+    expansion_coefficient_dim : 5
+    n_epochs : 200 
+    random_state : 0
+    nr_epochs_val_period : 2 
+    batch_size : 1024
+  light_gbm_thesis:
+    lags: 216
+    lags_past_covariates : null 
+    lags_future_covariates : None 
+    future_covs_as_tuple : True 
+    random_state : 0 
+  TCN_serving:
+    output_chunk_length: 24
+    weight_norm: True
+    dropout: 0
+    nr_epochs_val_period: 2
+    n_epochs: 500
+    random_state: 0
+    input_chunk_length: 240
+    kernel_size: 4
+    num_filters: 10
+    dilation_base: 8
+    batch_size: 1024
+
+  LSTM_prob_paper_test:  
+    model: LSTM
+    n_rnn_layers: 1
+    input_chunk_length: 24
+    output_chunk_length: 24
+    hidden_dim:  24
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    batch_size: 1024
+    likelihood: "Gaussian"
+    training_length: 24
+
+  NBEATS_example:
+    input_chunk_length: 120
+    output_chunk_length: 24
+    num_stacks: 3
+    num_blocks: 6
+    num_layers: 1
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 3
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 512
+
+  LGBM_uc6:
+    lags: 72
+
+  LightGBM_river:
+    lags: [-1, -480]
+    lags_past_covariates: [-1, -480]
+    random_state: 0
+    output_chunk_length: 12
+
+  LightGBM_UC6:
+    lags: 24
+    random_state: 0
+    output_chunk_length: 24
+
+  LightGBM_UC7:
+    lags: 24
+    lags_future_covariates: [24, 24]
+    random_state: 0
+    output_chunk_length: 24
+
+  ARIMA_test:
+    p: 12 
+    d: 1 
+    q: 0 
+    random_state: 0
+
+  NBEATS_river:
+    input_chunk_length: 480
+    output_chunk_length: 12
+    num_stacks: 3
+    num_blocks: 6
+    num_layers: 1
+    generic_architecture: True
+    activation: 'ReLU'
+    layer_widths: 64
+    dropout: 0
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 128
+    learning_rate: 0.001
+
+  NBEATS_simple:
+    input_chunk_length: 72
+    output_chunk_length: 24
+    num_stacks: 1
+    num_blocks: 1
+    num_layers: 2
+    generic_architecture: True
+    activation: 'ReLU'
+    layer_widths: 8
+    dropout: 0
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 512
+
+  NBEATS:
+    input_chunk_length: 120
+    output_chunk_length: 24
+    num_stacks: 3
+    num_blocks: 6
+    num_layers: 1
+    generic_architecture: True
+    activation: 'ReLU'
+    layer_widths: 64
+    dropout: 0
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 512
+
+  NHiTS:
+    input_chunk_length: 120
+    output_chunk_length: 24
+    num_stacks: 3
+    num_blocks: 3
+    num_layers: 3
+    layer_widths: 64
+    dropout: 0 
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+
+  Transformer:
+    input_chunk_length: 120
+    output_chunk_length: 24
+    d_model: 64
+    nhead: 4
+    num_encoder_layers: 3
+    dim_feedforward: 512
+    dropout: 0
+    activation: 'relu'
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+
+  BlockRNN:
+     input_chunk_length: 120
+     output_chunk_length: 24
+     model: RNN
+     n_rnn_layers: 1
+     hidden_dim:  128
+     n_epochs: 300
+     random_state: 0
+     nr_epochs_val_period: 2
+     dropout: 0
+     learning_rate: 0.0008
+     likelihood: Gaussian
+     batch_size: 32
+
+  RNN:
+     input_chunk_length: 120
+     model: RNN
+     n_rnn_layers: 1
+     hidden_dim:  128
+     n_epochs: 300
+     training_length: 24
+     random_state: 0
+     nr_epochs_val_period: 2
+     dropout: 0
+     learning_rate: 0.0008
+     likelihood: Gaussian
+     batch_size: 32
+
+
+  TCN:
+    input_chunk_length: 120
+    output_chunk_length: 24
+    kernel_size: 3
+    num_filters: 3
+    dilation_base: 2
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 1
+    batch_size: 1024
+
+  TFT:
+    input_chunk_length: 120
+    output_chunk_length: 24
+    lstm_layers: 1
+    dropout: 0
+    num_attention_heads: 1
+    hidden_size: 64
+    batch_size: 1024
+    n_epochs: 150
+    add_relative_index: "True"
+
+  LightGBM:
+    lags: [-1, -120]
+    random_state: 0
+    output_chunk_length: 24
+
+  RandomForest:
+    lags: [-1, -120]
+    random_state: 0
+    output_chunk_length: 24
+
+  Naive:
+    days_seasonality: 1
+
+  LGBM_uc7:
+    lags: 1
+    lags_future_covariates: [1, 1]
+    random_state: 0
+
+  LGBM_example_test:
+    lags: 1
+    random_state: 0

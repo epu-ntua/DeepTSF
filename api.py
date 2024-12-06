@@ -19,7 +19,7 @@ from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils import load_artifacts, to_seconds, change_form, make_time_list, truth_checker, get_run_tag
+from utils import load_artifacts, to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio
 import psutil, nvsmi
 import os
 from dotenv import load_dotenv
@@ -33,6 +33,7 @@ import datetime
 from math import nan
 import bson
 from minio import Minio
+from minio.error import S3Error
 
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
@@ -323,6 +324,7 @@ async def create_upload_csv_file(file: UploadFile = File(...),
         local_dir = tempfile.mkdtemp()
         contents = await file.read()
         fname = os.path.join(local_dir, file.filename)
+        filename=file.filename
         with open(fname, 'wb') as f:
             f.write(contents)
     except Exception:
@@ -343,6 +345,8 @@ async def create_upload_csv_file(file: UploadFile = File(...),
         else:
             dataset_start_multiple = ts.iloc[0]['Date']
             dataset_end_multiple = ts.iloc[-1]['Date']
+
+    upload_file_to_minio("dataset-storage", fname, filename, client)
     
     return {"message": "Validation successful", 
             "fname": fname,
