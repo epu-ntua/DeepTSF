@@ -84,7 +84,8 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 # a period of 5 epochs (`patience`)
 def log_optuna(study, 
                opt_tmpdir, 
-               hyperparams_entrypoint, 
+               hyperparams_entrypoint,
+               trial_name,
                mlrun, 
                log_model=False, 
                curr_loss=0, 
@@ -265,7 +266,7 @@ def log_optuna(study,
     fig.write_html(f"{opt_tmpdir}/plot_slice.html")
     plt.close()
 
-    study.trials_dataframe().to_csv(f"{opt_tmpdir}/{hyperparams_entrypoint}.csv")
+    study.trials_dataframe().to_csv(f"{opt_tmpdir}/{trial_name}.csv")
 
     print("\nUploading optuna plots to MLflow server...")
     logging.info("\nUploading optuna plots to MLflow server...")
@@ -277,13 +278,14 @@ def append(x, y):
 
 def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
              past_covs_csv, past_covs_uri, year_range, resolution,
-             darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, 
+             darts_model, hyperparams_entrypoint, trial_name, cut_date_val, test_end_date, 
              cut_date_test, device, forecast_horizon, stride, retrain, scale, 
              scale_covs, multiple, eval_series, mlrun, trial, study, opt_tmpdir, 
              num_workers, eval_method, loss_function, opt_all_results,
              evaluate_all_ts, num_samples, pv_ensemble, format):
 
-                hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
+                # hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
+                hyperparameters = hyperparams_entrypoint
                 training_dict = {}
                 for param, value in hyperparameters.items():
                     if type(value) == list and value and value[0] == "range":
@@ -319,6 +321,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                       past_covs_uri=past_covs_uri, # fix that in case REAL Temperatures come -> etl_temp_covs_uri. For forecasts, integrate them into future covariates!!
                       darts_model=darts_model,
                       hyperparams_entrypoint=hyperparams_entrypoint,
+                      trial_name=trial_name,
                       cut_date_val=cut_date_val,
                       cut_date_test=cut_date_test,
                       test_end_date=test_end_date,
@@ -369,7 +372,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 trial.set_user_attr("rmse", float(metrics["rmse"]))
                 trial.set_user_attr("nrmse_min_max", float(metrics["nrmse_min_max"]))
                 trial.set_user_attr("nrmse_mean", float(metrics["nrmse_mean"]))
-                log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, 
+                log_optuna(study, opt_tmpdir, hyperparams_entrypoint, trial_name, mlrun, 
                     log_model=True, curr_loss=float(metrics[loss_function]), 
                     model=model, darts_model=darts_model, scale=scale, scalers_dir=scalers_dir, 
                     features_dir=features_dir, opt_all_results=opt_all_results, 
@@ -379,7 +382,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 return metrics[loss_function]
 
 def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
-          hyperparams_entrypoint, cut_date_val, cut_date_test,
+          hyperparams_entrypoint, trial_name, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
           training_dict, mlrun, num_workers, resolution, trial, pv_ensemble, format):
 
@@ -1075,6 +1078,7 @@ def optuna_search(context, start_pipeline_run, etl_out):
     resolution = config.resolution
     darts_model = config.darts_model
     hyperparams_entrypoint = config.hyperparams_entrypoint
+    trial_name = config.trial_name
     cut_date_val = config.cut_date_val
     cut_date_test = config.cut_date_test
     test_end_date = config.test_end_date
@@ -1109,6 +1113,7 @@ def optuna_search(context, start_pipeline_run, etl_out):
         "resolution": resolution,
         "darts_model": darts_model,
         "hyperparams_entrypoint": hyperparams_entrypoint,
+        "trial_name": trial_name,
         "cut_date_val": cut_date_val,
         "cut_date_test": cut_date_test,
         "test_end_date": test_end_date,
@@ -1145,7 +1150,8 @@ def optuna_search(context, start_pipeline_run, etl_out):
     with mlflow.start_run(tags={"mlflow.runName": parent_run_name}, run_id=start_pipeline_run) as parent_run:
         with mlflow.start_run(tags={"mlflow.runName": f'optuna_test_{darts_model}'}, nested=True) as mlrun:
             if grid_search:
-                hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
+                # hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
+                hyperparameters = hyperparams_entrypoint
                 training_dict = {}
                 for param, value in hyperparameters.items():
                     if type(value) == list and value and value[0] == "range":
@@ -1155,9 +1161,9 @@ def optuna_search(context, start_pipeline_run, etl_out):
                             training_dict[param] = list(range(value[1], value[2], value[3]))
                     elif type(value) == list and value and value[0] == "list":
                         training_dict[param] = value[1:]
-                study = optuna.create_study(storage="sqlite:///memory.db", study_name=hyperparams_entrypoint, load_if_exists=True, sampler=optuna.samplers.GridSampler(training_dict))
+                study = optuna.create_study(storage="sqlite:///memory.db", study_name=trial_name, load_if_exists=True, sampler=optuna.samplers.GridSampler(training_dict))
             else:
-                study = optuna.create_study(storage="sqlite:///memory.db", study_name=hyperparams_entrypoint, load_if_exists=True)
+                study = optuna.create_study(storage="sqlite:///memory.db", study_name=trial_name, load_if_exists=True)
 
             opt_tmpdir = tempfile.mkdtemp()
             curr_run_id = mlrun.info.run_id
@@ -1167,12 +1173,12 @@ def optuna_search(context, start_pipeline_run, etl_out):
             else:
                 opt_all_results = None
             study.optimize(lambda trial: objective(series_csv, series_uri, future_covs_csv, future_covs_uri, past_covs_csv, past_covs_uri, year_range, resolution,
-                        darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
+                        darts_model, hyperparams_entrypoint, trial_name, cut_date_val, test_end_date, cut_date_test, device,
                         forecast_horizon, stride, retrain, scale, scale_covs,
                         multiple, eval_series, mlrun, trial, study, opt_tmpdir, num_workers, eval_method, 
                         loss_function, opt_all_results, evaluate_all_ts, num_samples, pv_ensemble, format),
                         n_trials=n_trials, n_jobs = 1)
 
-            log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, opt_all_results=opt_all_results, evaluate_all_ts=evaluate_all_ts, scale_covs=scale_covs)
+            log_optuna(study, opt_tmpdir, hyperparams_entrypoint, trial_name, mlrun, opt_all_results=opt_all_results, evaluate_all_ts=evaluate_all_ts, scale_covs=scale_covs)
 
         return curr_run_id, parameters_dict

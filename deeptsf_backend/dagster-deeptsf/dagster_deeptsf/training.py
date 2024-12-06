@@ -144,8 +144,9 @@ def train(context, start_pipeline_run, etl_out):
 
 
     ## hyperparameters
-    hyperparameters = ConfigParser(config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
-
+    # hyperparameters = ConfigParser(config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
+    hyperparameters = hyperparams_entrypoint
+    
     ## device
     if device == 'gpu' and torch.cuda.is_available():
         device = 'gpu'

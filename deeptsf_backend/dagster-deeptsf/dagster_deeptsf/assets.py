@@ -73,6 +73,8 @@ def start_pipeline_run(context):
 
 
 
+    download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
+
     mlflow.set_experiment(experiment_name)
     with mlflow.start_run(tags={"mlflow.runName": parent_run_name}) as active_run:
         mlflow.set_tag("stage", "main")

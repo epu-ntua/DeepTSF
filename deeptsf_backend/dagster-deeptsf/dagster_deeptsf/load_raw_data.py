@@ -8,7 +8,7 @@ import os
 import mlflow
 import click
 import sys
-# import celery
+import celery
 from pandas.tseries.frequencies import to_offset
 from .utils import ConfigParser
 import logging

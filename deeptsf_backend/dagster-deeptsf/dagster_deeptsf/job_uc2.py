@@ -55,7 +55,7 @@ class DeepTSFConfig(ConfigurableResource):
     future_covs_uri: str = "None"
     year_range: str = "None"
     time_covs: bool = False
-    hyperparams_entrypoint: str = "None"
+    hyperparams_entrypoint: dict = {"insert key": "insert value"}
     cut_date_val: str = "None"
     cut_date_test: str = "None"
     test_end_date: str = "None"
@@ -82,6 +82,7 @@ class DeepTSFConfig(ConfigurableResource):
     opt_test: bool = False
     from_database: bool = False
     database_name: str = "rdn_load_data"
+    trial_name: str = "Default"
     num_workers: int = 4
     eval_method: str = "ts_ID"
     imputation_method: str = "linear"
@@ -139,6 +140,7 @@ class DeepTSFConfig(ConfigurableResource):
             "n_trials": self.n_trials,
             "opt_test": self.opt_test,
             "from_database": self.from_database,
+            "trial_name": self.trial_name,
             "database_name": self.database_name,
             "num_workers": self.num_workers,
             "eval_method": self.eval_method,
