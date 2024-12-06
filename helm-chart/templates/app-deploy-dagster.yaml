@@ -8,7 +8,7 @@ spec:
   type: ClusterIP
   ports:
     - name: http
-      port: 81
+      port: 80
       protocol: TCP
       targetPort: 8006
   selector:
@@ -18,20 +18,20 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: "{{ .Release.Name }}-dagster"
+  name: {{ .Values.dagster.service.name }}
   labels:
-    app: "{{ .Release.Name }}-dagster"
+    app: {{ .Values.dagster.service.name }}
     release: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.dagster.replicas }}
   selector:
     matchLabels:
-      app: "{{ .Release.Name }}-dagster"
+      app: {{ .Values.dagster.service.name }}
       release: {{ .Release.Name }} 
   template:
     metadata:
       labels:
-        app: "{{ .Release.Name }}-dagster"
+        app: {{ .Values.dagster.service.name }}
         release: {{ .Release.Name }}
     spec:
       imagePullSecrets: 

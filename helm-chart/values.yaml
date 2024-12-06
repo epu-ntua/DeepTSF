@@ -16,7 +16,7 @@ dagster:
     repository: harbor.deployai.eu/iccs/deeptsf-dagster
     tag: latest
   replicas: 1
-  memory_limit: 8Gi
+  memory_limit: 4Gi
 
 minio:
   ssl: false
