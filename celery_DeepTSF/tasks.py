@@ -4,7 +4,7 @@ import tempfile
 import datetime
 import sys
 from celery_DeepTSF.worker import celery_app
-from datetime import datetime, timedelta
+from datetime import timedelta
 from fastapi import HTTPException
 from uc2.load_raw_data import read_and_validate_input
 from utils import make_time_list

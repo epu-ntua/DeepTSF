@@ -39,12 +39,16 @@ class WebSocketAuthValidator:
         self.allowed_roles = allowed_roles
 
     async def __call__(self, websocket: WebSocket) -> bool:
-        # Extract token from query parameters
-        token = websocket.query_params.get("token")
+        # Extract token from headers
+        # auth_header = websocket.headers.get("Authorization")
+        auth_header = websocket.query_params.get("auth_token")
+
         
-        if not token:
+        if not auth_header:
             await websocket.close(code=1008)
             raise WebSocketDisconnect(code=1008)
+        
+        token = auth_header
 
         try:
             # Validate token and retrieve roles

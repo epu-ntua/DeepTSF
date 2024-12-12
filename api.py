@@ -364,10 +364,14 @@ async def create_upload_csv_file(file: UploadFile = File(...),
         # write locally
         local_dir = tempfile.mkdtemp()
         contents = await file.read()
+        fname = os.path.join(local_dir, file.filename)
+        with open(fname, 'wb') as f:
+            f.write(contents)
     except Exception:
         raise HTTPException(status_code=415, detail="There was an error uploading the file")
         #return {"message": "There was an error uploading the file"}
     finally:
+        print(f'\n{fname}\n')
         await file.close()
 
     # Enqueue the Celery task
