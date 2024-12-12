@@ -11,7 +11,6 @@ class CliConfig(Config):
     from_database: str = 'false'
     series_csv: str = 'user_datasets/Italy.csv'
     convert_to_local_tz: str = 'false'
-    day_first: str = 'false'
     multiple: str = 'false'
     imputation_method: str = 'pad'
     resolution: str = '60min'
@@ -56,7 +55,6 @@ def cli_command(config: CliConfig):
            f"-P from_database={config.from_database} " \
            f"-P series_csv={config.series_csv} " \
            f"-P convert_to_local_tz={config.convert_to_local_tz} " \
-           f"-P day_first={config.day_first}  " \
            f"-P multiple={config.multiple} " \
            f"-P imputation_method={config.imputation_method} " \
            f"-P resolution={config.resolution} " \
