@@ -14,7 +14,7 @@ metadata:
 
 spec:
   rules:
-    - host: {{ .Values.backend.host }}
+    - host: "deeptsf-backend{{ .Values.env.host }}"
       http:
         paths:
           - backend:
@@ -24,7 +24,7 @@ spec:
                   number: 80
             path: / 
             pathType: Prefix 
-    - host: {{ .Values.dagster.host }}
+    - host: "deeptsf-dagster{{ .Values.env.host }}"
       http:
         paths:
           - backend: 

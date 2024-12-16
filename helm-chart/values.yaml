@@ -1,5 +1,4 @@
 backend:
-  host: deeptsf-backend.dev.deployai.eu
   service:
     name: deeptsf-backend
   image:
@@ -9,7 +8,6 @@ backend:
   memory_limit: 4Gi
 
 dagster:
-  host: deeptsf-dagster.dev.deployai.eu
   service:
     name: deeptsf-dagster
   image:
@@ -22,6 +20,7 @@ minio:
   ssl: false
 
 env:
+  host: ""
   AWS_ACCESS_KEY_ID: ""
   AWS_SECRET_ACCESS_KEY: ""
   MINIO_CLIENT_URL: ""

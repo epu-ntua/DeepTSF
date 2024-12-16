@@ -47,6 +47,8 @@ spec:
         # - configMapRef:
         #     name: {{ .Release.Name }}-{{ .Values.dagster.service.name }}-cm
         env:
+        - name: host
+          value: {{ required "host environment variable is required" .Values.env.host | quote }}
         - name: AWS_ACCESS_KEY_ID
           value: {{ required "AWS_ACCESS_KEY_ID environment variable is required" .Values.env.AWS_ACCESS_KEY_ID | quote }}
         - name: AWS_SECRET_ACCESS_KEY
