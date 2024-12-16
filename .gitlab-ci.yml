@@ -61,7 +61,7 @@ deploy-stage:
     - build-app
   before_script:
     - echo "Secure the KUBECONFIG file"
-    - chmod 600 ${KUBECONFIG}
+    - chmod 600 ${KUBECONFIG_STAGE}
   script:
     - echo "Checking Kubernetes cluster connectivity..."
     - kubectl get nodes
@@ -72,4 +72,4 @@ deploy-stage:
   tags:
     - shared
   environment:
-    name: dev
+    name: stage
