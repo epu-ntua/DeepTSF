@@ -305,6 +305,25 @@ def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='
     resolutions = make_time_list(resolution=resolution)    
     return ts, resolutions
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+ 
+@app.post("/login")
+def login(request: LoginRequest):
+    url = "https://vc-platform.dev.deployai.eu/connect/token"
+    payload = f'grant_type=password&password={request.password}&username={request.username}&storeId=deployai'
+    headers = {
+        'content-type': 'application/x-www-form-urlencoded'
+    }
+ 
+    response = requests.post(url, headers=headers, data=payload)
+ 
+    if response.status_code == 200:
+        return {"message": "Login successful", "token": response.json().get("access_token")}
+    else:
+        raise HTTPException(status_code=response.status_code, detail="Login failed")
+        
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
 async def create_upload_csv_file(file: UploadFile = File(...), 
                                  multiple: bool = Form(default=False), format: str = Form(default=False)):
