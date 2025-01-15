@@ -18,6 +18,7 @@ from mlflow.tracking import MlflowClient
 from utils import load_artifacts, to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio
 import psutil, nvsmi
 import os
+import requests
 from dotenv import load_dotenv
 from fastapi import APIRouter
 from app.auth import admin_validator, scientist_validator, engineer_validator, common_validator, oauth2_scheme
