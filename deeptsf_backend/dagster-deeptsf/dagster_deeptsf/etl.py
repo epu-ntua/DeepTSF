@@ -782,7 +782,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 
 @multi_asset(
     name="etl_asset",
-    description="test test test",
+    description="For imputation, scaling, and other preprocessing",
     group_name='deepTSF_pipeline',
     required_resource_keys={"config"},
     ins={'start_pipeline_run': AssetIn(key='start_pipeline_run', dagster_type=str),

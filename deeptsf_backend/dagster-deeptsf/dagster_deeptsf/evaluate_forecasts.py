@@ -593,7 +593,7 @@ def call_shap(n_past_covs: int,
 
 @multi_asset(
     name="evaluation_asset",
-    description="test test test",
+    description="For evaluation of the results",
     group_name='deepTSF_pipeline',
     required_resource_keys={"config"},
     ins={'start_pipeline_run': AssetIn(key='start_pipeline_run', dagster_type=str),

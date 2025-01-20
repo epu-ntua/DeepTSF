@@ -82,6 +82,7 @@ def start_pipeline_run(context):
 
 @multi_asset(
     name="training_and_hyperparameter_tuning_asset",
+    description="For training the model and / or hyperparameter tuning",
     group_name='deepTSF_pipeline',
     required_resource_keys={"config"},
     ins={'start_pipeline_run': AssetIn(key='start_pipeline_run', dagster_type=str),

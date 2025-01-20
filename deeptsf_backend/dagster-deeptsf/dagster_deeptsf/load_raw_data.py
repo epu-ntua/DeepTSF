@@ -478,7 +478,7 @@ def load_data_to_csv(tmpdir, database_name):
 
 @multi_asset(
     name="load_raw_data_asset",
-    description="test test test",
+    description="For loading the raw dataset to MLflow",
     group_name='deepTSF_pipeline',
     required_resource_keys={"config"},
     ins={'start_pipeline_run': AssetIn(key='start_pipeline_run', dagster_type=str)},
