@@ -1,6 +1,6 @@
 import logging
 import pretty_errors
-from .utils import ConfigParser, multiple_dfs_to_ts_file, to_seconds
+from dagster_deeptsf.utils import ConfigParser, multiple_dfs_to_ts_file, to_seconds
 import os
 import pandas as pd
 import yaml
@@ -12,7 +12,7 @@ from darts.utils.missing_values import extract_subseries
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
-from .exceptions import NanInSet
+from dagster_deeptsf.exceptions import NanInSet
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")

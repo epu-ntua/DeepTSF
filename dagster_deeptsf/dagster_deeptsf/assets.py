@@ -8,9 +8,9 @@ from dagster_shell.ops import shell_op
 from dagster import multi_asset, AssetIn, AssetOut, MetadataValue, Output, graph_multi_asset, define_asset_job, asset
 from dagster import ConfigurableResource
 from dagster_mlflow import end_mlflow_on_run_finished, mlflow_tracking
-from .utils import none_checker, check_mandatory, truth_checker, download_online_file, load_yaml_as_dict
-from .optuna_search import optuna_search
-from .training import train
+from dagster_deeptsf.utils import none_checker, check_mandatory, truth_checker, download_online_file, load_yaml_as_dict
+from dagster_deeptsf.optuna_search import optuna_search
+from dagster_deeptsf.training import train
 from dotenv import load_dotenv
 load_dotenv()
 from minio import Minio
@@ -37,6 +37,8 @@ def start_pipeline_run(context):
     series_uri = config.series_uri
     from_database = config.from_database
     series_csv = config.series_csv
+    past_covs_csv=config.past_covs_csv
+    future_covs_csv=config.future_covs_csv
     resolution = config.resolution
     darts_model = config.darts_model
     hyperparams_entrypoint = config.hyperparams_entrypoint
@@ -47,7 +49,7 @@ def start_pipeline_run(context):
     multiple = config.multiple
     evaluate_all_ts = config.evaluate_all_ts
 
-    if none_checker(series_uri) is None and not from_database and none_checker(series_uri) is None:
+    if none_checker(series_csv) is None and not from_database and none_checker(series_uri) is None:
         check_mandatory(series_csv, "series_csv", [["series_uri", "None"], ["from_database", "False"]])
 
     if none_checker(resolution) is None:
@@ -72,8 +74,15 @@ def start_pipeline_run(context):
         check_mandatory(eval_series, "eval_series", [["multiple", "True"], ["evaluate_all_ts", "False"]])
 
 
+    if none_checker(series_csv):
+        download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
 
-    download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
+    if none_checker(past_covs_csv):
+        download_online_file(client, f'dataset-storage/{past_covs_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
+
+    if none_checker(future_covs_csv):
+        download_online_file(client, f'dataset-storage/{future_covs_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
+
 
     mlflow.set_experiment(experiment_name)
     with mlflow.start_run(tags={"mlflow.runName": parent_run_name}) as active_run:

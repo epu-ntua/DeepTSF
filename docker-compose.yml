@@ -144,6 +144,7 @@ services:
     #   - ./shared:/shared:ro
     networks:
        - load-forecasting-net
+
   redis:
     image: redis:7-alpine
     networks:
@@ -155,7 +156,7 @@ services:
     # image: inergy2020iccs/deeptsf_dagster:1.0.1 # only for releases
     build:
       context: .
-      dockerfile: ./dagster-deeptsf/config/Dockerfile
+      dockerfile: ./dagster_deeptsf/config/Dockerfile
     # deploy: # activate this if you want gpu usage
     #   resources:
     #     reservations:
@@ -167,9 +168,9 @@ services:
     ports:
       - 8006:8006
     # volumes:
-    #   - dagster-logs:/app/dagster-deeptsf
-    #   - ./uc2/user_datasets:/app/dagster-deeptsf/user_datasets
-      # - ./dagster-deeptsf/dagster_deeptsf:/app/dagster-deeptsf/dagster_deeptsf  #debugging only
+    #   - dagster-deeptsf-logs:/app/dagster_deeptsf
+    #   - ./uc2/user_datasets:/app/dagster_deeptsf/user_datasets
+      # - ./dagster-deeptsf/dagster_deeptsf:/app/dagster_deeptsf/dagster_deeptsf  #debugging only
     networks:
       - load-forecasting-net
     env_file:
@@ -179,6 +180,21 @@ services:
       # MLFLOW_S3_ENDPOINT_URL
       # AWS_ACCESS_KEY_ID
       # AWS_SECRET_ACCESS_KEY
+
+  postgres:
+    image: inergy2020iccs/pgdb:16.2
+    restart: always
+    container_name: postgres
+    hostname: postgres
+    ports:
+      - '5430:5430'
+    command: ["postgres", "-c", "port=5430"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dagster_celery
+    networks:
+      - load-forecasting-net
 
   frontend:
     container_name: deeptsf_dashboard
@@ -205,7 +221,7 @@ services:
 volumes:
   database:
   artifact-store:
-  dagster-logs:
+  dagster-deeptsf-logs:
 
 networks: 
   load-forecasting-net:
