@@ -1,0 +1,13 @@
+@article{PELEKIS2024101758,
+title = {DeepTSF: Codeless machine learning operations for time series forecasting},
+journal = {SoftwareX},
+volume = {27},
+pages = {101758},
+year = {2024},
+issn = {2352-7110},
+doi = {https://doi.org/10.1016/j.softx.2024.101758},
+url = {https://www.sciencedirect.com/science/article/pii/S2352711024001298},
+author = {Sotiris Pelekis and Theodosios Pountridis and Georgios Kormpakis and George Lampropoulos and Evangelos Karakolis and Spiros Mouzakitis and Dimitris Askounis},
+keywords = {Codeless, Deep learning, Machine learning operations, Time series forecasting},
+abstract = {This paper presents DeepTSF, a comprehensive machine learning operations (MLOps) framework aiming to innovate time series forecasting through workflow automation and codeless modeling. DeepTSF automates key aspects of the machine learning (ML) lifecycle, making it an ideal tool for data scientists and MLops engineers engaged in ML and deep learning (DL)-based forecasting. DeepTSF empowers users with a robust and user-friendly solution, while it is designed to seamlessly integrate with existing data analysis workflows, providing enhanced productivity and compatibility. The framework offers a front-end user interface (UI) suitable for data scientists, as well as other higher-level stakeholders, enabling comprehensive understanding through insightful visualizations and evaluation metrics. DeepTSF also prioritizes security through identity management and access authorization mechanisms. The application of DeepTSF in real-life use cases of the I-NERGY project has already proven DeepTSF’s efficacy in DL-based load forecasting, showcasing its significant added value in the electrical power and energy systems domain.}
+}
