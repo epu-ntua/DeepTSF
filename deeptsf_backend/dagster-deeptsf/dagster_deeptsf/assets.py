@@ -37,6 +37,9 @@ def start_pipeline_run(context):
     series_uri = config.series_uri
     from_database = config.from_database
     series_csv = config.series_csv
+    past_covs_csv = past_covs_csv.series_csv
+    future_covs_csv = future_covs_csv.series_csv
+
     resolution = config.resolution
     darts_model = config.darts_model
     hyperparams_entrypoint = config.hyperparams_entrypoint
@@ -72,8 +75,15 @@ def start_pipeline_run(context):
         check_mandatory(eval_series, "eval_series", [["multiple", "True"], ["evaluate_all_ts", "False"]])
 
 
+    if none_checker(series_csv):
+        download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
 
-    download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
+    if none_checker(future_covs_csv):
+        download_online_file(client, f'dataset-storage/{future_covs_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
+
+    if none_checker(past_covs_csv):
+        download_online_file(client, f'dataset-storage/{past_covs_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
+
 
     mlflow.set_experiment(experiment_name)
     with mlflow.start_run(tags={"mlflow.runName": parent_run_name}) as active_run:
