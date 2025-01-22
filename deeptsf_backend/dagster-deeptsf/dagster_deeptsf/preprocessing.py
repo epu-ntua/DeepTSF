@@ -166,7 +166,7 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale
                 for covariate_train, covariate_val, covariate_test, covariate in \
                 zip(covariates_train, covariates_val, covariates_test, covariates):
                     transformer = Scaler()
-                    print("COVTRAIN", covariate_train)
+                    # print("COVTRAIN", covariate_train)
                     # TODO: future covariates are a priori known!
                     # i can fit on all dataset, but I won't do it as this function works for all covariates!
                     # this is a problem only if not a full year is contained in the training set

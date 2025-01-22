@@ -605,7 +605,6 @@ def utc_to_local(df, country_code):
                             for country, timezones in country_timezones.items()
                             for timezone in timezones}
 
-    print(timezone_countries)
     local_timezone = timezone_countries[country_code]
 
     print(f"\nUsing timezone {local_timezone}...")

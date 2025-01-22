@@ -100,7 +100,6 @@ def check_and_convert_column_types(df, intended_types):
     return df
 
 def update_task(current, total, status, task):
-    print(task)
     if task:
         task.update_state(state='PROGRESS', meta={'current': current, 'total': total, 'status': status}) 
 
@@ -207,7 +206,6 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     (pandas.DataFrame, int)
         A tuple consisting of the resulting dataframe from series_csv as well as the resolution
     """
-    print(task)
     ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,
