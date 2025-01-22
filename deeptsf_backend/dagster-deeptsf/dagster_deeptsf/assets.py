@@ -37,8 +37,8 @@ def start_pipeline_run(context):
     series_uri = config.series_uri
     from_database = config.from_database
     series_csv = config.series_csv
-    past_covs_csv = past_covs_csv.series_csv
-    future_covs_csv = future_covs_csv.series_csv
+    past_covs_csv = config.series_csv
+    future_covs_csv = config.series_csv
 
     resolution = config.resolution
     darts_model = config.darts_model
