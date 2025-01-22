@@ -16,7 +16,7 @@ import pandas as pd
 import numpy as np
 import csv
 from datetime import datetime
-from .utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form
+from .utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form, truth_checker
 import shutil
 import pretty_errors
 import uuid
@@ -25,6 +25,7 @@ from .utils import none_checker
 from dagster import multi_asset, AssetIn, AssetOut, MetadataValue, Output, graph_multi_asset 
 import tempfile
 from math import ceil
+from minio import Minio
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
@@ -35,6 +36,12 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 
 MONGO_URL = os.environ.get("MONGO_URL")
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
+MINIO_SSL = truth_checker(os.environ.get("MINIO_SSL"))
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
+
 
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
@@ -447,7 +454,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 from pymongo import MongoClient
 import pandas as pd
 
-client = MongoClient(MONGO_URL)
+mongo_client = MongoClient(MONGO_URL)
 
 
 def unfold_timeseries(lds):
@@ -465,13 +472,13 @@ def unfold_timeseries(lds):
 
 
 def load_data_to_csv(tmpdir, database_name):
-    db = client['inergy_prod_db']
+    db = mongo_client['inergy_prod_db']
     collection = db[database_name]
     df = pd.DataFrame(collection.find()).drop(columns={'_id', ''}, errors='ignore')
     df = unfold_timeseries(collection.find().sort('_id', -1))
     df = pd.DataFrame.from_dict(df)
     df.to_csv(f'{tmpdir}/load.csv', index=False)
-    client.close()
+    mongo_client.close()
     return
 
 @multi_asset(
@@ -507,11 +514,13 @@ def load_raw_data_asset(context, start_pipeline_run):
     future_covs_csv = none_checker(future_covs_csv)
     future_covs_uri = none_checker(future_covs_uri)
 
+    series_uri = none_checker(series_uri)
+
     if from_database:
         load_data_to_csv(tmpdir, database_name)
         series_csv = f'{tmpdir}/load.csv'
 
-    elif series_uri != "None":
+    elif series_uri != None:
         download_file_path = download_online_file(client, series_uri, dst_filename="series.csv")
         series_csv = download_file_path
 

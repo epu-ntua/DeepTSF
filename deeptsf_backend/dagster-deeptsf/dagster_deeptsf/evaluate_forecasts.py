@@ -604,6 +604,11 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
     model_uri = training_and_hyperparameter_tuning_out["model_uri"]
+    if none_checker(model_uri) == None:
+        print(f'\nNo model in input. Skipping Evaluation')
+        logging.info(f'\nNo model in input. Skipping Evaluation')
+        return Output({"run_completed": True,})
+    
     model_type = training_and_hyperparameter_tuning_out["model_type"]
     series_uri = training_and_hyperparameter_tuning_out["series_uri"]
     future_covs_uri = training_and_hyperparameter_tuning_out["future_covariates_uri"]

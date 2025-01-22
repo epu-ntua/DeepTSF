@@ -14,6 +14,7 @@ from .training import train
 from dotenv import load_dotenv
 load_dotenv()
 from minio import Minio
+import logging
 
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
@@ -37,8 +38,8 @@ def start_pipeline_run(context):
     series_uri = config.series_uri
     from_database = config.from_database
     series_csv = config.series_csv
-    past_covs_csv = config.series_csv
-    future_covs_csv = config.series_csv
+    past_covs_csv = config.past_covs_csv
+    future_covs_csv = config.future_covs_csv
 
     resolution = config.resolution
     darts_model = config.darts_model
@@ -126,6 +127,22 @@ def training_and_hyperparameter_tuning_asset(context, start_pipeline_run, etl_ou
             except mlflow.exceptions.MlflowException:
                 pass
 
+        if "model_uri" not in completed_run.data.tags:
+            print(f'\nHyperparameter tuning did not produce new model. Skipping Evaluation')
+            logging.info(f'\nHyperparameter tuning did not produce new model. Skipping Evaluation')
+            return Output({"series_uri": None,
+                    "past_covariates_uri": None,
+                    "future_covariates_uri": None,
+                    "model_uri": None,
+                    "model_type": None,
+                    "scaler_uri": None,
+                    "setup_uri": None,
+                    "shap_input_length": None,
+                    "retrain": False,
+                    "cut_date_test": None,
+                    "test_end_date": None,
+                })
+
         model_uri = completed_run.data.tags["model_uri"].replace("s3:/", S3_ENDPOINT_URL)
         model_type = completed_run.data.tags["model_type"]
         series_uri = completed_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
@@ -136,10 +153,9 @@ def training_and_hyperparameter_tuning_asset(context, start_pipeline_run, etl_ou
 
         setup_file = download_online_file(
             client, setup_uri, "setup.yml")
-    
         setup = load_yaml_as_dict(setup_file)
         print(f"\nSplit info: {setup} \n")
-
+    
         #CHECK AND CHANGE
         if "input_chunk_length" in completed_run.data.params:
             shap_input_length = completed_run.data.params["input_chunk_length"]
@@ -152,8 +168,6 @@ def training_and_hyperparameter_tuning_asset(context, start_pipeline_run, etl_ou
         else:
             retrain = config.retrain
             print("Warning: Switching retrain flag to True as Naive models require...\n")
-
-
 
     return Output({"series_uri": series_uri,
                     "past_covariates_uri": past_covariates_uri,
