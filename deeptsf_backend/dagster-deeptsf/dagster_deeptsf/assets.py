@@ -150,6 +150,8 @@ def training_and_hyperparameter_tuning_asset(context, start_pipeline_run, etl_ou
         past_covariates_uri = completed_run.data.tags["past_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
         scaler_uri = completed_run.data.tags["scaler_uri"].replace("s3:/", S3_ENDPOINT_URL)
         setup_uri = completed_run.data.tags["setup_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        scaler_past_covariates_uri = completed_run.data.tags["scaler_past_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        scaler_future_covariates_uri = completed_run.data.tags["scaler_future_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
 
         setup_file = download_online_file(
             client, setup_uri, "setup.yml")
@@ -175,6 +177,8 @@ def training_and_hyperparameter_tuning_asset(context, start_pipeline_run, etl_ou
                     "model_uri": model_uri,
                     "model_type": model_type,
                     "scaler_uri": scaler_uri,
+                    "scaler_past_covariates_uri": scaler_past_covariates_uri,
+                    "scaler_future_covariates_uri": scaler_future_covariates_uri,
                     "setup_uri": setup_uri,
                     "shap_input_length": shap_input_length,
                     "retrain": retrain,

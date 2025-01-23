@@ -377,20 +377,21 @@ def build_shap_dataset(size: Union[int, float],
         curr = test[i:i + shap_input_length]
         curr_date = int(curr.time_index[0].timestamp())
         curr_values = curr.random_component_values(copy=False)
-        data.append(curr_values.flatten())
+        data.append(curr_values.flatten("F"))
         if first_iter:
-            columns.extend([str(i) + " timestep" for i in range(shap_input_length)])
-            median_of_train = statistics.median(map(lambda x : x.median(axis=0).values()[0,0], train))
-            background.extend([median_of_train for _ in range(shap_input_length)])
+            for ii in range(test.n_components):
+                columns.extend([str(i) + " timestep of component " + str(ii) for i in range(shap_input_length)])
+                median_of_train = statistics.median(map(lambda x : x.median(axis=0).values()[0,0], train))
+                background.extend([median_of_train for _ in range(shap_input_length)])
         if past_covs != None:
             for ii in range(past_covs.n_components):
-                data[-1] = np.concatenate([data[-1], past_covs.univariate_component(ii)[i:i + shap_input_length].random_component_values(copy=False).flatten()])
+                data[-1] = np.concatenate([data[-1], past_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length]].random_component_values(copy=False).flatten()])
                 if first_iter:
                     columns.extend(["Step " + str(iii) + " of past covariate " + str(ii) for iii in range(shap_input_length)])
                     background.extend([past_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length)])
         if future_covs != None:
             for ii in range(future_covs.n_components):
-                data[-1] = np.concatenate([data[-1], future_covs.univariate_component(ii)[i:i + shap_input_length + shap_output_length].random_component_values(copy=False).flatten()])
+                data[-1] = np.concatenate([data[-1], future_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length + shap_output_length]].random_component_values(copy=False).flatten()])
                 if first_iter:
                     columns.extend(["Step " + str(iii) + " of future covariate " + str(ii) for iii in range(shap_input_length + shap_output_length)])
                     background.extend([future_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length + shap_output_length)])
@@ -407,10 +408,13 @@ def build_shap_dataset(size: Union[int, float],
 def predict(x: darts.TimeSeries,
             n_past_covs: int,
             n_future_covs: int,
+            n_comp_series: int, 
             shap_input_length: int,
             shap_output_length: int,
             model,
             scaler_list: List[darts.dataprocessing.transformers.Scaler],
+            scaler_past_covariates,
+            scaler_future_covariates,
             scale: bool = True,
             num_samples: int = 1):
     """
@@ -452,41 +456,41 @@ def predict(x: darts.TimeSeries,
         index = [pd.to_datetime(sample[-1], unit='s').tz_localize(None) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length)]
         index_future = [pd.to_datetime(sample[-1], unit='s').tz_localize(None) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
         sample = np.array(sample, dtype=np.float32)
-        data = sample[:shap_input_length]
-        ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Value"]))
+        for i in range(n_comp_series):
+            data = sample[i*shap_input_length:(i+1)*shap_input_length]
+            if i == 0:
+                ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Value"]))
+            else:
+                ts = ts.stack(TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Value"])))
         if scale:
             ts = scaler_list[0].transform(ts)
         past_covs = None
         future_covs = None
-        for i in range(shap_input_length, shap_input_length*(n_past_covs+1), shap_input_length):
+        for i in range(shap_input_length*n_comp_series, shap_input_length*(n_past_covs+n_comp_series), shap_input_length):
             data = sample[i:i+shap_input_length]
-            if i == shap_input_length:
+            if i == shap_input_length*n_comp_series:
                 past_covs = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Covariate"]))
-                if scale:
-                    past_covs = scaler_list[i//shap_input_length].transform(past_covs)
             else:
                 temp = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Covariate"]))
-                if scale:
-                    past_covs = past_covs.stack(scaler_list[i//shap_input_length].transform(temp))
-                else:
-                    past_covs = past_covs.stack(temp)
+                past_covs = past_covs.stack(temp)
+        if scaler_past_covariates != None:
+            past_covs = scaler_past_covariates[0].transform(past_covs)
+
         if past_covs == None: 
             past_covs_list = None 
         else:
             past_covs_list.append(past_covs)
-        for i in range(shap_input_length*(n_past_covs+1), shap_input_length*(n_past_covs+1) + (shap_input_length + shap_output_length)*n_future_covs, shap_input_length + shap_output_length):
+        for i in range(shap_input_length*(n_past_covs+n_comp_series), shap_input_length*(n_past_covs+n_comp_series) + (shap_input_length + shap_output_length)*n_future_covs, shap_input_length + shap_output_length):
             data = sample[i:i+shap_input_length+shap_output_length]
-            scale_index = 1 + n_past_covs + (i - shap_input_length*(n_past_covs+1))//(shap_input_length+shap_output_length)
-            if i == shap_input_length*(n_past_covs+1):
+            if i == shap_input_length*(n_past_covs+n_comp_series):
                 future_covs = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index_future, columns=["Covariate"]))
-                if scale:
-                    future_covs = scaler_list[scale_index].transform(future_covs)
             else:
                 temp = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index_future, columns=["Covariate"]))
-                if scale:
-                    future_covs = future_covs.stack(scaler_list[scale_index].transform(temp))
-                else:
-                    future_covs = future_covs.stack(temp)
+                future_covs = future_covs.stack(temp)
+            
+        if scale:
+            future_covs = scaler_past_covariates[0].transform(future_covs)
+            
         if future_covs == None:
             future_covs_list = None
         else:
@@ -497,9 +501,9 @@ def predict(x: darts.TimeSeries,
     except:
         res = model.predict(shap_output_length, series_list, num_samples=num_samples)
     if scale:
-        res = list(map(lambda elem : scaler_list[0].inverse_transform(elem).univariate_values(), res))
-    else:
-        res = list(map(lambda elem : elem.univariate_values(), res))
+        res = list(map(lambda elem : scaler_list[0].inverse_transform(elem), res))
+
+    res = list(map(lambda elem: elem.random_component_values(copy=False).flatten(), res))
     return np.array(res)
 #lambda x: model_rnn.predict(TimeSeries.from_dataframe(pd.DataFrame(index=(x[-1] + pd.offsets.DateOffset(hours=i) for i in range(96)), data=x[:-1])))
 
@@ -518,10 +522,13 @@ def bar_plot_store_json(shap_values, data, filename):
 
 def call_shap(n_past_covs: int,
               n_future_covs: int,
+              n_comp_series: int, 
               shap_input_length: int,
               shap_output_length: int,
               model,
               scaler_list: List[darts.dataprocessing.transformers.Scaler],
+              scaler_past_covariates,
+              scaler_future_covariates,
               background: darts.TimeSeries,
               data: darts.TimeSeries,
               scale: bool = True,
@@ -558,11 +565,14 @@ def call_shap(n_past_covs: int,
     shap.initjs()
     explainer = shap.KernelExplainer(lambda x : predict(x, 
                                                         n_past_covs, 
-                                                        n_future_covs, 
+                                                        n_future_covs,
+                                                        n_comp_series,
                                                         shap_input_length, 
                                                         shap_output_length, 
                                                         model, 
-                                                        scaler_list, 
+                                                        scaler_list,
+                                                        scaler_past_covariates,
+                                                        scaler_future_covariates,
                                                         scale), background, num_samples=num_samples)
 
     shap_values = explainer.shap_values(data, nsamples="auto", normalize=False)
@@ -614,6 +624,8 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
     future_covs_uri = training_and_hyperparameter_tuning_out["future_covariates_uri"]
     past_covs_uri = training_and_hyperparameter_tuning_out["past_covariates_uri"]
     scaler_uri = training_and_hyperparameter_tuning_out["scaler_uri"]
+    scaler_past_covariates_uri = training_and_hyperparameter_tuning_out["scaler_past_covariates_uri"]
+    scaler_future_covariates_uri = training_and_hyperparameter_tuning_out["scaler_future_covariates_uri"]
     setup_uri = training_and_hyperparameter_tuning_out["setup_uri"]
     shap_input_length = training_and_hyperparameter_tuning_out["shap_input_length"]
     retrain = training_and_hyperparameter_tuning_out["retrain"]
@@ -651,7 +663,7 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
     forecast_horizon = int(forecast_horizon)
     m_mase = int(m_mase)
     num_samples = int(num_samples)
-    stride = int(forecast_horizon) if stride is None else int(stride)
+    stride = int(forecast_horizon) if stride is None or stride == -1 else int(stride)
     retrain = retrain
     pv_ensemble = pv_ensemble
     analyze_with_shap = analyze_with_shap
@@ -742,6 +754,8 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
     ## load model from MLflow
     model = load_model(client, model_uri, mode)
     scaler = load_scaler(scaler_uri=none_checker(scaler_uri), mode=mode)
+    scaler_future_covariates = load_scaler(scaler_uri=none_checker(scaler_future_covariates_uri), mode=mode)
+    scaler_past_covariates = load_scaler(scaler_uri=none_checker(scaler_past_covariates_uri), mode=mode)
 
     if scaler is not None:
         if not multiple:
@@ -835,6 +849,11 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
                 save_path = f"{evaltmpdir}/evaluation_results_all_ts.csv"
                 eval_results.to_csv(save_path)
                 evaluation_results["metrics"] = eval_results.mean(axis=0, numeric_only=True).to_dict()
+
+                if analyze_with_shap:
+                    print(f"Can not analye with SHAP as user chose to evaluate all time series. SHAP only supports analysis of a single test time series")
+                    logging.info(f"Can not analye with SHAP as user chose to evaluate all time series. SHAP only supports analysis of a single test time series")
+
             else:
                 if multiple:
                     print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}")
@@ -862,7 +881,7 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
                                                 id_l=None if not multiple else id_l[eval_i])
                 if analyze_with_shap:
 
-                    if shap_input_length == None:
+                    if shap_input_length == None or shap_input_length == -1:
                         raise ValueError(f"The model that was chosen does not support parameter input_chunk_length, and therefore needs shap_input_length to be defined explicitelly")
                     data, background = build_shap_dataset(size=size,
                                                     train=series_split['train'],
@@ -874,12 +893,15 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
                                                     past_covs=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]))
 
                     #TODO check SHAP with covariates
-                    call_shap(n_past_covs=0 if past_covariates == None else past_covariates.n_components,
-                        n_future_covs=0 if future_covariates == None else future_covariates.n_components,
+                    call_shap(n_past_covs=0 if past_covariates == None else past_covariates[eval_i].n_components,
+                        n_future_covs=0 if future_covariates == None else future_covariates[eval_i].n_components,
+                        n_comp_series=series_split['test'][eval_i].n_components,
                         shap_input_length=shap_input_length,
                         shap_output_length=shap_output_length,
                         model=model,
-                        scaler_list=[scaler if (not multiple or (scaler == None)) else scaler[eval_i],],
+                        scaler_list=[scaler if (not multiple or (scaler == None)) else scaler[eval_i]],
+                        scaler_future_covariates=[scaler_future_covariates if (not multiple or (scaler_future_covariates == None)) else scaler_future_covariates[eval_i]],
+                        scaler_past_covariates=[scaler_past_covariates if (not multiple or (scaler_past_covariates == None)) else scaler_past_covariates[eval_i]],
                         background=background,
                         data=data,
                         scale=(scaler != None),

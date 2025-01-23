@@ -903,7 +903,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     # Argument processing
     stride = none_checker(stride)
     forecast_horizon = int(forecast_horizon)
-    stride = int(forecast_horizon) if stride is None else int(stride)
+    stride = int(forecast_horizon) if stride == -1 or stride == None else int(stride)
     retrain = retrain
     multiple = multiple
     num_samples = int(num_samples)

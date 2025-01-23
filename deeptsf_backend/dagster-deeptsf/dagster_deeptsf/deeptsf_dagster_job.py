@@ -34,7 +34,7 @@ class DeepTSFConfig(ConfigurableResource):
     darts_model: str = "None"
     device: str = "gpu"
     forecast_horizon: str = "None"
-    stride: str = "None"
+    stride: int = -1
     retrain: bool = False
     ignore_previous_runs: bool = True
     scale: bool = True
@@ -64,7 +64,7 @@ class DeepTSFConfig(ConfigurableResource):
     evaluate_all_ts: bool = True
     convert_to_local_tz: bool = True
     grid_search: bool = False
-    shap_input_length: str = "None"
+    shap_input_length: int = -1
     ts_used_id: str = "None"
     m_mase: int = 1
     min_non_nan_interval: int = 24
