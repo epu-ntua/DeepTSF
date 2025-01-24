@@ -1,7 +1,7 @@
 stages:
   - build-app
   - deploy-dev
-  - deploy-stage
+  # - deploy-stage
 # Build the Docker image for the React app and push it to Harbor
 build-app:
   stage: build-app

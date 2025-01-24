@@ -69,7 +69,8 @@ def start_pipeline_run(context):
     if none_checker(cut_date_test) is None:
         check_mandatory(cut_date_test, "cut_date_test", [])
 
-    if none_checker(forecast_horizon) is None:
+    if none_checker(forecast_horizon) is None or forecast_horizon == -1:
+        forecast_horizon = None
         check_mandatory(forecast_horizon, "forecast_horizon", [])
 
     if none_checker(eval_series) is None and multiple and not evaluate_all_ts:
@@ -159,8 +160,8 @@ def training_and_hyperparameter_tuning_asset(context, start_pipeline_run, etl_ou
         print(f"\nSplit info: {setup} \n")
     
         #CHECK AND CHANGE
-        if "input_chunk_length" in completed_run.data.params:
-            shap_input_length = completed_run.data.params["input_chunk_length"]
+        if "input_chunk_length" in completed_run.data.tags:
+            shap_input_length = completed_run.data.tags["input_chunk_length"]
         else:
             shap_input_length = config.shap_input_length
             

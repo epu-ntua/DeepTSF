@@ -620,6 +620,9 @@ def train(context, start_pipeline_run, etl_out):
 
             mlflow.set_tag("darts_forecasting_model",
                 model.__class__.__name__)
+            
+            if "input_chunk_length" in hyperparams_entrypoint:
+                mlflow.set_tag('input_chunk_length', hyperparams_entrypoint["input_chunk_length"])
 
             mlflow.set_tag('series_uri',
                 f'{mlrun.info.artifact_uri}/features/series.csv')

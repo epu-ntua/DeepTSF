@@ -206,6 +206,10 @@ def log_optuna(study,
 
         mlflow.set_tag("darts_forecasting_model",
             model.__class__.__name__)
+            
+        if "input_chunk_length" in hyperparams_entrypoint:
+            mlflow.set_tag('input_chunk_length', hyperparams_entrypoint["input_chunk_length"])
+
         # model_uri
         mlflow.set_tag('model_uri', mlflow.get_artifact_uri(
             f"{mlflow_model_root_dir}/data/{mlrun.info.run_id}"))

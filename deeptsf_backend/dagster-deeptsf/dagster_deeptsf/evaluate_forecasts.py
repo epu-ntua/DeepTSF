@@ -307,7 +307,10 @@ def build_shap_dataset(size: Union[int, float],
                        shap_input_length: int,
                        shap_output_length: int,
                        past_covs: darts.TimeSeries = None,
-                       future_covs: darts.TimeSeries = None):
+                       future_covs: darts.TimeSeries = None,
+                       id_l = None,
+                       id_l_past_covs = None,
+                       id_l_future_covs = None):
     """
     Produces the dataset to be fed to SHAP's explainer. It chooses a subset of
     the validation dataset and it returns a dataframe of these samples along
@@ -374,33 +377,51 @@ def build_shap_dataset(size: Union[int, float],
             samples.add(r)
 
     for i in samples:
-        curr = test[i:i + shap_input_length]
-        curr_date = int(curr.time_index[0].timestamp())
-        curr_values = curr.random_component_values(copy=False)
-        data.append(curr_values.flatten("F"))
-        if first_iter:
-            for ii in range(test.n_components):
-                columns.extend([str(i) + " timestep of component " + str(ii) for i in range(shap_input_length)])
-                median_of_train = statistics.median(map(lambda x : x.median(axis=0).values()[0,0], train))
-                background.extend([median_of_train for _ in range(shap_input_length)])
-        if past_covs != None:
-            for ii in range(past_covs.n_components):
-                data[-1] = np.concatenate([data[-1], past_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length]].random_component_values(copy=False).flatten()])
-                if first_iter:
-                    columns.extend(["Step " + str(iii) + " of past covariate " + str(ii) for iii in range(shap_input_length)])
-                    background.extend([past_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length)])
-        if future_covs != None:
-            for ii in range(future_covs.n_components):
-                data[-1] = np.concatenate([data[-1], future_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length + shap_output_length]].random_component_values(copy=False).flatten()])
-                if first_iter:
-                    columns.extend(["Step " + str(iii) + " of future covariate " + str(ii) for iii in range(shap_input_length + shap_output_length)])
-                    background.extend([future_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length + shap_output_length)])
-        data[-1] = np.concatenate([data[-1], [curr_date]])
-        if first_iter:
-            columns.extend(["Datetime"])
-            background.extend([curr_date])
-        first_iter = False
-
+        try:
+            curr = test[i:i + shap_input_length]
+            curr_date = int(curr.time_index[0].timestamp())
+            curr_values = curr.random_component_values(copy=False)
+            data.append(curr_values.flatten("F"))
+            if first_iter:
+                for ii in range(test.n_components):
+                    columns.extend(["Step " + str(i) + " of comp. " + str(id_l[ii]) for i in range(shap_input_length)])
+                    median_of_train = statistics.median(map(lambda x : x.median(axis=0).values()[0,0], train))
+                    background.extend([median_of_train for _ in range(shap_input_length)])
+            if past_covs != None:
+                for ii in range(past_covs.n_components):
+                    #TODO: Currently assuming worst case scenario (autoregression for all points)
+                    #Fix this to only give the model exactly what it needs
+                    # print("PAST")
+                    # print(i)
+                    # print(test.time_index[i])
+                    # print(i + shap_input_length)
+                    # print(test.time_index[i + shap_input_length])
+                    # print(past_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length]])
+                    # print(past_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length]].random_component_values(copy=False).flatten())
+                    data[-1] = np.concatenate([data[-1], past_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length + shap_output_length - 1]].random_component_values(copy=False).flatten()])
+                    if first_iter:
+                        columns.extend(["Step " + str(iii) + " of past cov " + str(id_l_past_covs[ii]) for iii in range(shap_input_length + shap_output_length)])
+                        background.extend([past_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length  + shap_output_length)])
+            if future_covs != None:
+                for ii in range(future_covs.n_components):
+                    # print("FUTURE")
+                    # print(i)
+                    # print(test.time_index[i])
+                    # print(i + shap_input_length + shap_output_length)
+                    # print(test.time_index[i + shap_input_length + shap_output_length])
+                    data[-1] = np.concatenate([data[-1], future_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length + 2*shap_output_length - 1]].random_component_values(copy=False).flatten()])
+                    if first_iter:
+                        columns.extend(["Step " + str(iii) + " of fut. cov " + str(id_l_future_covs[ii]) for iii in range(shap_input_length + 2*shap_output_length)])
+                        background.extend([future_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length + 2*shap_output_length)])
+            data[-1] = np.concatenate([data[-1], [curr_date]])
+            if first_iter:
+                columns.extend(["Datetime"])
+                background.extend([curr_date])
+            first_iter = False
+        except:
+            curr_date = str(test.time_index[i].timestamp())
+            print(f"Failed generating sample with date {curr_date}. Skipping to next sample...")
+    # print(columns)
     data = pd.DataFrame(data, columns=columns)
     background = pd.DataFrame([background], columns=columns)
     return data, background
@@ -454,7 +475,8 @@ def predict(x: darts.TimeSeries,
     future_covs_list = []
     for sample in x:
         index = [pd.to_datetime(sample[-1], unit='s').tz_localize(None) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length)]
-        index_future = [pd.to_datetime(sample[-1], unit='s').tz_localize(None) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
+        index_past = [pd.to_datetime(sample[-1], unit='s').tz_localize(None) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
+        index_future = [pd.to_datetime(sample[-1], unit='s').tz_localize(None) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + 2*shap_output_length)]
         sample = np.array(sample, dtype=np.float32)
         for i in range(n_comp_series):
             data = sample[i*shap_input_length:(i+1)*shap_input_length]
@@ -466,30 +488,30 @@ def predict(x: darts.TimeSeries,
             ts = scaler_list[0].transform(ts)
         past_covs = None
         future_covs = None
-        for i in range(shap_input_length*n_comp_series, shap_input_length*(n_past_covs+n_comp_series), shap_input_length):
-            data = sample[i:i+shap_input_length]
+        for i in range(shap_input_length*n_comp_series, shap_input_length*n_comp_series + (shap_output_length + shap_input_length)*(n_past_covs), shap_output_length + shap_input_length):
+            data = sample[i:i+shap_output_length + shap_input_length]
             if i == shap_input_length*n_comp_series:
-                past_covs = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Covariate"]))
+                past_covs = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index_past, columns=["Covariate"]))
             else:
-                temp = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Covariate"]))
+                temp = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index_past, columns=["Covariate"]))
                 past_covs = past_covs.stack(temp)
-        if scaler_past_covariates != None:
+        if scaler_past_covariates[0] != None:
             past_covs = scaler_past_covariates[0].transform(past_covs)
 
         if past_covs == None: 
             past_covs_list = None 
         else:
             past_covs_list.append(past_covs)
-        for i in range(shap_input_length*(n_past_covs+n_comp_series), shap_input_length*(n_past_covs+n_comp_series) + (shap_input_length + shap_output_length)*n_future_covs, shap_input_length + shap_output_length):
-            data = sample[i:i+shap_input_length+shap_output_length]
-            if i == shap_input_length*(n_past_covs+n_comp_series):
+        for i in range(shap_input_length*n_comp_series + (shap_output_length + shap_input_length)*(n_past_covs), shap_input_length*n_comp_series + (shap_output_length + shap_input_length)*(n_past_covs) + (shap_input_length + 2*shap_output_length)*n_future_covs, shap_input_length + 2*shap_output_length):
+            data = sample[i:i+shap_input_length+2*shap_output_length]
+            if i == shap_input_length*n_comp_series + (shap_output_length + shap_input_length)*(n_past_covs):
                 future_covs = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index_future, columns=["Covariate"]))
             else:
                 temp = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index_future, columns=["Covariate"]))
                 future_covs = future_covs.stack(temp)
             
-        if scale:
-            future_covs = scaler_past_covariates[0].transform(future_covs)
+        if scaler_future_covariates[0] != None:
+            future_covs = scaler_future_covariates[0].transform(future_covs)
             
         if future_covs == None:
             future_covs_list = None
@@ -532,7 +554,10 @@ def call_shap(n_past_covs: int,
               background: darts.TimeSeries,
               data: darts.TimeSeries,
               scale: bool = True,
-              num_samples: int = 1):
+              num_samples: int = 1,
+              id_l = None,
+              id_l_past_covs = None,
+              id_l_future_covs = None):
     """
     The function that calls KernelExplainer, and stores to the MLflow server
     some plots explaining the output of the model. More specifficaly, ...
@@ -579,22 +604,23 @@ def call_shap(n_past_covs: int,
     plt.close()
     interprtmpdir = tempfile.mkdtemp()
     sample = random.randint(0, len(data) - 1)
-    for out in [0, shap_output_length//2, shap_output_length-1]:
-        shap.summary_plot(shap_values[:, : , out], data, show=False)
-        plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
-        plt.close()
-        os.remove(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
-        shap.summary_plot(shap_values[:, :, out], data, show=False)
-        plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
-        plt.close()
-        shap.summary_plot(shap_values[:, :, out], data, plot_type='bar', show=False)
-        plt.savefig(f"{interprtmpdir}/summary_plot_bar_graph_out_{out}.png")
-        plt.close()
-        bar_plot_store_json(shap_values[:, :, out], data, f"{interprtmpdir}/summary_plot_bar_data_out_{out}.json")
-        shap.force_plot(explainer.expected_value[out],shap_values[:, :, out][sample,:], data.iloc[sample,:],  matplotlib = True, show = False)
-        str_ = f"{interprtmpdir}/force_plot_of_{sample}_sample_starting_at_{str(pd.to_datetime(data.iloc[sample].iloc[-1], unit='s').tz_localize(None)).replace(":", "_")}_{out}_output.png"
-        plt.savefig(str_)
-        plt.close()
+    for no_comp in range(n_comp_series):
+        for out in [0, shap_output_length//2, shap_output_length-1]:
+            shap.summary_plot(shap_values[:, : , no_comp*shap_output_length + out], data, show=False)
+            plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}_comp_{id_l[no_comp]}.png")
+            plt.close()
+            os.remove(f"{interprtmpdir}/summary_plot_all_samples_out_{out}_comp_{id_l[no_comp]}.png")
+            shap.summary_plot(shap_values[:, :, no_comp*shap_output_length + out], data, show=False)
+            plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}_comp_{id_l[no_comp]}.png")
+            plt.close()
+            shap.summary_plot(shap_values[:, :, no_comp*shap_output_length + out], data, plot_type='bar', show=False)
+            plt.savefig(f"{interprtmpdir}/summary_plot_bar_graph_out_{out}_comp_{id_l[no_comp]}.png")
+            plt.close()
+            bar_plot_store_json(shap_values[:, :, no_comp*shap_output_length + out], data, f"{interprtmpdir}/summary_plot_bar_data_out_{out}_comp_{id_l[no_comp]}.json")
+            shap.force_plot(explainer.expected_value[no_comp*shap_output_length + out],shap_values[:, :, no_comp*shap_output_length + out][sample,:], data.iloc[sample,:],  matplotlib = True, show = False)
+            str_ = f"{interprtmpdir}/force_plot_of_{sample}_sample_starting_at_{str(pd.to_datetime(data.iloc[sample].iloc[-1], unit='s').tz_localize(None)).replace(":", "_")}_{out}_output_comp_{id_l[no_comp]}.png"
+            plt.savefig(str_)
+            plt.close()
 
     print("\nUploading SHAP interpretation results to MLflow server...")
     logging.info("\nUploading SHAP interpretation results to MLflow server...")
@@ -890,22 +916,29 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
                                                     shap_input_length=shap_input_length,
                                                     shap_output_length=shap_output_length,
                                                     future_covs=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
-                                                    past_covs=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]))
+                                                    past_covs=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
+                                                    id_l=[0] if not multiple else id_l[eval_i],
+                                                    id_l_past_covs=None if past_covariates == None else (id_l_past_covs[0] if not multiple else id_l_past_covs[eval_i]),
+                                                    id_l_future_covs=None if future_covariates == None else (id_l_future_covs[0] if not multiple else id_l_future_covs[eval_i]))
+
 
                     #TODO check SHAP with covariates
                     call_shap(n_past_covs=0 if past_covariates == None else past_covariates[eval_i].n_components,
                         n_future_covs=0 if future_covariates == None else future_covariates[eval_i].n_components,
-                        n_comp_series=series_split['test'][eval_i].n_components,
+                        n_comp_series=series_split['test'][eval_i].n_components if multiple else series_split['test'].n_components,
                         shap_input_length=shap_input_length,
                         shap_output_length=shap_output_length,
                         model=model,
                         scaler_list=[scaler if (not multiple or (scaler == None)) else scaler[eval_i]],
-                        scaler_future_covariates=[scaler_future_covariates if (not multiple or (scaler_future_covariates == None)) else scaler_future_covariates[eval_i]],
-                        scaler_past_covariates=[scaler_past_covariates if (not multiple or (scaler_past_covariates == None)) else scaler_past_covariates[eval_i]],
+                        scaler_future_covariates=[None if scaler_future_covariates == None else scaler_future_covariates[0] if not multiple else scaler_future_covariates[eval_i]],
+                        scaler_past_covariates=[None if scaler_past_covariates == None else scaler_past_covariates[0] if not multiple else scaler_past_covariates[eval_i]],
                         background=background,
                         data=data,
                         scale=(scaler != None),
-                        num_samples=num_samples)
+                        num_samples=num_samples,
+                        id_l=[0] if not multiple else id_l[eval_i],
+                        id_l_past_covs=None if past_covariates == None else (id_l_past_covs[0] if not multiple else id_l_past_covs[eval_i]),
+                        id_l_future_covs=None if future_covariates == None else (id_l_future_covs[0] if not multiple else id_l_future_covs[eval_i]))
             # if not multiple:
             #     series_split['test'].to_csv(
             #             os.path.join(evaltmpdir, "test.csv"))

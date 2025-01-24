@@ -33,7 +33,7 @@ class DeepTSFConfig(ConfigurableResource):
     test_end_date: str = "None"
     darts_model: str = "None"
     device: str = "gpu"
-    forecast_horizon: str = "None"
+    forecast_horizon: int = -1
     stride: int = -1
     retrain: bool = False
     ignore_previous_runs: bool = True
