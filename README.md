@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://doi.org/10.1016/j.softx.2024.101758">
-    <img alt="DeepTSF" src="https://github.com/epu-ntua/DeepTSF/blob/9071bad248bd13256d703e565fb49dc88ba8d77a/docs/version1all.png" width="150" />
+    <img alt="DeepTSF" src="https://github.com/epu-ntua/DeepTSF/blob/9071bad248bd13256d703e565fb49dc88ba8d77a/deeptsf_backend/docs/version1all.png" width="150" />
   </a>
 </p>
 <p align="center">
@@ -28,52 +28,85 @@ After that you need to navigate to the root directory of DeepTSF:
 Το enable the communication of the client with the logging servers (MLflow, Minio, Postgres), a .env file is needed. 
 An example (.env.example) is provided, with default environment variables.
 
-After that, you can set up DeepTSF either using conda (CLI for data scientists) or Docker (full deployment).
+After that, you can set up a full deployment of DeepTSF using Docker.
 
-### Set up locally using Docker (Recommended)
+### Set up locally using Docker
 
-To set up locally using docker first go to DeepTSF's root directory and rename .env.example to .env. Then run the following command in DeepTSF's root directory:
+To set up locally using docker first go to DeepTSF's root directory (inside deeptsf_backend) and rename .env.example to .env. Then run the following command in DeepTSF's root directory:
 
 ```docker-compose up```
 
 DeepTSF is up and running. Navigate to [http://localhost:3000](http://localhost:3000) and start your experiments!
 
-- Optional step for advanced users: 
+## Dagster UI for advanced users
 
-In a new terminal window, you can copy the timeseries file you desire to run into the container, 
-and then run the following to gain access to the container's file system:
+For users that require advanced pipeline parameterization and functionalities such as hyperparameter tuning,
+a dagster based pipeline is provided. By modifying the config of deeptsf_dagster_job, the user can set all parameters 
+described in the extensive documentation of DeepTSF. An example config file is given below:
 
-```docker cp <path_to_file> DeepTSF-backend:/app```
+```
+resources:
+  config:
+    config:
+      a: 0.3
+      analyze_with_shap: false
+      convert_to_local_tz: true
+      country: PT
+      cut_date_test: "20210101"
+      cut_date_val: "20200101"
+      darts_model: LightGBM
+      database_name: rdn_load_data
+      device: gpu
+      eval_method: ts_ID
+      eval_series: eval_series
+      evaluate_all_ts: true
+      experiment_name: dagster_test
+      forecast_horizon: 24
+      format: long
+      from_database: false
+      future_covs_csv: None
+      future_covs_uri: None
+      grid_search: false
+      hyperparams_entrypoint:
+        lags: [-1, -2, -14]
+      ignore_previous_runs: true
+      imputation_method: linear
+      loss_function: mape
+      m_mase: 1
+      max_thr: -1
+      min_non_nan_interval: 24
+      multiple: false
+      n_trials: 100
+      num_samples: 1
+      num_workers: 4
+      opt_test: false
+      order: 1
+      parent_run_name: dagster_test
+      past_covs_csv: None
+      past_covs_uri: None
+      pv_ensemble: false
+      resampling_agg_method: averaging
+      resolution: 1h
+      retrain: false
+      rmv_outliers: true
+      scale: true
+      scale_covs: true
+      series_csv: dataset-storage/Italy.csv
+      series_uri: None
+      shap_data_size: 100
+      shap_input_length: -1
+      std_dev: 4.5
+      stride: -1
+      test_end_date: None
+      time_covs: false
+      ts_used_id: None
+      wncutoff: 0.000694
+      ycutoff: 3
+      ydcutoff: 30
+      year_range: None
+```
 
-```docker exec -it DeepTSF-backend bash```
-
-Now you are running bash in the main DeepTSF container! Choose the directory which best corresponds to your 
-problem, and switch to that: <br>
-- uc2 for general problems. The app will execute a national load forecasting
-  use case if from_database is set to true. So preferrably set from_database=False unless you create your own database connection.<br>
-- uc6 and uc7 are related to other use cases and are still under development.
-
-So run the following to set up your working environment:
-```cd uc2```
-
-```conda activate DeepTSF_env```
-
-```export MLFLOW_TRACKING_URI=https://localhost:5000```
-
-```export GIT_PYTHON_REFRESH=quiet```
-
-
-Then, you can execute any experiment you want. An example working command (also demonstrated in the whitepaper [1]), is shown below:
-
-```mlflow run --experiment-name example --entry-point exp_pipeline . -P series_csv=user_datasets/Italy.csv -P convert_to_local_tz=false -P day_first=false -P from_database=false -P multiple=false -P imputation_method=peppanen -P resolution=1h -P rmv_outliers=true -P country=IT -P year_range=2015-2022 -P cut_date_val=20200101 -P cut_date_test=20210101 -P test_end_date=20211231 -P scale=true -P darts_model=NBEATS -P hyperparams_entrypoint=NBEATS_example -P loss_function=mape -P opt_test=true -P grid_search=false -P n_trials=100 -P device=gpu -P ignore_previous_runs=t -P forecast_horizon=24 -P m_mase=24 -P analyze_with_shap=False --env-manager=local```
-
-Don't forget to change series_csv argument to match the file's location in the container 
-(if you followed the previous instructions it must be located in the parent directory).
-
-### Bare metal installation 
-
-This installation is only recommended for advanced users that require advanced
-pipeline parameterization and functionalities such as hyperparameter tuning.
+For a more complete guide check the extensive documentation.
 
 #### Set up mlflow tracking server
 
@@ -89,29 +122,6 @@ After that, you need to get the server to run
 
 The MLflow server and client may run on different computers. In this case, remember to change
 the addresses on the .env file.
-
-#### Set up the DeepTSF backend (CLI functionality) locally using conda.
-
-You can use conda.yaml to reproduce the conda environment manually. Simply 
-execute the following command which creates a new conda enviroment called
-DeepTSF_env:
-
-```cd /path/to/repo/of/DeepTSF```
-
-```conda env create -f conda.yaml```
-
-Then activate the new environment:
-
-```conda activate DeepTSF_env```
-
-Alternatively to those 2 commands, you can reproduce the conda environment automatically,
-by running any 'mlflow run' command *without* the option `--env-manager=local`. 
-This option however is not encouraged for every day use as it rebuilds the conda environment from scratch every time.
-
-Then, set the MLFLOW_TRACKING_URI to the uri of the mlflow tracking server (by default http://localhost:5000). 
-Please do not omit this step as this environment variable will not get inherited from the .env file. 
-
-```export MLFLOW_TRACKING_URI=https://localhost:5000```
 
 For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation). 
 
