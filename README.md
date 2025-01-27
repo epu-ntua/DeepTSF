@@ -1,7 +1,6 @@
 <p align="center">
   <a href="https://doi.org/10.1016/j.softx.2024.101758">
-    <img alt="DeepTSF" src="https://raw.githubusercontent.com/epu-ntua/DeepTSF/master/deeptsf_backend/docs/version1all.png
-" width="150" />
+    <img alt="DeepTSF" src="https://raw.githubusercontent.com/epu-ntua/DeepTSF/master/deeptsf_backend/docs/version1all.png" width="150" />
   </a>
 </p>
 <p align="center">
