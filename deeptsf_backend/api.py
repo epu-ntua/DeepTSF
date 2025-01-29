@@ -312,7 +312,7 @@ class LoginRequest(BaseModel):
  
 @app.post("/login")
 def login(request: LoginRequest):
-    url = "https://vc-platform.dev.deployai.eu/connect/token"
+    url = "https://marketplace.aiodp.ai/connect/token"
     payload = f'grant_type=password&password={request.password}&username={request.username}&storeId=deployai'
     headers = {
         'content-type': 'application/x-www-form-urlencoded'
