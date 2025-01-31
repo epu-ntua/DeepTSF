@@ -19,6 +19,8 @@ from utils import load_artifacts, to_seconds, change_form, make_time_list, truth
 import psutil, nvsmi
 import os
 import requests
+import jwt
+
 from dotenv import load_dotenv
 from fastapi import APIRouter
 from app.auth import admin_validator, scientist_validator, engineer_validator, common_validator, oauth2_scheme
@@ -305,6 +307,43 @@ def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='
     
     resolutions = make_time_list(resolution=resolution)    
     return ts, resolutions
+
+# Define a Pydantic model for the request body
+class TokenRequest(BaseModel):
+    jwt: str
+
+# Fetch the secret key from the JWKS endpoint
+def fetch_secret_key():
+    jwks_url = "https://marketplace.aiodp.ai/.well-known/jwks"
+    response = requests.get(jwks_url)
+    if response.status_code == 200:
+        jwks = response.json()
+        # Extract the key (assuming the key is in the first entry)
+        return jwks['keys'][0]['x5c'][0]
+    else:
+        raise Exception("Failed to fetch JWKS")
+
+@app.post("/api/auth")
+async def sso_auth(request: TokenRequest):
+    SECRET_KEY = fetch_secret_key()
+    try:
+        # Secret key for JWT validation
+        # Decode and validate the JWT
+        payload = jwt.decode(request.jwt, SECRET_KEY, algorithms=["RS256"])
+        user_email = payload.get("email")
+        if not user_email:
+            raise HTTPException(status_code=400, detail="Invalid token: email not found")
+
+        # Generate a user-specific login URL
+        login_url = f"https://deeptsf.aiodp.ai/login?token={request.jwt}"
+
+        # Respond with the login URL
+        return {"message": "Login successful", "url": login_url}
+
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 class LoginRequest(BaseModel):
     username: str
