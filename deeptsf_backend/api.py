@@ -314,7 +314,8 @@ class TokenRequest(BaseModel):
 
 # Fetch the secret key from the JWKS endpoint
 def fetch_secret_key():
-    jwks_url = "https://marketplace.aiodp.ai/.well-known/jwks"
+    # jwks_url = "https://marketplace.aiodp.ai/.well-known/jwks"
+    jwks_url = "https://vc-platform.stage.aiodp.ai/.well-known/jwks"
     response = requests.get(jwks_url)
     if response.status_code == 200:
         jwks = response.json()
