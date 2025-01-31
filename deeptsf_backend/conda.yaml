@@ -182,6 +182,7 @@ dependencies:
     - opentelemetry-sdk==1.24.0
     - opentelemetry-semantic-conventions==0.45b0
     - opentelemetry-util-http==0.45b0
+    - cryptography==45.0.0
     - optuna==3.6.1
     - orjson==3.10.0
     - packaging==23.2
