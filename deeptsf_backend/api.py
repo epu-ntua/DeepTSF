@@ -31,6 +31,10 @@ import datetime
 from math import nan
 import bson
 from minio import Minio
+import base64
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+
 
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
@@ -308,6 +312,18 @@ def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='
     resolutions = make_time_list(resolution=resolution)    
     return ts, resolutions
 
+def get_public_key_from_x5c(x5c_value: str):
+    # 1) Convert the base64 DER certificate into a PEM certificate
+    cert_der = base64.b64decode(x5c_value)
+    cert = x509.load_der_x509_certificate(cert_der, default_backend())
+    
+    # 2) Extract the public key object
+    public_key = cert.public_key()
+    
+    # 3) Return this object, which PyJWT can accept directly in python-jose/cryptography scenarios
+    return public_key
+
+
 # Define a Pydantic model for the request body
 class TokenRequest(BaseModel):
     jwt: str
@@ -320,7 +336,7 @@ def fetch_secret_key():
     if response.status_code == 200:
         jwks = response.json()
         # Extract the key (assuming the key is in the first entry)
-        return jwks['keys'][0]['x5c'][0]
+        return get_public_key_from_x5c(jwks['keys'][0]['x5c'][0])
     else:
         raise Exception("Failed to fetch JWKS")
 
