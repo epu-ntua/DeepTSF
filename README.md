@@ -108,6 +108,8 @@ resources:
 
 For a more complete guide check the extensive documentation.
 
+This application can also be deployed in a kubernetes enviroment. 
+
 #### Set up mlflow tracking server
 
 To run DeepTSF on your system you first have to install the mlflow tracking and minio server.
