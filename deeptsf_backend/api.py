@@ -346,7 +346,7 @@ async def sso_auth(request: TokenRequest):
     try:
         # Secret key for JWT validation
         # Decode and validate the JWT
-        payload = jwt.decode(request.jwt, SECRET_KEY, algorithms=["RS256"])
+        payload = jwt.decode(request.jwt, SECRET_KEY, algorithms=["HS256"])
         user_email = payload.get("email")
         if not user_email:
             raise HTTPException(status_code=400, detail="Invalid token: email not found")
