@@ -336,7 +336,8 @@ class TokenRequest(BaseModel):
 
 # Fetch the public key from the JWKS endpoint
 def fetch_public_key():
-    jwks_url = "https://vc-platform.stage.aiodp.ai/.well-known/jwks"
+    # jwks_url = "https://vc-platform.stage.aiodp.ai/.well-known/jwks"
+    jwks_url = "https://marketplace.aiodp.ai/.well-known/jwks"
     try:
         logger.info(f"Fetching JWKS from {jwks_url}")
         response = requests.get(jwks_url)
@@ -406,8 +407,8 @@ class LoginRequest(BaseModel):
  
 @app.post("/login")
 def login(request: LoginRequest):
-    #url = "https://marketplace.aiodp.ai/connect/token"
-    url = "https://vc-platform.stage.aiodp.ai/connect/token"
+    url = "https://marketplace.aiodp.ai/connect/token"
+    # url = "https://vc-platform.stage.aiodp.ai/connect/token"
     payload = f'grant_type=password&password={request.password}&username={request.username}&storeId=deployai'
     headers = {
         'content-type': 'application/x-www-form-urlencoded'
