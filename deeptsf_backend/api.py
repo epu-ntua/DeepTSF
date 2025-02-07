@@ -20,6 +20,8 @@ import psutil, nvsmi
 import os
 import requests
 import jwt
+import logging
+from jwt.algorithms import RSAAlgorithm
 
 from dotenv import load_dotenv
 from fastapi import APIRouter
@@ -57,6 +59,10 @@ MINIO_SSL = truth_checker(os.getenv("MINIO_SSL"))
 USE_KEYCLOAK = truth_checker(os.getenv("USE_KEYCLOAK"))
 
 client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # allows automated type check with pydantic
 # class ModelName(str, Enum):
@@ -328,39 +334,71 @@ def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='
 class TokenRequest(BaseModel):
     jwt: str
 
-# Fetch the secret key from the JWKS endpoint
-def fetch_secret_key():
-    # jwks_url = "https://marketplace.aiodp.ai/.well-known/jwks"
+# Fetch the public key from the JWKS endpoint
+def fetch_public_key():
     jwks_url = "https://vc-platform.stage.aiodp.ai/.well-known/jwks"
-    response = requests.get(jwks_url)
-    if response.status_code == 200:
+    try:
+        logger.info(f"Fetching JWKS from {jwks_url}")
+        response = requests.get(jwks_url)
+        response.raise_for_status()  # Raise an error for bad status codes
         jwks = response.json()
+        logger.info(f"JWKS: {jwks}")
+
         # Extract the key (assuming the key is in the first entry)
-        return jwks['keys'][0]['x5c'][0]
-    else:
-        raise Exception("Failed to fetch JWKS")
+        key_data = jwks['keys'][0]
+        public_key = RSAAlgorithm.from_jwk(key_data)
+        logger.info(f"Fetched public key: {public_key}")
+        return public_key
+    except requests.exceptions.RequestException as e:
+        logger.error(f"HTTP request failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch JWKS")
+    except ValueError as e:
+        logger.error(f"JSON decode failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to decode JWKS response")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch JWKS")
 
 @app.post("/api/auth")
-async def sso_auth(request: TokenRequest):
-    SECRET_KEY = fetch_secret_key()
+async def sso_auth(request: TokenRequest, response: Response):
     try:
-        # Secret key for JWT validation
+        # Fetch the public key
+        public_key = fetch_public_key()
+        
         # Decode and validate the JWT
-        payload = jwt.decode(request.jwt, SECRET_KEY, algorithms=["HS256"])
-        user_email = payload.get("email")
+        logger.info(f"Decoding JWT: {request.jwt}")
+        payload = jwt.decode(request.jwt, public_key, algorithms=["RS256"], audience="resource_server")
+        logger.info(f"Decoded JWT payload: {payload}")
+
+        # Check for the email claim
+        user_email = payload.get("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress")
         if not user_email:
+            logger.error(f"Invalid token: email not found in payload: {payload}")
             raise HTTPException(status_code=400, detail="Invalid token: email not found")
 
-        # Generate a user-specific login URL
-        login_url = f"https://deeptsf.aiodp.ai/login?token={request.jwt}"
+        # Create a session token (for simplicity, using the JWT itself as the session token)
+        session_token = request.jwt
 
-        # Respond with the login URL
-        return {"message": "Login successful", "url": login_url}
+        # Set the session token as a cookie
+        response.set_cookie(key="session_token", value=session_token, httponly=True)
+
+        # Respond with a success message
+        return JSONResponse(content={"message": "Session created successfully"})
 
     except jwt.ExpiredSignatureError:
+        logger.error("Token has expired")
         raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as e:
+        logger.error(f"Invalid token: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
+    except HTTPException as e:
+        logger.error(f"HTTPException: {e.detail}")
+        raise e
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
 
 class LoginRequest(BaseModel):
     username: str
