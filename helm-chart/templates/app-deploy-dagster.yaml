@@ -49,6 +49,8 @@ spec:
         env:
         - name: host
           value: {{ required "host environment variable is required" .Values.env.host | quote }}
+        - name: marketplace
+          value: {{ required "marketplace environment variable is required" .Values.env.marketplace | quote }}
         - name: AWS_ACCESS_KEY_ID
           value: {{ required "AWS_ACCESS_KEY_ID environment variable is required" .Values.env.AWS_ACCESS_KEY_ID | quote }}
         - name: AWS_SECRET_ACCESS_KEY

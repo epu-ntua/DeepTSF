@@ -44,6 +44,7 @@ user = os.environ.get('MONGO_USER')
 password = os.environ.get('MONGO_PASS')
 address = os.environ.get('MONGO_ADDRESS')
 database = os.environ.get('MONGO_DB_NAME')
+marketplace = os.environ.get('marketplace')
 mongo_collection_uc7 = os.environ.get('MONGO_COLLECTION_UC7')
 mongo_collection_uc2 = os.environ.get('MONGO_COLLECTION_UC2')
 mongo_collection_uc6 = os.environ.get('MONGO_COLLECTION_UC6')
@@ -337,7 +338,7 @@ class TokenRequest(BaseModel):
 # Fetch the public key from the JWKS endpoint
 def fetch_public_key():
     # jwks_url = "https://vc-platform.stage.aiodp.ai/.well-known/jwks"
-    jwks_url = "https://marketplace.aiodp.ai/.well-known/jwks"
+    jwks_url = "https://" + marketplace + "/.well-known/jwks"
     try:
         logger.info(f"Fetching JWKS from {jwks_url}")
         response = requests.get(jwks_url)
@@ -407,7 +408,7 @@ class LoginRequest(BaseModel):
  
 @app.post("/login")
 def login(request: LoginRequest):
-    url = "https://marketplace.aiodp.ai/connect/token"
+    url = "https://" + marketplace + "/connect/token"
     # url = "https://vc-platform.stage.aiodp.ai/connect/token"
     payload = f'grant_type=password&password={request.password}&username={request.username}&storeId=deployai'
     headers = {
