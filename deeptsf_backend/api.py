@@ -371,6 +371,16 @@ def login(request: LoginRequest, response: Response):
 class TokenRequest(BaseModel):
     jwt: str
 
+@app.post("/login_token")
+def login(request: TokenRequest, response: Response):
+    url = "https://platform.aiodp.ai/connect/token"
+    response.set_cookie(
+            key="session_token",
+            value=request.jwt,
+            httponly=True)
+    return {"message": "Login successful", "token": request.jwt}
+
+
 # Fetch the public key from the JWKS endpoint
 def fetch_public_key():
     # jwks_url = "https://vc-platform.stage.aiodp.ai/.well-known/jwks"
