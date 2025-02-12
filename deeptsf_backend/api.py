@@ -145,6 +145,11 @@ admin_router = APIRouter()
 scientist_router = APIRouter()
 engineer_router = APIRouter()
 common_router = APIRouter()
+admin_router.dependencies = []
+scientist_router.dependencies = []
+engineer_router.dependencies = []
+common_router.dependencies = []
+
 
 if not USE_KEYCLOAK:
     admin_router.dependencies = []
