@@ -329,6 +329,28 @@ def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='
     resolutions = make_time_list(resolution=resolution)    
     return ts, resolutions
 
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+ 
+@app.post("/login")
+def login(request: LoginRequest):
+    url = "https://platform.aiodp.ai/connect/token"
+    # url = "https://vc-platform.stage.aiodp.ai/connect/token"
+    payload = f'grant_type=password&password={request.password}&username={request.username}&storeId=deployai'
+    headers = {
+        'content-type': 'application/x-www-form-urlencoded'
+    }
+ 
+    response = requests.post(url, headers=headers, data=payload)
+ 
+    if response.status_code == 200:
+        return {"message": "Login successful", "token": response.json().get("access_token")}
+    else:
+        raise HTTPException(status_code=response.status_code, detail="Login failed")
+
+
 # def get_public_key_from_x5c(x5c_value: str):
 #     # 1) Convert the base64 DER certificate into a PEM certificate
 #     cert_der = base64.b64decode(x5c_value)
@@ -373,7 +395,7 @@ def fetch_public_key():
 
 @app.middleware("http")
 async def check_session_token(request: Request, call_next):
-    if request.url.path not in ["/api/auth", "/api/logout"]:
+    if request.url.path not in ["/api/auth", "/api/logout", "/login"]:
         session_token = request.cookies.get("session_token")
         if not session_token:
             return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
