@@ -1,7 +1,7 @@
 from enum import Enum
 import uvicorn
 import httpx
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends, Response
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends, Response, Request
 from fastapi.responses import JSONResponse
 import json
 from pydantic import BaseModel
@@ -127,19 +127,24 @@ app.add_middleware(
 
 # creating routers
 # admin validator passed as dependency
-admin_router = APIRouter(
-    dependencies=[Depends(admin_validator)]
-)
-# scientist validator passed as dependency
-scientist_router = APIRouter(
-    dependencies=[Depends(scientist_validator)]
-)
-engineer_router = APIRouter(
-    dependencies=[Depends(engineer_validator)]
-)
-common_router = APIRouter(
-    dependencies=[Depends(common_validator)]
-)
+# admin_router = APIRouter(
+#     dependencies=[Depends(admin_validator)]
+# )
+# # scientist validator passed as dependency
+# scientist_router = APIRouter(
+#     dependencies=[Depends(scientist_validator)]
+# )
+# engineer_router = APIRouter(
+#     dependencies=[Depends(engineer_validator)]
+# )
+# common_router = APIRouter(
+#     dependencies=[Depends(common_validator)]
+# )
+
+admin_router = APIRouter()
+scientist_router = APIRouter()
+engineer_router = APIRouter()
+common_router = APIRouter()
 
 if not USE_KEYCLOAK:
     admin_router.dependencies = []
@@ -361,6 +366,34 @@ def fetch_public_key():
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch JWKS")
 
+@app.middleware("http")
+async def check_session_token(request: Request, call_next):
+    if request.url.path not in ["/api/auth", "/api/logout"]:
+        session_token = request.cookies.get("session_token")
+        if not session_token:
+            return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+        try:
+            jwt.decode(session_token, options={"verify_signature": False})
+        except jwt.ExpiredSignatureError:
+            return JSONResponse(status_code=401, content={"detail": "Session has expired"})
+        except jwt.InvalidTokenError:
+            return JSONResponse(status_code=401, content={"detail": "Invalid session token"})
+    response = await call_next(request)
+    return response
+
+# Utility function to get the current user from the session token
+def get_current_user(request: Request):
+    session_token = request.cookies.get("session_token")
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(session_token, options={"verify_signature": False})
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session has expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
 @app.post("/api/auth")
 async def sso_auth(request: TokenRequest, response: Response):
     try:
@@ -384,8 +417,9 @@ async def sso_auth(request: TokenRequest, response: Response):
         # Set the session token as a cookie
         response.set_cookie(key="session_token", value=session_token, httponly=True)
 
-        # Respond with a success message
-        return JSONResponse(content={"message": "Session created successfully"})
+        # Respond with the login URL
+        login_url = f"https://deeptsf.aiodp.ai/?jwt={session_token}"
+        return JSONResponse(content={"message": "Session created successfully", "url": login_url})
 
     except jwt.ExpiredSignatureError:
         logger.error("Token has expired")
@@ -400,27 +434,11 @@ async def sso_auth(request: TokenRequest, response: Response):
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+@app.post("/api/logout")
+async def logout(response: Response):
+    response.delete_cookie("session_token")
+    return JSONResponse(content={"message": "Logged out successfully"})
 
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
- 
-@app.post("/login")
-def login(request: LoginRequest):
-    url = "https://" + marketplace + "/connect/token"
-    # url = "https://vc-platform.stage.aiodp.ai/connect/token"
-    payload = f'grant_type=password&password={request.password}&username={request.username}&storeId=deployai'
-    headers = {
-        'content-type': 'application/x-www-form-urlencoded'
-    }
- 
-    response = requests.post(url, headers=headers, data=payload)
- 
-    if response.status_code == 200:
-        return {"message": "Login successful", "token": response.json().get("access_token")}
-    else:
-        raise HTTPException(status_code=response.status_code, detail="Login failed")
         
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
 async def create_upload_csv_file(file: UploadFile = File(...), 
