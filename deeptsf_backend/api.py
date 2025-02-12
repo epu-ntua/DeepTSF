@@ -335,7 +335,7 @@ class LoginRequest(BaseModel):
     password: str
  
 @app.post("/login")
-def login(request: LoginRequest):
+def login(request: LoginRequest, response: Response):
     url = "https://platform.aiodp.ai/connect/token"
     # url = "https://vc-platform.stage.aiodp.ai/connect/token"
     payload = f'grant_type=password&password={request.password}&username={request.username}&storeId=deployai'
@@ -343,12 +343,16 @@ def login(request: LoginRequest):
         'content-type': 'application/x-www-form-urlencoded'
     }
  
-    response = requests.post(url, headers=headers, data=payload)
+    response_api = requests.post(url, headers=headers, data=payload)
  
-    if response.status_code == 200:
-        return {"message": "Login successful", "token": response.json().get("access_token")}
+    if response_api.status_code == 200:
+        response.set_cookie(
+            key="session_token",
+            value=response_api.json().get("access_token"),
+            httponly=True)
+        return {"message": "Login successful", "token": response_api.json().get("access_token")}
     else:
-        raise HTTPException(status_code=response.status_code, detail="Login failed")
+        raise HTTPException(status_code=response_api.status_code, detail="Login failed")
 
 
 # def get_public_key_from_x5c(x5c_value: str):
