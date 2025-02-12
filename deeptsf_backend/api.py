@@ -440,28 +440,44 @@ async def sso_auth(request: TokenRequest, response: Response):
     try:
         # Fetch the public key
         public_key = fetch_public_key()
-        
+ 
         # Decode and validate the JWT
         logger.info(f"Decoding JWT: {request.jwt}")
-        payload = jwt.decode(request.jwt, public_key, algorithms=["RS256"], audience="resource_server")
+        payload = jwt.decode(
+            request.jwt, public_key, algorithms=["RS256"], audience="resource_server"
+        )
         logger.info(f"Decoded JWT payload: {payload}")
-
+ 
         # Check for the email claim
-        user_email = payload.get("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress")
+        user_email = payload.get(
+            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+        )
         if not user_email:
             logger.error(f"Invalid token: email not found in payload: {payload}")
-            raise HTTPException(status_code=400, detail="Invalid token: email not found")
-
+            raise HTTPException(
+                status_code=400, detail="Invalid token: email not found"
+            )
+ 
+        # Extract additional user information
+        username = payload.get("preferred_username", "unknown")
+        roles = payload.get("roles", [])
+ 
         # Create a session token (for simplicity, using the JWT itself as the session token)
         session_token = request.jwt
-
+ 
         # Set the session token as a cookie
         response.set_cookie(key="session_token", value=session_token, httponly=True)
-
-        # Respond with the login URL
+ 
+        # Respond with the login URL and user information
         login_url = f"https://deeptsf.aiodp.ai/?jwt={session_token}"
-        return JSONResponse(content={"message": "Session created successfully", "url": login_url})
-
+        return JSONResponse(
+            content={
+                "message": "Session created successfully",
+                "url": login_url,
+                "user": {"email": user_email, "username": username, "roles": roles},
+            }
+        )
+ 
     except jwt.ExpiredSignatureError:
         logger.error("Token has expired")
         raise HTTPException(status_code=401, detail="Token has expired")
@@ -474,6 +490,7 @@ async def sso_auth(request: TokenRequest, response: Response):
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+    
 
 @app.post("/api/logout")
 async def logout(response: Response):
