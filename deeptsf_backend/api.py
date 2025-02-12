@@ -374,7 +374,7 @@ class TokenRequest(BaseModel):
 # Fetch the public key from the JWKS endpoint
 def fetch_public_key():
     # jwks_url = "https://vc-platform.stage.aiodp.ai/.well-known/jwks"
-    jwks_url = "https://" + marketplace + "/.well-known/jwks"
+    jwks_url = "https://platform.aiodp.ai/.well-known/jwks"
     try:
         logger.info(f"Fetching JWKS from {jwks_url}")
         response = requests.get(jwks_url)
