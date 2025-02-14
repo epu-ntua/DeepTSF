@@ -122,8 +122,8 @@ app.add_middleware(
         "https://deeptsf.aiodp.ai", 
         "https://deeptsf.stage.aiodp.ai",
         "https://deeptsf.dev.aiodp.ai",
-        "https://marketplace.aiodp.ai",
-    ]
+        "https://marketplace.aiodp.ai"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
