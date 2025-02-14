@@ -529,14 +529,21 @@ def get_current_user(request: Request):
 async def login(request: Request, response: Response):
     """
     Allows unauthenticated users to log in and forwards the request to /api/auth.
+    Uses httpx to properly handle forwarding.
     """
     request_data = await request.json()  # Extract JWT from body
+    
+    async with httpx.AsyncClient() as client:
+        backend_response = await client.post(
+            "https://deeptsf-backend.aiodp.ai/api/auth", 
+            json=request_data,  # Forwarding JSON body
+            headers={"Content-Type": "application/json"}
+        )
 
-    # No need for Authorization header here
-    token_request = TokenRequest(**request_data)
-
-    # Forward request directly to /api/auth for validation
-    return await sso_auth(token_request, response)
+    # Return the response received from `/api/auth`
+    return Response(content=backend_response.content, 
+                    status_code=backend_response.status_code,
+                    headers=dict(backend_response.headers))
 
 
 @app.post("/api/auth")
