@@ -410,20 +410,103 @@ def fetch_public_key():
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch JWKS")
 
+# @app.middleware("http")
+# async def check_session_token(request: Request, call_next):
+#     if request.url.path not in ["/api/auth", "/api/logout", "/login"]:
+#         session_token = request.cookies.get("session_token")
+#         if not session_token:
+#             return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+#         try:
+#             jwt.decode(session_token, options={"verify_signature": False})
+#         except jwt.ExpiredSignatureError:
+#             return JSONResponse(status_code=401, content={"detail": "Session has expired"})
+#         except jwt.InvalidTokenError:
+#             return JSONResponse(status_code=401, content={"detail": "Invalid session token"})
+#     response = await call_next(request)
+#     return response
+
+PUBLIC_PATHS: List[str] = ["/api/auth", "/api/logout", "/login"]
+
 @app.middleware("http")
-async def check_session_token(request: Request, call_next):
-    if request.url.path not in ["/api/auth", "/api/logout", "/login"]:
-        session_token = request.cookies.get("session_token")
-        if not session_token:
-            return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+async def auth_middleware(request: Request, call_next):
+    # Handle CORS preflight requests
+    if request.method == "OPTIONS":
+        response = await call_next(request)
+        return response
+
+    # Skip authentication for public paths
+    if request.url.path in PUBLIC_PATHS:
+        response = await call_next(request)
+        return response
+
+    try:
+        # Get authorization header
+        auth_header: Optional[str] = request.headers.get("Authorization")
+        
+        if not auth_header:
+            raise HTTPException(status_code=401, detail="No authorization header")
+
+        # Extract token from Bearer header
+        token_type, token = auth_header.split()
+        if token_type.lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+
         try:
-            jwt.decode(session_token, options={"verify_signature": False})
+            # Verify token
+            # Note: Add your secret key and proper verification for production
+            payload = jwt.decode(token, options={"verify_signature": False})
+            
+            # Add user info to request state for use in routes
+            request.state.user = payload
+            
+            # Continue with the request
+            response = await call_next(request)
+            return response
+
         except jwt.ExpiredSignatureError:
-            return JSONResponse(status_code=401, content={"detail": "Session has expired"})
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Token has expired"}
+            )
         except jwt.InvalidTokenError:
-            return JSONResponse(status_code=401, content={"detail": "Invalid session token"})
-    response = await call_next(request)
-    return response
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid token"}
+            )
+
+    except HTTPException as e:
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"detail": str(e.detail)}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"}
+        )
+
+# Add error handlers for common cases
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("Origin", origins[0]),
+            "Access-Control-Allow-Credentials": "false"
+        }
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("Origin", origins[0]),
+            "Access-Control-Allow-Credentials": "false"
+        }
+    )
 
 # Utility function to get the current user from the session token
 def get_current_user(request: Request):
