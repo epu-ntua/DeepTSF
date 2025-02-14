@@ -528,21 +528,23 @@ def get_current_user(request: Request):
 @app.post("/login")
 async def login(request: Request, response: Response):
     """
-    Forwards the request to /api/auth instead of redirecting.
-    This preserves CORS headers and avoids issues with 307 redirects.
+    Forwards the request to /api/auth while preserving headers.
     """
     request_data = await request.json()  # Extract body data (JWT)
+    
+    # Extract the Authorization header
+    auth_header = request.headers.get("Authorization")
 
-    # Call /api/auth endpoint
-    auth_response = await sso_auth(TokenRequest(**request_data), response)
+    # Create a new request object with the same data
+    token_request = TokenRequest(**request_data)
 
-    # Ensure CORS headers are set in the response
-    response.headers["Access-Control-Allow-Origin"] = "https://marketplace.aiodp.ai"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
+    # Add Authorization header manually if it exists
+    if auth_header:
+        response.headers["Authorization"] = auth_header
 
-    return auth_response
+    # Call /api/auth and return its response
+    return await sso_auth(token_request, response)
+
 
 
 @app.post("/api/auth")
