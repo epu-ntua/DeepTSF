@@ -119,6 +119,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://deeptsf-backend.aiodp.ai",
         "https://deeptsf.aiodp.ai", 
         "https://deeptsf.stage.aiodp.ai",
         "https://deeptsf.dev.aiodp.ai",
