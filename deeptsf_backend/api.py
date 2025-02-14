@@ -526,11 +526,13 @@ def get_current_user(request: Request):
         raise HTTPException(status_code=401, detail="Invalid session token")
 
 @app.post("/login")
-async def login_redirect():
-    response = RedirectResponse(url="/api/auth", status_code=307)
-    response.headers["Access-Control-Allow-Origin"] = "https://marketplace.aiodp.ai"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    return response
+async def login(request: Request, response: Response):
+    """
+    Forwards the request to /api/auth instead of redirecting.
+    This preserves CORS headers and avoids issues with 307 redirects.
+    """
+    request_data = await request.json()  # Extract body data (JWT)
+    return await sso_auth(TokenRequest(**request_data), response)
 
 @app.post("/api/auth")
 async def sso_auth(request: TokenRequest, response: Response):
