@@ -527,7 +527,10 @@ def get_current_user(request: Request):
 
 @app.post("/login")
 async def login_redirect():
-    return RedirectResponse(url="/api/auth", status_code=307)
+    response = RedirectResponse(url="/api/auth", status_code=307)
+    response.headers["Access-Control-Allow-Origin"] = "https://marketplace.aiodp.ai"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 @app.post("/api/auth")
 async def sso_auth(request: TokenRequest, response: Response):
