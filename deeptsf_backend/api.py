@@ -525,29 +525,29 @@ def get_current_user(request: Request):
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid session token")
 
-@app.post("/login")
-async def login(request: Request, response: Response):
-    """
-    Forwards the request to /api/auth while preserving headers.
-    """
-    request_data = await request.json()  # Extract body data (JWT)
+# @app.post("/login")
+# async def login(request: Request, response: Response):
+#     """
+#     Forwards the request to /api/auth while preserving headers.
+#     """
+#     request_data = await request.json()  # Extract body data (JWT)
     
-    # Extract the Authorization header
-    auth_header = request.headers.get("Authorization")
+#     # Extract the Authorization header
+#     auth_header = request.headers.get("Authorization")
 
-    # Create a new request object with the same data
-    token_request = TokenRequest(**request_data)
+#     # Create a new request object with the same data
+#     token_request = TokenRequest(**request_data)
 
-    # Add Authorization header manually if it exists
-    if auth_header:
-        response.headers["Authorization"] = auth_header
+#     # Add Authorization header manually if it exists
+#     if auth_header:
+#         response.headers["Authorization"] = auth_header
 
-    # Call /api/auth and return its response
-    return await sso_auth(token_request, response)
+#     # Call /api/auth and return its response
+#     return await sso_auth(token_request, response)
 
 
-
-@app.post("/api/auth")
+# @app.post("/api/auth")
+@app.post("/login")
 async def sso_auth(request: TokenRequest, response: Response):
     try:
         # Fetch the public key
