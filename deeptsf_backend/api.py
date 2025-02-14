@@ -5,7 +5,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTa
 from fastapi.responses import JSONResponse
 import json
 from pydantic import BaseModel
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import pandas as pd
 import mlflow
 from utils import ConfigParser, load_model
