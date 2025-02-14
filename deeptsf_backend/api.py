@@ -2,7 +2,7 @@ from enum import Enum
 import uvicorn
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends, Response, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 import json
 from pydantic import BaseModel
 from typing import Optional, Dict, List
@@ -340,7 +340,7 @@ class LoginRequest(BaseModel):
     username: str
     password: str
  
-@app.post("/login")
+@app.post("/api/login")
 def login(request: LoginRequest, response: Response):
     url = "https://platform.aiodp.ai/connect/token"
     # url = "https://vc-platform.stage.aiodp.ai/connect/token"
@@ -428,7 +428,7 @@ def fetch_public_key():
 #     response = await call_next(request)
 #     return response
 
-PUBLIC_PATHS: List[str] = ["/api/auth", "/api/logout", "/login"]
+PUBLIC_PATHS: List[str] = ["/api/auth", "/api/logout", "/api/login"]
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
@@ -523,6 +523,10 @@ def get_current_user(request: Request):
         raise HTTPException(status_code=401, detail="Session has expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid session token")
+
+@app.post("/login")
+async def login_redirect():
+    return RedirectResponse(url="/api/auth", status_code=307)
 
 @app.post("/api/auth")
 async def sso_auth(request: TokenRequest, response: Response):
