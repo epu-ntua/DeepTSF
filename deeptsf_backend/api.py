@@ -532,7 +532,18 @@ async def login(request: Request, response: Response):
     This preserves CORS headers and avoids issues with 307 redirects.
     """
     request_data = await request.json()  # Extract body data (JWT)
-    return await sso_auth(TokenRequest(**request_data), response)
+
+    # Call /api/auth endpoint
+    auth_response = await sso_auth(TokenRequest(**request_data), response)
+
+    # Ensure CORS headers are set in the response
+    response.headers["Access-Control-Allow-Origin"] = "https://marketplace.aiodp.ai"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+
+    return auth_response
+
 
 @app.post("/api/auth")
 async def sso_auth(request: TokenRequest, response: Response):
