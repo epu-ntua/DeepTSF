@@ -528,23 +528,15 @@ def get_current_user(request: Request):
 @app.post("/login")
 async def login(request: Request, response: Response):
     """
-    Forwards the request to /api/auth while preserving headers.
+    Allows unauthenticated users to log in and forwards the request to /api/auth.
     """
-    request_data = await request.json()  # Extract body data (JWT)
-    
-    # Extract the Authorization header (if present)
-    auth_header = request.headers.get("Authorization")
+    request_data = await request.json()  # Extract JWT from body
 
-    # Create a new request object for /api/auth
+    # No need for Authorization header here
     token_request = TokenRequest(**request_data)
 
-    # Manually forward Authorization header
-    if auth_header:
-        response.headers["Authorization"] = auth_header
-
-    # Call /api/auth endpoint with the same data
+    # Forward request directly to /api/auth for validation
     return await sso_auth(token_request, response)
-
 
 
 @app.post("/api/auth")
