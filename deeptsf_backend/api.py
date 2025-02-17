@@ -123,7 +123,8 @@ app.add_middleware(
         "https://deeptsf.aiodp.ai", 
         "https://deeptsf.stage.aiodp.ai",
         "https://deeptsf.dev.aiodp.ai",
-        "https://marketplace.aiodp.ai"
+        "https://marketplace.aiodp.ai",
+        "https://platform.aiodp.ai"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -526,24 +527,12 @@ def get_current_user(request: Request):
         raise HTTPException(status_code=401, detail="Invalid session token")
 
 @app.post("/login")
-async def login(request: Request, response: Response):
+async def login(request: TokenRequest):
     """
-    Allows unauthenticated users to log in and forwards the request to /api/auth.
-    Uses httpx to properly handle forwarding.
+    Receives a JWT in a POST request and returns the login URL.
     """
-    request_data = await request.json()  # Extract JWT from body
-    
-    async with httpx.AsyncClient() as client:
-        backend_response = await client.post(
-            "https://deeptsf-backend.aiodp.ai/api/auth", 
-            json=request_data,  # Forwarding JSON body
-            headers={"Content-Type": "application/json"}
-        )
-
-    # Return the response received from `/api/auth`
-    return Response(content=backend_response.content, 
-                    status_code=backend_response.status_code,
-                    headers=dict(backend_response.headers))
+    login_url = f"https://deeptsf.aiodp.ai/?jwt={request.jwt}"
+    return {"url": login_url}
 
 
 @app.post("/api/auth")
