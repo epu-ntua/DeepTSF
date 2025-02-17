@@ -118,14 +118,15 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://deeptsf-backend.aiodp.ai",
-        "https://deeptsf.aiodp.ai", 
-        "https://deeptsf.stage.aiodp.ai",
-        "https://deeptsf.dev.aiodp.ai",
-        "https://marketplace.aiodp.ai",
-        "https://platform.aiodp.ai"
-    ],
+    # allow_origins=[
+    #     "https://deeptsf-backend.aiodp.ai",
+    #     "https://deeptsf.aiodp.ai", 
+    #     "https://deeptsf.stage.aiodp.ai",
+    #     "https://deeptsf.dev.aiodp.ai",
+    #     "https://marketplace.aiodp.ai",
+    #     "https://platform.aiodp.ai"
+    # ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -526,12 +527,14 @@ def get_current_user(request: Request):
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid session token")
 
-@app.post("/login", dependencies=[])
+@app.post("/login", dependencies=[])  
 async def login(request: Request):
     request_data = await request.json()
     jwt_token = request_data.get("jwt")
 
-    # Return login URL
+    if not jwt_token:
+        return JSONResponse(status_code=400, content={"detail": "Missing JWT"})
+
     return {"url": f"https://deeptsf.aiodp.ai/?jwt={jwt_token}"}
 
 
