@@ -118,20 +118,32 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=[
-    #     "https://deeptsf-backend.aiodp.ai",
-    #     "https://deeptsf.aiodp.ai", 
-    #     "https://deeptsf.stage.aiodp.ai",
-    #     "https://deeptsf.dev.aiodp.ai",
-    #     "https://marketplace.aiodp.ai",
-    #     "https://platform.aiodp.ai"
-    # ],
-    allow_origins=["*"],
+    allow_origins=[
+        "https://deeptsf-backend.aiodp.ai",
+        "https://deeptsf.aiodp.ai", 
+        "https://deeptsf.stage.aiodp.ai",
+        "https://deeptsf.dev.aiodp.ai",
+        "https://marketplace.aiodp.ai",
+        "https://platform.aiodp.ai"
+    ],
+    # allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+@app.post("/login", dependencies=[])  # Ensure no dependencies enforce authentication
+async def login(request: Request):
+    request_data = await request.json()
+    jwt_token = request_data.get("jwt")
+
+    if not jwt_token:
+        return JSONResponse(status_code=400, content={"detail": "Missing JWT"})
+
+    login_url = f"https://deeptsf.aiodp.ai/?jwt={jwt_token}"
+    return JSONResponse(content={"url": login_url})
+
 
 
 # creating routers
@@ -526,16 +538,6 @@ def get_current_user(request: Request):
         raise HTTPException(status_code=401, detail="Session has expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid session token")
-
-@app.post("/login", dependencies=[])  
-async def login(request: Request):
-    request_data = await request.json()
-    jwt_token = request_data.get("jwt")
-
-    if not jwt_token:
-        return JSONResponse(status_code=400, content={"detail": "Missing JWT"})
-
-    return {"url": f"https://deeptsf.aiodp.ai/?jwt={jwt_token}"}
 
 
 @app.post("/api/auth")
