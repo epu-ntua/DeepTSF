@@ -526,13 +526,13 @@ def get_current_user(request: Request):
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid session token")
 
-@app.post("/login")
-async def login(request: TokenRequest):
-    """
-    Receives a JWT in a POST request and returns the login URL.
-    """
-    login_url = f"https://deeptsf.aiodp.ai/?jwt={request.jwt}"
-    return {"url": login_url}
+@app.post("/login", dependencies=[])
+async def login(request: Request):
+    request_data = await request.json()
+    jwt_token = request_data.get("jwt")
+
+    # Return login URL
+    return {"url": f"https://deeptsf.aiodp.ai/?jwt={jwt_token}"}
 
 
 @app.post("/api/auth")
