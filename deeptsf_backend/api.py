@@ -134,19 +134,6 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-@app.post("/login", dependencies=[])  # Ensure no dependencies enforce authentication
-async def login(request: Request):
-    request_data = await request.json()
-    jwt_token = request_data.get("jwt")
-
-    if not jwt_token:
-        return JSONResponse(status_code=400, content={"detail": "Missing JWT"})
-
-    login_url = f"https://deeptsf.aiodp.ai/?jwt={jwt_token}"
-    return JSONResponse(content={"url": login_url})
-
-
-
 # creating routers
 # admin validator passed as dependency
 # admin_router = APIRouter(
@@ -352,6 +339,19 @@ def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='
     return ts, resolutions
 
 
+# This is used from VC
+@app.post("/login", dependencies=[])
+async def login(request: Request):
+    request_data = await request.json()
+    jwt_token = request_data.get("jwt")
+
+    if not jwt_token:
+        return JSONResponse(status_code=400, content={"detail": "Missing JWT"})
+
+    login_url = f"https://deeptsf.aiodp.ai/?jwt={jwt_token}"
+    return JSONResponse(content={"url": login_url})
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -444,7 +444,7 @@ def fetch_public_key():
 #     response = await call_next(request)
 #     return response
 
-PUBLIC_PATHS: List[str] = ["/api/auth", "/api/logout", "/api/login"]
+PUBLIC_PATHS: List[str] = ["/login", "/api/auth", "/api/logout", "/api/login"]
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
