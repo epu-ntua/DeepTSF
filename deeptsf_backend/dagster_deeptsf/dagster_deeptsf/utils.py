@@ -14,7 +14,7 @@ import numpy as np
 load_dotenv()
 from tqdm import tqdm
 import logging
-from dagster_deeptsf.exceptions import MandatoryArgNotSet, NotValidConfig, EmptySeries, DifferentFrequenciesMultipleTS, ComponentTooShortError, TSIDNotFoundInferenceError
+from .exceptions import MandatoryArgNotSet, NotValidConfig, EmptySeries, DifferentFrequenciesMultipleTS, ComponentTooShortError, TSIDNotFoundInferenceError
 import json
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings

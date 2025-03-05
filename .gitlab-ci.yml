@@ -1,0 +1,95 @@
+stages:
+  - build-app
+  - deploy-dev
+  - deploy-stage
+  - deploy-prod
+# Build the Docker image for the React app and push it to Harbor
+build-app:
+  stage: build-app
+  image: harbor.deployai.eu/cvm-public/ci-tools
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+  before_script:
+    - docker info
+  script:
+    - echo "Logging into Harbor using Robot Account..."
+    - echo ${HARBOR_ROBOT_PASSWORD} | docker login ${HARBOR_HOST} -u ${HARBOR_ROBOT_USER} --password-stdin
+
+    - echo "Building Docker image for deeptsf backend..."
+    - docker build -t ${HARBOR_HOST}/iccs/deeptsf-backend:latest -f deeptsf_backend/Dockerfile_keycloak deeptsf_backend
+    - echo "Pushing Docker image to Harbor..."
+    - docker push ${HARBOR_HOST}/iccs/deeptsf-backend:latest
+
+
+    - echo "Building Docker image for dagster..."
+    - docker build -t ${HARBOR_HOST}/iccs/deeptsf-dagster:latest -f deeptsf_backend/dagster-deeptsf/config/Dockerfile deeptsf_backend
+    - echo "Pushing Docker image to Harbor..."
+    - docker push ${HARBOR_HOST}/iccs/deeptsf-dagster:latest
+
+  only:
+    - master
+  tags:
+    - shared
+
+# Deploy the app to dev using Helm and Rancher
+deploy-dev:
+  stage: deploy-dev
+  image: harbor.deployai.eu/cvm-public/ci-tools
+  dependencies:
+    - build-app
+  before_script:
+    - echo "Secure the KUBECONFIG file"
+    - chmod 600 ${KUBECONFIG}
+  script:
+    - echo "Checking Kubernetes cluster connectivity..."
+    - kubectl get nodes
+    - echo "Deploying to Rancher using Helm..."
+    - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set env.host=.dev.deployai.eu --set env.marketplace=vc-platform.stage.aiodp.ai --set env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set env.MINIO_SSL=${MINIO_SSL} --set env.MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} --set env.MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL} --set env.MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY} --set env.MINIO_SECRET_KEY=${MINIO_SECRET_KEY} --set env.USE_KEYCLOAK=${USE_KEYCLOAK} --set env.KEYCLOAK_ID=${KEYCLOAK_ID} --set env.KEYCLOAK_SECRET=${KEYCLOAK_SECRET} --set env.TOKEN_ISSUER_URL=${TOKEN_ISSUER_URL} --set commitHash=${CI_COMMIT_SHA}
+  only:
+    - master
+  tags:
+    - shared
+  environment:
+    name: dev
+
+# Deploy the app to stage using Helm and Rancher
+deploy-stage:
+  stage: deploy-stage
+  image: harbor.deployai.eu/cvm-public/ci-tools
+  dependencies:
+    - build-app
+  before_script:
+    - echo "Secure the KUBECONFIG file"
+    - chmod 600 ${KUBECONFIG_STAGE}
+    - export KUBECONFIG=${KUBECONFIG_STAGE}
+  script:
+    - echo "Deploying to Rancher using Helm..."
+    - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set env.host=.stage.deployai.eu --set env.marketplace=vc-platform.stage.aiodp.ai --set env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set env.MINIO_SSL=${MINIO_SSL} --set env.MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} --set env.MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL} --set env.MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY} --set env.MINIO_SECRET_KEY=${MINIO_SECRET_KEY} --set env.USE_KEYCLOAK=${USE_KEYCLOAK} --set env.KEYCLOAK_ID=${KEYCLOAK_ID} --set env.KEYCLOAK_SECRET=${KEYCLOAK_SECRET} --set env.TOKEN_ISSUER_URL=${TOKEN_ISSUER_URL} --set commitHash=${CI_COMMIT_SHA}
+  only:
+    - master
+  tags:
+    - shared
+  environment:
+    name: stage
+
+  # Deploy the app to prod using Helm and Rancher
+deploy-prod:
+  stage: deploy-prod
+  image: harbor.deployai.eu/cvm-public/ci-tools
+  dependencies:
+    - build-app
+  before_script:
+    - echo "Secure the KUBECONFIG file"
+    - chmod 600 ${KUBECONFIG_PROD}
+    - export KUBECONFIG=${KUBECONFIG_PROD}
+  script:
+    - echo "Deploying to Rancher using Helm..."
+    - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set env.host=.aiodp.ai --set env.marketplace=platform.aiodp.ai --set env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set env.MINIO_SSL=${MINIO_SSL} --set env.MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} --set env.MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL} --set env.MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY} --set env.MINIO_SECRET_KEY=${MINIO_SECRET_KEY} --set env.USE_KEYCLOAK=${USE_KEYCLOAK} --set env.KEYCLOAK_ID=${KEYCLOAK_ID} --set env.KEYCLOAK_SECRET=${KEYCLOAK_SECRET} --set env.TOKEN_ISSUER_URL=${TOKEN_ISSUER_URL} --set commitHash=${CI_COMMIT_SHA}
+  only:
+    - master
+  tags:
+    - shared
+  environment:
+    name: prod

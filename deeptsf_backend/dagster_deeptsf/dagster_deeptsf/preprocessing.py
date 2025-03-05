@@ -1,6 +1,6 @@
 import logging
 import pretty_errors
-from dagster_deeptsf.utils import ConfigParser, multiple_dfs_to_ts_file, to_seconds
+from .utils import ConfigParser, multiple_dfs_to_ts_file, to_seconds
 import os
 import pandas as pd
 import yaml
@@ -12,7 +12,7 @@ from darts.utils.missing_values import extract_subseries
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
-from dagster_deeptsf.exceptions import NanInSet
+from .exceptions import NanInSet
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
@@ -166,7 +166,7 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale
                 for covariate_train, covariate_val, covariate_test, covariate in \
                 zip(covariates_train, covariates_val, covariates_test, covariates):
                     transformer = Scaler()
-                    print("COVTRAIN", covariate_train)
+                    # print("COVTRAIN", covariate_train)
                     # TODO: future covariates are a priori known!
                     # i can fit on all dataset, but I won't do it as this function works for all covariates!
                     # this is a problem only if not a full year is contained in the training set

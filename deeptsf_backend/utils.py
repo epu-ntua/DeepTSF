@@ -44,7 +44,6 @@ import pytz
 from datetime import datetime
 from typing import Union, List, Tuple
 from minio import S3Error
-
 class ConfigParser:
     def __init__(self, config_file=f'{cur_dir}/config.yml', config_string=None):
         import yaml

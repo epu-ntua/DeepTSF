@@ -1,7 +1,7 @@
 import pretty_errors
-from dagster_deeptsf.utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
-from dagster_deeptsf.exceptions import EvalSeriesNotFound
-from dagster_deeptsf.preprocessing import scale_covariates, split_dataset, split_nans, filtering
+from .utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
+from .exceptions import EvalSeriesNotFound
+from .preprocessing import scale_covariates, split_dataset, split_nans, filtering
 from darts.utils.missing_values import extract_subseries
 import string
 from functools import reduce
@@ -206,6 +206,10 @@ def log_optuna(study,
 
         mlflow.set_tag("darts_forecasting_model",
             model.__class__.__name__)
+            
+        if "input_chunk_length" in hyperparams_entrypoint:
+            mlflow.set_tag('input_chunk_length', hyperparams_entrypoint["input_chunk_length"])
+
         # model_uri
         mlflow.set_tag('model_uri', mlflow.get_artifact_uri(
             f"{mlflow_model_root_dir}/data/{mlrun.info.run_id}"))
@@ -903,7 +907,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     # Argument processing
     stride = none_checker(stride)
     forecast_horizon = int(forecast_horizon)
-    stride = int(forecast_horizon) if stride is None else int(stride)
+    stride = int(forecast_horizon) if stride == -1 or stride == None else int(stride)
     retrain = retrain
     multiple = multiple
     num_samples = int(num_samples)

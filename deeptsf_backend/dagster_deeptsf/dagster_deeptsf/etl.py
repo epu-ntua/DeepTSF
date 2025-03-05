@@ -1,11 +1,11 @@
 import sys
 sys.path.append('..')
 import pretty_errors
-from dagster_deeptsf.utils import none_checker
+from .utils import none_checker
 import os
 from os import times
-from dagster_deeptsf.utils import download_online_file, truth_checker, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
-from dagster_deeptsf.utils import plot_imputation, plot_removed, get_weather_covariates, to_seconds
+from .utils import download_online_file, truth_checker, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
+from .utils import plot_imputation, plot_removed, get_weather_covariates, to_seconds
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 import darts
 from darts.utils.timeseries_generation import holidays_timeseries
@@ -19,7 +19,7 @@ import shutil
 import logging
 from darts.dataprocessing.transformers import MissingValuesFiller
 import tempfile
-from dagster_deeptsf.exceptions import CountryDoesNotExist, NoUpsamplingException, TsUsedIdDoesNotExcist
+from .exceptions import CountryDoesNotExist, NoUpsamplingException, TsUsedIdDoesNotExcist
 import holidays
 from calendar import isleap
 from pytz import timezone
@@ -605,7 +605,6 @@ def utc_to_local(df, country_code):
                             for country, timezones in country_timezones.items()
                             for timezone in timezones}
 
-    print(timezone_countries)
     local_timezone = timezone_countries[country_code]
 
     print(f"\nUsing timezone {local_timezone}...")
@@ -782,7 +781,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 
 @multi_asset(
     name="etl_asset",
-    description="test test test",
+    description="For imputation, scaling, and other preprocessing",
     group_name='deepTSF_pipeline',
     required_resource_keys={"config"},
     ins={'start_pipeline_run': AssetIn(key='start_pipeline_run', dagster_type=str),
@@ -832,12 +831,6 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
     experiment_name = config.experiment_name
     darts_model = config.darts_model
     parent_run_name = config.parent_run_name if none_checker(config.parent_run_name) != None else darts_model + '_pipeline'
-
-    context.log.info("This is an info message")
-    context.log.debug("This is an debug message")
-    context.log.error("This is an error message")
-    print("this is a info message", flush=True)
-
     
 
 

@@ -1,6 +1,6 @@
 import pretty_errors
-from dagster_deeptsf.utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, get_pv_forecast, to_seconds #, log_curves
-from dagster_deeptsf.preprocessing import scale_covariates, split_dataset, split_nans
+from .utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, get_pv_forecast, to_seconds #, log_curves
+from .preprocessing import scale_covariates, split_dataset, split_nans
 
 # the following are used through eval(darts_model + 'Model')
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
@@ -620,6 +620,9 @@ def train(context, start_pipeline_run, etl_out):
 
             mlflow.set_tag("darts_forecasting_model",
                 model.__class__.__name__)
+            
+            if "input_chunk_length" in hyperparams_entrypoint:
+                mlflow.set_tag('input_chunk_length', hyperparams_entrypoint["input_chunk_length"])
 
             mlflow.set_tag('series_uri',
                 f'{mlrun.info.artifact_uri}/features/series.csv')

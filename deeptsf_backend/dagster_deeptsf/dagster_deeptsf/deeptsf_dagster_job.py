@@ -14,8 +14,6 @@ from dagster_deeptsf.etl import etl_asset
 from dagster_deeptsf.evaluate_forecasts import evaluation_asset
 from typing import Optional
 from dagster import ConfigurableResource
-from dagster_celery import celery_executor
-from dagster_aws.s3 import s3_pickle_io_manager, s3_resource
 
 class DeepTSFConfig(ConfigurableResource):
     resolution: str = "None"  
@@ -35,13 +33,12 @@ class DeepTSFConfig(ConfigurableResource):
     test_end_date: str = "None"
     darts_model: str = "None"
     device: str = "gpu"
-    forecast_horizon: str = "None"
-    stride: str = "None"
+    forecast_horizon: int = -1
+    stride: int = -1
     retrain: bool = False
     ignore_previous_runs: bool = True
     scale: bool = True
     scale_covs: bool = True
-    debug: bool = False
     country: str = "PT"
     std_dev: float = 4.5
     max_thr: int = -1
@@ -67,7 +64,7 @@ class DeepTSFConfig(ConfigurableResource):
     evaluate_all_ts: bool = True
     convert_to_local_tz: bool = True
     grid_search: bool = False
-    shap_input_length: str = "None"
+    shap_input_length: int = -1
     ts_used_id: str = "None"
     m_mase: int = 1
     min_non_nan_interval: int = 24
@@ -134,21 +131,11 @@ class DeepTSFConfig(ConfigurableResource):
             "resampling_agg_method": self.resampling_agg_method,
             "pv_ensemble": self.pv_ensemble,
             "format": self.format,
-            "debug": self.debug,
         }
 
 @graph_multi_asset(
     name="deepTSF_pipeline",
     group_name='deepTSF_pipeline',
-    resource_defs={
-        "io_manager": s3_pickle_io_manager.configured({
-            "s3_bucket": "dagster-data",
-            "s3_prefix": "io-manager"
-        }),
-        "s3": s3_resource.configured({
-            "endpoint_url": "http://s3:9000"
-        }),
-    },
     outs={
         "start_pipeline_run": AssetOut(dagster_type=str),
         "load_raw_data_out": AssetOut(dagster_type=dict),
@@ -177,7 +164,6 @@ def deepTSF_pipeline():
             'training_and_hyperparameter_tuning_out': training_and_hyperparameter_tuning_out,
             'evaluation_out': evaluation_out}
 
-# deeptsf_dagster_job = define_asset_job("deeptsf_dagster_job", selection=[deepTSF_pipeline], executor_def=celery_executor)
 deeptsf_dagster_job = define_asset_job("deeptsf_dagster_job", selection=[deepTSF_pipeline])
 
 # basic_schedule = ScheduleDefinition(job=uc2_mlflow_cli_job, cron_schedule="0 0 * * *")

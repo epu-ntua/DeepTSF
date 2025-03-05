@@ -173,4 +173,3 @@ class TSIDNotFoundInferenceError(Exception):
         else:
             self.message += " multiple series file provided by the user"
         super().__init__(self.message)
-

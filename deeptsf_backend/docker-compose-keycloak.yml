@@ -61,8 +61,8 @@ services:
       - 8006
     # ports:
     #   - "8006:8006"
-    volumes:
-      - dagster-logs:/app/dagster-deeptsf
+    # volumes:
+      # - dagster-logs:/app/dagster-deeptsf
 #      - ./uc2:/app/uc2
     networks:
        - keycloak_net
