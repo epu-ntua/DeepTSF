@@ -286,7 +286,7 @@ dependencies:
     - u8darts==0.28.0
     - urllib3==2.2.1
     - utilsforecast==0.1.2
-    - uvicorn[standard]
+    - uvicorn==0.29.0
     - virtualenv==20.25.1
     - waitress==3.0.0
     - watchfiles==0.21.0

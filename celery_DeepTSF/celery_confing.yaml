@@ -1,4 +1,6 @@
 execution:
   celery:
     broker: 'redis://redis:6379/0'
-    backend: 'db+postgresql://postgres:postgres@postgres:5432/dagster_celery'
+    # backend: 'db+postgresql://postgres:postgres@postgres:5432/dagster_celery'
+    backend: 'rpc://'
+    worker_redirect_stdouts: False

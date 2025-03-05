@@ -31,29 +31,36 @@ schedule_storage:
       db_name: dagster_celery
       port: 5430
 
-# compute_logs:
-#   module: dagster_aws.s3.compute_log_manager
-#   class: S3ComputeLogManager
-#   config:
-#     bucket: "dagster-compute-logs"
-#     prefix: "dagster-test-"
-
 compute_logs:
-  module: dagster_deeptsf.MyS3ComputeLogManager
-  class: MyS3ComputeLogManager
+  module: dagster_aws.s3.compute_log_manager
+  class: S3ComputeLogManager
   config:
-    access_key: "accessminio"
-    secret_key: "secretminio"
     bucket: "dagster-compute-logs"
-    local_dir: "/tmp/cool"
+    local_dir: "/app/dagster_deeptsf/storage/"
     prefix: "dagster-test"
     use_ssl: false
     verify: false
-    endpoint_url: "http://localhost:9000"
-    skip_empty_files: true
+    endpoint_url: "http://s3:9000"
+    skip_empty_files: false
     upload_interval: 1
     show_url_only: false
-    region: "us-west-1"
+
+
+# compute_logs:
+#   module: dagster_deeptsf.MyS3ComputeLogManager
+#   class: MyS3ComputeLogManager
+#   config:
+#     access_key: "accessminio"
+#     secret_key: "secretminio"
+#     bucket: "dagster-compute-logs"
+#     local_dir: "/app/dagster_deeptsf/storage/"
+#     prefix: "dagster-test"
+#     use_ssl: false
+#     verify: false
+#     endpoint_url: "http://s3:9000"
+#     skip_empty_files: false
+#     upload_interval: 1
+#     show_url_only: false
 
     # run_launcher:
 #   module: dagster.core.launcher.default_run_launcher

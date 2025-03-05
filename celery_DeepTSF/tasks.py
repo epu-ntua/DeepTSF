@@ -4,15 +4,23 @@ import tempfile
 import datetime
 import sys
 from celery_DeepTSF.worker import celery_app
-from datetime import datetime, timedelta
+from datetime import timedelta
 from fastapi import HTTPException
 from uc2.load_raw_data import read_and_validate_input
-from utils import make_time_list
+#change utils to dagster utils
+from celery_DeepTSF.utils import make_time_list, download_online_file, truth_checker, move_object
 from celery import Celery
 import os
 from dotenv import load_dotenv
+from dagster_celery.tasks import create_task
+from minio import Minio
 
 load_dotenv()
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
+MINIO_SSL = truth_checker(os.environ.get("MINIO_SSL"))
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
 
 def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='long', task=None):
 
@@ -32,23 +40,19 @@ def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='
     return ts, resolutions
 
 
-@celery_app.task(bind=True, track_started=True)
-def upload_and_validate_csv(self, contents: str, filename: str, multiple: bool, format: str):
+@celery_app.task(bind=True, track_started=True, queue="dagster")
+def upload_and_validate_csv(self, filename: str, multiple: bool, format: str):
 
-    # Store uploaded dataset to worker
+    # Download uploaded dataset from s3
     try:
-        # write locally
         local_dir = tempfile.mkdtemp()
-        fname = os.path.join(local_dir, filename)
-        with open(fname, 'wb') as f:
-            f.write(contents)
+        download_online_file(client, f'unvalidated/{filename}', dst_dir=local_dir, bucket_name='dataset-storage')
     except Exception:
         raise HTTPException(status_code=415, detail="There was an error uploading the file to worker")
-    finally:
-        print(f'\n{fname}\n')
+    
 
     print("Validating file...") 
-    ts, resolutions = csv_validator(fname, multiple, format=format, task=self)
+    ts, resolutions = csv_validator(local_dir + "/" + filename, multiple, format=format, task=self)
 
     if multiple:
         if format == "long":
@@ -57,6 +61,8 @@ def upload_and_validate_csv(self, contents: str, filename: str, multiple: bool, 
         else:
             dataset_start_multiple = ts.iloc[0]['Date']
             dataset_end_multiple = ts.iloc[-1]['Date']
+
+    move_object(client, 'dataset-storage', f'unvalidated/{filename}', 'dataset-storage', filename)
     
     return {"message": "Validation successful", 
             "fname": filename,
@@ -67,3 +73,8 @@ def upload_and_validate_csv(self, contents: str, filename: str, multiple: bool, 
             "ts_used_id": None,
             "evaluate_all_ts": True if multiple else None
             }
+
+execute_plan = create_task(celery_app)
+
+if __name__ == '__main__':
+    celery_app.worker_main()

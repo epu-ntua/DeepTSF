@@ -43,6 +43,29 @@ from pytz import timezone
 import pytz
 from datetime import datetime
 from typing import Union, List, Tuple
+from minio import S3Error
+from minio.commonconfig import CopySource
+
+def move_object(minio_client, source_bucket, source_object, dest_bucket, dest_object):
+    try:
+        # Copy the object from the source to the destination.
+        # The copy source format is "/<source_bucket>/<source_object>".
+        copy_result = minio_client.copy_object(
+            dest_bucket,
+            dest_object,
+            CopySource(source_bucket, source_object)
+        )
+        print(f"Copied {source_bucket}/{source_object} to {dest_bucket}/{dest_object}")
+    except S3Error as err:
+        print(f"Error during copy operation: {err}")
+        return
+
+    try:
+        # Delete the original object after the copy succeeds.
+        minio_client.remove_object(source_bucket, source_object)
+        print(f"Deleted original object: {source_bucket}/{source_object}")
+    except S3Error as err:
+        print(f"Error during delete operation: {err}")
 
 class ConfigParser:
     def __init__(self, config_file=f'{cur_dir}/config.yml', config_string=None):

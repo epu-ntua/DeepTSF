@@ -832,6 +832,12 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
     experiment_name = config.experiment_name
     darts_model = config.darts_model
     parent_run_name = config.parent_run_name if none_checker(config.parent_run_name) != None else darts_model + '_pipeline'
+
+    context.log.info("This is an info message")
+    context.log.debug("This is an debug message")
+    context.log.error("This is an error message")
+    print("this is a info message", flush=True)
+
     
 
 

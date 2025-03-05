@@ -15,6 +15,7 @@ from dagster_deeptsf.evaluate_forecasts import evaluation_asset
 from typing import Optional
 from dagster import ConfigurableResource
 from dagster_celery import celery_executor
+from dagster_aws.s3 import s3_pickle_io_manager, s3_resource
 
 class DeepTSFConfig(ConfigurableResource):
     resolution: str = "None"  
@@ -139,6 +140,15 @@ class DeepTSFConfig(ConfigurableResource):
 @graph_multi_asset(
     name="deepTSF_pipeline",
     group_name='deepTSF_pipeline',
+    resource_defs={
+        "io_manager": s3_pickle_io_manager.configured({
+            "s3_bucket": "dagster-data",
+            "s3_prefix": "io-manager"
+        }),
+        "s3": s3_resource.configured({
+            "endpoint_url": "http://s3:9000"
+        }),
+    },
     outs={
         "start_pipeline_run": AssetOut(dagster_type=str),
         "load_raw_data_out": AssetOut(dagster_type=dict),
@@ -167,6 +177,7 @@ def deepTSF_pipeline():
             'training_and_hyperparameter_tuning_out': training_and_hyperparameter_tuning_out,
             'evaluation_out': evaluation_out}
 
-deeptsf_dagster_job = define_asset_job("deeptsf_dagster_job", selection=[deepTSF_pipeline], executor_def=celery_executor)
+# deeptsf_dagster_job = define_asset_job("deeptsf_dagster_job", selection=[deepTSF_pipeline], executor_def=celery_executor)
+deeptsf_dagster_job = define_asset_job("deeptsf_dagster_job", selection=[deepTSF_pipeline])
 
 # basic_schedule = ScheduleDefinition(job=uc2_mlflow_cli_job, cron_schedule="0 0 * * *")

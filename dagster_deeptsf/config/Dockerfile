@@ -1,14 +1,4 @@
-# miniconda base image
-FROM continuumio/miniconda3:23.5.2-0
-
-# Set the working directory inside the container
-WORKDIR /app
-
-# Copy environment setup file
-COPY ../../conda.yaml .
-
-# Create the conda environment from the env conda.yaml file
-RUN conda env create -f conda.yaml
+FROM conda-base:latest
 
 # Activate the conda environment
 SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]

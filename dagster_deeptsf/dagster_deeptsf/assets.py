@@ -49,6 +49,9 @@ def start_pipeline_run(context):
     multiple = config.multiple
     evaluate_all_ts = config.evaluate_all_ts
 
+    context.log.info("This is an info message")
+    print("this is a info message", flush=True)
+
     if none_checker(series_csv) is None and not from_database and none_checker(series_uri) is None:
         check_mandatory(series_csv, "series_csv", [["series_uri", "None"], ["from_database", "False"]])
 

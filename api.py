@@ -362,20 +362,26 @@ async def create_upload_csv_file(file: UploadFile = File(...),
 async def create_upload_csv_file(file: UploadFile = File(...), 
                                  multiple: bool = Form(default=False), format: str = Form(default=False)):
 
-    # Store uploaded dataset to backend
+    # Store uploaded dataset to minio
     print("Uploading file...")
     try:
         # write locally
         local_dir = tempfile.mkdtemp()
         contents = await file.read()
+        fpath = os.path.join(local_dir, file.filename)
+        filename=file.filename
+        with open(fpath, 'wb') as f:
+            f.write(contents)
     except Exception:
         raise HTTPException(status_code=415, detail="There was an error uploading the file")
-        #return {"message": "There was an error uploading the file"}
     finally:
+        print(f'\n{fpath}\n')
         await file.close()
 
+    upload_file_to_minio("dataset-storage", fpath, f'unvalidated/{filename}', client)
+
     # Enqueue the Celery task
-    task = upload_and_validate_csv.delay(contents, file.filename, multiple, format)
+    task = upload_and_validate_csv.delay(filename, multiple, format)
 
     # Return task ID to the client
     return {"task_id": task.id, "status": "Task submitted"}
