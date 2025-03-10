@@ -10,18 +10,14 @@ import click
 import sys
 # import celery
 from pandas.tseries.frequencies import to_offset
-from .utils import ConfigParser
 import logging
 import pandas as pd
 import numpy as np
 import csv
 from datetime import datetime
-from .utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form, truth_checker
 import shutil
 import pretty_errors
 import uuid
-from .exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder, WrongDateFormat, DuplicateDateError, MissingMultipleIndexError, NonIntegerMultipleIndexError, ComponentTooShortError
-from .utils import none_checker
 from dagster import multi_asset, AssetIn, AssetOut, MetadataValue, Output, graph_multi_asset 
 import tempfile
 from math import ceil
@@ -29,6 +25,12 @@ from minio import Minio
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
+import sys
+sys.path.append('..')
+from utils import ConfigParser
+from utils import none_checker
+from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form, truth_checker
+from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder, WrongDateFormat, DuplicateDateError, MissingMultipleIndexError, NonIntegerMultipleIndexError, ComponentTooShortError
 
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri

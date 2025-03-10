@@ -6,7 +6,7 @@ import tempfile
 import pretty_errors
 import yaml
 from minio import  Minio
-from utils import truth_checker 
+from utils_backend import truth_checker 
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()

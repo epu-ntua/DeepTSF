@@ -1,5 +1,5 @@
 import pretty_errors
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
+from utils_backend import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
 from exceptions import EvalSeriesNotFound
 from preprocessing import scale_covariates, split_dataset, split_nans, filtering
 from darts.utils.missing_values import extract_subseries
@@ -158,7 +158,7 @@ def log_optuna(study,
         mlflow.pyfunc.log_model(mlflow_model_root_dir,
                             loader_module="darts_flavor",
                             data_path=logs_path_new,
-                            code_path=['../exceptions.py', '../utils.py', '../inference.py', '../darts_flavor.py'],
+                            code_path=['../exceptions.py', '../utils_backend.py', '../inference.py', '../darts_flavor.py'],
                             conda_env=mlflow_serve_conda_env)
             
         shutil.rmtree(logs_path_new)

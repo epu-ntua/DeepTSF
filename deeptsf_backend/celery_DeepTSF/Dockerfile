@@ -8,5 +8,4 @@ COPY . .
 
 WORKDIR /app
 
-# ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "celery", "worker", "start", "-A", "tasks", "-y", "celery_confing.yaml", "--loglevel=info"]
 ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "celery", "-A", "celery_DeepTSF.tasks", "worker", "--loglevel=debug", "--queues=dagster"]

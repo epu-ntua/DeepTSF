@@ -1,5 +1,5 @@
 import pretty_errors
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, get_pv_forecast, to_seconds #, log_curves
+from utils_backend import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, get_pv_forecast, to_seconds #, log_curves
 from preprocessing import scale_covariates, split_dataset, split_nans
 
 # the following are used through eval(darts_model + 'Model')
@@ -633,7 +633,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         mlflow.pyfunc.log_model(mlflow_model_root_dir,
                                 loader_module="darts_flavor",
                                 data_path=logs_path_new,
-                                code_path=['../exceptions.py', '../utils.py', '../inference.py', '../darts_flavor.py'],
+                                code_path=['../exceptions.py', '../utils_backend.py', '../inference.py', '../darts_flavor.py'],
                                 conda_env=mlflow_serve_conda_env)
         # elif model_type == 'pkl':
         #     mlflow.pyfunc.log_model(mlflow_model_root_dir,

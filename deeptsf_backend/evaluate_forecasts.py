@@ -1,6 +1,6 @@
 import pretty_errors
 from exceptions import EvalSeriesNotFound
-from utils import none_checker, truth_checker, download_online_file, load_local_csv_or_df_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
+from utils_backend import none_checker, truth_checker, download_online_file, load_local_csv_or_df_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
 from darts.utils.missing_values import extract_subseries
 from functools import reduce
 from darts.metrics import mape as mape_darts
@@ -36,7 +36,7 @@ import darts
 import json
 import statistics
 from minio import Minio
-from utils import truth_checker 
+from utils_backend import truth_checker 
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()

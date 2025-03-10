@@ -1,6 +1,6 @@
 import logging
 import pretty_errors
-from utils import ConfigParser, multiple_dfs_to_ts_file, to_seconds
+from utils_backend import ConfigParser, multiple_dfs_to_ts_file, to_seconds
 import os
 import pandas as pd
 import yaml

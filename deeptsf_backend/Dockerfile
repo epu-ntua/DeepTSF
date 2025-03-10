@@ -5,7 +5,7 @@ COPY . .
 # Make RUN commands use the new environment:
 SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
 
-RUN pip install dagster-celery==0.24.13 pydantic-settings==2.8.1 uvicorn[standard]
+RUN pip install dagster-celery==0.24.13 pydantic-settings==2.8.1 uvicorn[standard] cryptography
 
 RUN conda env export > environment.yml
  

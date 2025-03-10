@@ -5,9 +5,9 @@ run_storage:
     postgres_db:
       username: postgres
       password: postgres
-      hostname: postgres
+      hostname: pgdb
       db_name: dagster_celery
-      port: 5430
+      port: 5432
 
 event_log_storage:
   module: dagster_postgres.event_log
@@ -16,9 +16,9 @@ event_log_storage:
     postgres_db:
       username: postgres
       password: postgres
-      hostname: postgres
+      hostname: pgdb
       db_name: dagster_celery
-      port: 5430
+      port: 5432
 
 schedule_storage:
   module: dagster_postgres.schedule_storage
@@ -27,21 +27,21 @@ schedule_storage:
     postgres_db:
       username: postgres
       password: postgres
-      hostname: postgres
+      hostname: pgdb
       db_name: dagster_celery
-      port: 5430
+      port: 5432
 
 compute_logs:
   module: dagster_aws.s3.compute_log_manager
   class: S3ComputeLogManager
   config:
-    bucket: "dagster-compute-logs"
+    bucket: "dagster-storage"
     local_dir: "/app/dagster_deeptsf/storage/"
-    prefix: "dagster-test"
+    prefix: "dagster-compute-logs"
     use_ssl: false
     verify: false
     endpoint_url: "http://s3:9000"
-    skip_empty_files: false
+    skip_empty_files: true
     upload_interval: 1
     show_url_only: false
 

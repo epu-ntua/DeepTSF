@@ -166,4 +166,6 @@ def deepTSF_pipeline():
 
 deeptsf_dagster_job = define_asset_job("deeptsf_dagster_job", selection=[deepTSF_pipeline])
 
-# basic_schedule = ScheduleDefinition(job=uc2_mlflow_cli_job, cron_schedule="0 0 * * *")
+# basic_schedule = ScheduleDefinition(job=deeptsf_dagster_job, 
+#                                     cron_schedule="0 0 * * *",
+#                                     run_config=DeepTSFConfig())

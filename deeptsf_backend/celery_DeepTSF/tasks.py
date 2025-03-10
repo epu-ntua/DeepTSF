@@ -8,7 +8,7 @@ from datetime import timedelta
 from fastapi import HTTPException
 from uc2.load_raw_data import read_and_validate_input
 #change utils to dagster utils
-from celery_DeepTSF.utils import make_time_list, download_online_file, truth_checker, move_object
+from utils import make_time_list, download_online_file, truth_checker, move_object
 from celery import Celery
 import os
 from dotenv import load_dotenv

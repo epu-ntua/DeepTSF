@@ -12,14 +12,14 @@ from pydantic import BaseModel
 from typing import Optional, Dict, List
 import pandas as pd
 import mlflow
-from utils import ConfigParser, load_model
+from utils_backend import ConfigParser, load_model
 import tempfile
 from uc2.load_raw_data import read_and_validate_input
 from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils import load_artifacts, to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio
+from utils_backend import load_artifacts, to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio
 import psutil, nvsmi
 import os
 import requests
@@ -122,22 +122,32 @@ app = FastAPI(
 #     allow_headers=["*"],
 # )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://deeptsf-backend.aiodp.ai",
-        "https://deeptsf.aiodp.ai", 
-        "https://deeptsf.stage.aiodp.ai",
-        "https://deeptsf.dev.aiodp.ai",
-        "https://marketplace.aiodp.ai",
-        "https://platform.aiodp.ai"
-    ],
-    # allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
-    # allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+if USE_KEYCLOAK:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "https://deeptsf-backend.aiodp.ai",
+            "https://deeptsf.aiodp.ai", 
+            "https://deeptsf.stage.aiodp.ai",
+            "https://deeptsf.dev.aiodp.ai",
+            "https://marketplace.aiodp.ai",
+            "https://platform.aiodp.ai"
+        ],
+        # allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
+        # allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
+        allow_headers=["*"],
+        expose_headers=["*"],
 )
 
 # creating routers
@@ -456,63 +466,64 @@ def fetch_public_key():
 
 PUBLIC_PATHS: List[str] = ["/login", "/api/auth", "/api/logout", "/api/login"]
 
-@app.middleware("http")
-async def auth_middleware(request: Request, call_next):
-    # Handle CORS preflight requests
-    if request.method == "OPTIONS":
-        response = await call_next(request)
-        return response
-
-    # Skip authentication for public paths
-    if request.url.path in PUBLIC_PATHS:
-        response = await call_next(request)
-        return response
-
-    try:
-        # Get authorization header
-        auth_header: Optional[str] = request.headers.get("Authorization")
-        
-        if not auth_header:
-            raise HTTPException(status_code=401, detail="No authorization header")
-
-        # Extract token from Bearer header
-        token_type, token = auth_header.split()
-        if token_type.lower() != "bearer":
-            raise HTTPException(status_code=401, detail="Invalid token type")
-
-        try:
-            # Verify token
-            # Note: Add your secret key and proper verification for production
-            payload = jwt.decode(token, options={"verify_signature": False})
-            
-            # Add user info to request state for use in routes
-            request.state.user = payload
-            
-            # Continue with the request
+if USE_KEYCLOAK:
+    @app.middleware("http")
+    async def auth_middleware(request: Request, call_next):
+        # Handle CORS preflight requests
+        if request.method == "OPTIONS":
             response = await call_next(request)
             return response
 
-        except jwt.ExpiredSignatureError:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Token has expired"}
-            )
-        except jwt.InvalidTokenError:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Invalid token"}
-            )
+        # Skip authentication for public paths
+        if request.url.path in PUBLIC_PATHS:
+            response = await call_next(request)
+            return response
 
-    except HTTPException as e:
-        return JSONResponse(
-            status_code=e.status_code,
-            content={"detail": str(e.detail)}
-        )
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"}
-        )
+        try:
+            # Get authorization header
+            auth_header: Optional[str] = request.headers.get("Authorization")
+            
+            if not auth_header:
+                raise HTTPException(status_code=401, detail="No authorization header")
+
+            # Extract token from Bearer header
+            token_type, token = auth_header.split()
+            if token_type.lower() != "bearer":
+                raise HTTPException(status_code=401, detail="Invalid token type")
+
+            try:
+                # Verify token
+                # Note: Add your secret key and proper verification for production
+                payload = jwt.decode(token, options={"verify_signature": False})
+                
+                # Add user info to request state for use in routes
+                request.state.user = payload
+                
+                # Continue with the request
+                response = await call_next(request)
+                return response
+
+            except jwt.ExpiredSignatureError:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Token has expired"}
+                )
+            except jwt.InvalidTokenError:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid token"}
+                )
+
+        except HTTPException as e:
+            return JSONResponse(
+                status_code=e.status_code,
+                content={"detail": str(e.detail)}
+            )
+        except Exception as e:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error"}
+            )
 
 # Add error handlers for common cases
 @app.exception_handler(HTTPException)

@@ -49,9 +49,15 @@ services:
       /bin/sh -c '
       sleep 5;
       /usr/bin/mc config host add s3 http://s3:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} --api S3v4;
-      [[ ! -z "`/usr/bin/mc ls s3 | grep challenge`" ]] || /usr/bin/mc mb s3/${BUCKET_NAME};
-      /usr/bin/mc policy download s3/${BUCKET_NAME};
-      /usr/bin/mc policy set public s3/${BUCKET_NAME};
+      [[ ! -z "`/usr/bin/mc ls s3 | grep challenge`" ]] || /usr/bin/mc mb s3/${MLFLOW_BUCKET_NAME};
+      [[ ! -z "`/usr/bin/mc ls s3 | grep challenge`" ]] || /usr/bin/mc mb s3/${DAGSTER_BUCKET_NAME};
+      [[ ! -z "`/usr/bin/mc ls s3 | grep challenge`" ]] || /usr/bin/mc mb s3/${DATASET_BUCKET_NAME};
+      /usr/bin/mc policy download s3/${MLFLOW_BUCKET_NAME};
+      /usr/bin/mc policy set public s3/${MLFLOW_BUCKET_NAME};
+      /usr/bin/mc policy download s3/${DAGSTER_BUCKET_NAME};
+      /usr/bin/mc policy set public s3/${DAGSTER_BUCKET_NAME};
+      /usr/bin/mc policy download s3/${DATASET_BUCKET_NAME};
+      /usr/bin/mc policy set public s3/${DATASET_BUCKET_NAME};
       exit 0;
       '
     env_file:
@@ -68,6 +74,7 @@ services:
     image: inergy2020iccs/pgdb:16.2
     volumes:
         - database:/var/lib/postgresql/data
+        - ./init-extra-db.sql:/docker-entrypoint-initdb.d/init-extra-db.sql:ro
     ports:
       - 5432:5432
     expose:
@@ -78,6 +85,8 @@ services:
       - load-forecasting-net
     env_file:
       - .env
+    # command:
+    #   - CREATE DATABASE dagster_celery
       # Uses following .env parameters:
       # POSTGRES_USER
       # POSTGRES_PASSWORD
@@ -99,7 +108,7 @@ services:
     networks:
       - load-forecasting-net
     command: bash -c 
-      "mlflow server --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgdb:5432/${POSTGRES_DATABASE} --host 0.0.0.0 --default-artifact-root s3://${BUCKET_NAME}/"
+      "mlflow server --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgdb:5432/${POSTGRES_DATABASE} --host 0.0.0.0 --default-artifact-root s3://${MLFLOW_BUCKET_NAME}/"
     env_file:
       - .env
       # Uses following .env parameters:
@@ -193,22 +202,22 @@ services:
       # AWS_ACCESS_KEY_ID
       # AWS_SECRET_ACCESS_KEY
 
-  postgres:
-    image: inergy2020iccs/pgdb:16.2
-    volumes:
-        - database2:/var/lib/postgresql/data
-    restart: always
-    container_name: postgres
-    hostname: postgres
-    ports:
-      - '5430:5430'
-    command: ["postgres", "-c", "port=5430"]
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: dagster_celery
-    networks:
-      - load-forecasting-net
+  # postgres:
+  #   image: inergy2020iccs/pgdb:16.2
+  #   volumes:
+  #       - database2:/var/lib/postgresql/data
+  #   restart: always
+  #   container_name: postgres
+  #   hostname: postgres
+  #   ports:
+  #     - '5430:5430'
+  #   command: ["postgres", "-c", "port=5430"]
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_DB: dagster_celery
+  #   networks:
+  #     - load-forecasting-net
 
   frontend:
     container_name: deeptsf_dashboard

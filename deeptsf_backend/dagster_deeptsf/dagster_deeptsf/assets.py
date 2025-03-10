@@ -8,13 +8,15 @@ from dagster_shell.ops import shell_op
 from dagster import multi_asset, AssetIn, AssetOut, MetadataValue, Output, graph_multi_asset, define_asset_job, asset
 from dagster import ConfigurableResource
 from dagster_mlflow import end_mlflow_on_run_finished, mlflow_tracking
-from .utils import none_checker, check_mandatory, truth_checker, download_online_file, load_yaml_as_dict
 from .optuna_search import optuna_search
 from .training import train
 from dotenv import load_dotenv
 load_dotenv()
 from minio import Minio
 import logging
+import sys
+sys.path.append('..')
+from utils import none_checker, check_mandatory, truth_checker, download_online_file, load_yaml_as_dict
 
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")

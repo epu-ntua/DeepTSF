@@ -1,0 +1,1 @@
+CREATE DATABASE dagster_celery;
