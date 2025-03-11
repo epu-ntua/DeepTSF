@@ -1,17 +1,6 @@
 # to run this you need to create a .env file with the contents of .env.example
 services:
-  # base:
-  #   container_name: deeptsf_base
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.base
-  #   image: conda-base:latest
-  #   # We don't need to run anything for the base image. Just build it.
-  #   entrypoint: /bin/true
-
   s3:
-    # image: minio/minio:RELEASE.2024-03-30T09-41-56Z
-    # image: minio/minio:RELEASE.2020-12-18T03-27-42Z
     image: minio/minio:RELEASE.2025-02-18T16-25-55Z
     container_name: s3
     restart: always
@@ -38,8 +27,6 @@ services:
 
 
   create_bucket:
-    # image: minio/mc:RELEASE.2019-07-17T22-13-42Z
-    # image: minio/minio:RELEASE.2024-03-30T09-41-56Z
     image: minio/minio:RELEASE.2025-02-18T16-25-55Z
     depends_on:
       - s3    
@@ -85,8 +72,6 @@ services:
       - load-forecasting-net
     env_file:
       - .env
-    # command:
-    #   - CREATE DATABASE dagster_celery
       # Uses following .env parameters:
       # POSTGRES_USER
       # POSTGRES_PASSWORD
@@ -124,23 +109,21 @@ services:
     hostname: deeptsf_backend
     container_name: deeptsf_backend
     # image: inergy2020iccs/deeptsf_backend:1.0.2  # only for releases
-    build: .
+    build:
+      context: ./
+      target: backend
+      dockerfile:  Dockerfile
     restart: always
     ports:
       - '8080:8080'
     expose:
       - '8080'
-    # volumes:
-      # - .:/app/. #debugging only
     stdin_open: 
       true
     env_file:
       - .env
-    # volumes:
-    #   - ./shared:/shared
     depends_on:
       - redis
-      # - base
     # Uses all .env parameters
     # deploy: # activate this if you want gpu usage
     #   resources:
@@ -153,29 +136,34 @@ services:
 
   worker:
     build:
-      dockerfile: ./celery_DeepTSF/Dockerfile
-      context: .
+      context: ./
+      target: celery-worker
+      dockerfile:  Dockerfile
+    restart: always
     env_file:
       - .env
-    # depends_on:
-      # - base
-    # volumes:
-    #   - ./shared:/shared:ro
+    depends_on:
+      - redis
     networks:
        - load-forecasting-net
 
   redis:
     image: redis:7-alpine
+    restart: always
     networks:
        - load-forecasting-net
        
   dagster:
     container_name: deeptsf_dagster
     hostname: deeptsf_dagster
+    restart: always
     # image: inergy2020iccs/deeptsf_dagster:1.0.1 # only for releases
     build:
-      context: .
-      dockerfile: ./dagster_deeptsf/config/Dockerfile
+      context: ./
+      target: dagster
+      dockerfile:  Dockerfile
+    depends_on:
+      - redis
     # deploy: # activate this if you want gpu usage
     #   resources:
     #     reservations:
@@ -186,12 +174,6 @@ services:
       - 8006
     ports:
       - 8006:8006
-    # depends_on:
-      # - base
-    # volumes:
-    #   - dagster-deeptsf-logs:/app/dagster_deeptsf
-    #   - ./uc2/user_datasets:/app/dagster_deeptsf/user_datasets
-      # - ./dagster-deeptsf/dagster_deeptsf:/app/dagster_deeptsf/dagster_deeptsf  #debugging only
     networks:
       - load-forecasting-net
     env_file:
@@ -201,23 +183,6 @@ services:
       # MLFLOW_S3_ENDPOINT_URL
       # AWS_ACCESS_KEY_ID
       # AWS_SECRET_ACCESS_KEY
-
-  # postgres:
-  #   image: inergy2020iccs/pgdb:16.2
-  #   volumes:
-  #       - database2:/var/lib/postgresql/data
-  #   restart: always
-  #   container_name: postgres
-  #   hostname: postgres
-  #   ports:
-  #     - '5430:5430'
-  #   command: ["postgres", "-c", "port=5430"]
-  #   environment:
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: postgres
-  #     POSTGRES_DB: dagster_celery
-  #   networks:
-  #     - load-forecasting-net
 
   frontend:
     container_name: deeptsf_dashboard
@@ -245,7 +210,6 @@ volumes:
   database:
   database2:
   artifact-store:
-  # dagster-deeptsf-logs:
 
 networks: 
   load-forecasting-net:

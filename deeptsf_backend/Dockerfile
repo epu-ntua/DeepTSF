@@ -1,28 +1,73 @@
-FROM conda-base:latest
+FROM nvidia/cuda:11.6.2-base-ubuntu20.04 AS base
 
-COPY . .
+ENV PATH="/root/miniconda3/bin:${PATH}"
+ARG PATH="/root/miniconda3/bin:${PATH}"
+
+RUN apt update
+
+RUN apt install -y wget && rm -rf /var/lib/apt/lists/*
+
+RUN wget \
+    https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+    && mkdir /root/.conda \
+    && bash Miniconda3-latest-Linux-x86_64.sh -b \
+    && rm -f Miniconda3-latest-Linux-x86_64.sh 
+
+RUN conda --version
+
+WORKDIR /app 
+
+COPY ./conda.yaml ./conda.yaml
+
+RUN conda update conda
+
+RUN conda env create -f conda.yaml
+
+RUN conda init bash
+#############################BACKEND#######################################
+
+FROM base AS backend
 
 # Make RUN commands use the new environment:
 SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
 
-RUN pip install dagster-celery==0.24.13 pydantic-settings==2.8.1 uvicorn[standard] cryptography
+RUN pip install uvicorn[standard]==0.29.0 cryptography==44.0.2
 
-RUN conda env export > environment.yml
+COPY . .
  
-# RUN echo "conda activate DeepTSF_env" > ~/.bashrc
-
-# RUN python -c "import torch: print(torch.cuda.is_available())"
-
-# RUN /root/miniconda3/envs/DeepTSF_env/bin/uvicorn api:app --host 0.0.0.0 --port 8080
-
-# RUN conda list uvicorn
-
-# RUN /root/miniconda3/envs/DeepTSF_env/uvicorn api:app --host 0.0.0.0 --port 8080
-
-# RUN export MLFLOW_TRACKING_URI="http://localhost:5000" # maybe redundant as I use the .env file in docker-compose
-
-# RUN pip install python-multipart
-
 ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8080"]
 
-# ENTRYPOINT ["tail", "-f", "/dev/null"]
+#############################DAGSTER#######################################
+
+FROM base AS dagster
+
+# Activate the conda environment
+SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
+
+# Install additional dependencies
+RUN pip install dagster==1.8.13 dagster-webserver==1.8.13 dagster-shell==0.24.13 dagster-mlflow==0.24.13 dagster-postgres==0.24.13 dagster-aws==0.24.13
+
+EXPOSE 8006
+
+COPY . .
+
+WORKDIR /app/dagster_deeptsf
+
+# Set the DAGSTER_HOME environment variable
+ENV DAGSTER_HOME /app/dagster_deeptsf
+
+ENTRYPOINT [ "conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "dagster", "dev", "-h", "0.0.0.0", "-p", "8006"]
+
+#############################CELERY#######################################
+
+FROM base AS celery-worker
+
+SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
+
+RUN pip install dagster==1.8.13 dagster-webserver==1.8.13 dagster-shell==0.24.13 dagster-mlflow==0.24.13 dagster-postgres==0.24.13 dagster-aws==0.24.13
+
+COPY . .
+
+WORKDIR /app
+
+ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "celery", "-A", "celery_DeepTSF.tasks", "worker", "--loglevel=fatal", "--queues=dagster"]
