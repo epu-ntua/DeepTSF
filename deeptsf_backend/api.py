@@ -19,7 +19,7 @@ from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils_backend import load_artifacts, to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio
+from utils_backend import load_artifacts, to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio, none_checker
 import psutil, nvsmi
 import os
 import requests
@@ -62,7 +62,8 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 MINIO_CLIENT_URL = os.getenv("MINIO_CLIENT_URL")
 MINIO_SSL = truth_checker(os.getenv("MINIO_SSL"))
-USE_KEYCLOAK = truth_checker(os.getenv("USE_KEYCLOAK"))
+USE_CREDENTIALS = none_checker(os.getenv("USE_CREDENTIALS"))
+# USE_KEYCLOAK = truth_checker(os.getenv("USE_KEYCLOAK"))
 
 client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
 CELERY_BROKER_URL= os.environ.get("CELERY_BROKER_URL")
@@ -122,70 +123,63 @@ app = FastAPI(
 #     allow_headers=["*"],
 # )
 
-if USE_KEYCLOAK:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[
-            "https://deeptsf-backend.aiodp.ai",
-            "https://deeptsf.aiodp.ai", 
-            "https://deeptsf.stage.aiodp.ai",
-            "https://deeptsf.dev.aiodp.ai",
-            "https://marketplace.aiodp.ai",
-            "https://platform.aiodp.ai"
-        ],
-        # allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
-        # allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["*"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
-        allow_headers=["*"],
-        expose_headers=["*"],
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://deeptsf-backend.aiodp.ai",
+        "https://deeptsf.aiodp.ai", 
+        "https://deeptsf.stage.aiodp.ai",
+        "https://deeptsf.dev.aiodp.ai",
+        "https://marketplace.aiodp.ai",
+        "https://platform.aiodp.ai"
+    ],
+    # allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
+    # allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
 
+if USE_CREDENTIALS == "keycloak":
 # creating routers
 # admin validator passed as dependency
-# admin_router = APIRouter(
-#     dependencies=[Depends(admin_validator)]
-# )
-# # scientist validator passed as dependency
-# scientist_router = APIRouter(
-#     dependencies=[Depends(scientist_validator)]
-# )
-# engineer_router = APIRouter(
-#     dependencies=[Depends(engineer_validator)]
-# )
-# common_router = APIRouter(
-#     dependencies=[Depends(common_validator)]
-# )
+    admin_router = APIRouter(
+        dependencies=[Depends(admin_validator)]
+    )
+    # scientist validator passed as dependency
+    scientist_router = APIRouter(
+        dependencies=[Depends(scientist_validator)]
+    )
+    engineer_router = APIRouter(
+        dependencies=[Depends(engineer_validator)]
+    )
+    common_router = APIRouter(
+        dependencies=[Depends(common_validator)]
+    )
+    scientist_router_websockets = APIRouter(
+        dependencies=[Depends(websocket_scientist_validator)]
+)
 
-admin_router = APIRouter()
-scientist_router = APIRouter()
-engineer_router = APIRouter()
-common_router = APIRouter()
-admin_router.dependencies = []
-scientist_router.dependencies = []
-engineer_router.dependencies = []
-common_router.dependencies = []
-
-
-if not USE_KEYCLOAK:
+elif USE_CREDENTIALS == "jwt":
+    admin_router = APIRouter()
+    scientist_router = APIRouter()
+    engineer_router = APIRouter()
+    common_router = APIRouter()
+    admin_router.dependencies = []
+    scientist_router.dependencies = []
+    engineer_router.dependencies = []
+    common_router.dependencies = []
+else:
+    admin_router = APIRouter()
+    scientist_router = APIRouter()
+    engineer_router = APIRouter()
+    common_router = APIRouter()
     admin_router.dependencies = []
     scientist_router.dependencies = []
     engineer_router.dependencies = []
     common_router.dependencies = []
     scientist_router_websockets = APIRouter()
-else:
-    scientist_router_websockets = APIRouter(
-        dependencies=[Depends(websocket_scientist_validator)]
-)
 
 # implement this method for login functionality
 # @app.post('/token')
@@ -466,7 +460,7 @@ def fetch_public_key():
 
 PUBLIC_PATHS: List[str] = ["/login", "/api/auth", "/api/logout", "/api/login"]
 
-if USE_KEYCLOAK:
+if USE_CREDENTIALS == "jwt":
     @app.middleware("http")
     async def auth_middleware(request: Request, call_next):
         # Handle CORS preflight requests
@@ -1250,8 +1244,7 @@ async def get_info(token: str = Depends(oauth2_scheme)):
 app.include_router(admin_router)
 app.include_router(scientist_router)
 app.include_router(engineer_router)
-app.include_router(scientist_router_websockets)
-if os.getenv("USE_KEYCLOAK", 'True') == 'True':
+if USE_CREDENTIALS == "keycloak":
     app.include_router(common_router)
 
 # if __name__ == "__main__":
