@@ -57,7 +57,7 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 MINIO_CLIENT_URL = os.getenv("MINIO_CLIENT_URL")
 MINIO_SSL = truth_checker(os.getenv("MINIO_SSL"))
-USE_CREDENTIALS = none_checker(os.getenv("USE_CREDENTIALS"))
+USE_AUTH = none_checker(os.getenv("USE_AUTH"))
 # USE_KEYCLOAK = truth_checker(os.getenv("USE_KEYCLOAK"))
 
 client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
@@ -105,37 +105,20 @@ app = FastAPI(
     },
 )
 
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["https://deeptsf.toolbox.epu.ntua.gr",
-#                    "https://dagster.deeptsf.toolbox.epu.ntua.gr",
-#                    "https://keycloak.toolbox.epu.ntua.gr",
-#                    "http://localhost:3000",
-#                    "http://localhost:8086"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://deeptsf-backend.aiodp.ai",
-        "https://deeptsf.aiodp.ai", 
-        "https://deeptsf.stage.aiodp.ai",
-        "https://deeptsf.dev.aiodp.ai",
-        "https://marketplace.aiodp.ai",
-        "https://platform.aiodp.ai"
-    ],
-    # allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
-    # allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+if USE_AUTH == "keycloak":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["https://deeptsf.toolbox.epu.ntua.gr",
+                    "https://dagster.deeptsf.toolbox.epu.ntua.gr",
+                    "https://keycloak.toolbox.epu.ntua.gr",
+                    "http://localhost:3000",
+                    "http://localhost:8086"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
 )
 
-if USE_CREDENTIALS == "keycloak":
 # creating routers
 # admin validator passed as dependency
     admin_router = APIRouter(
@@ -151,7 +134,25 @@ if USE_CREDENTIALS == "keycloak":
     common_router = APIRouter(
         dependencies=[Depends(common_validator)]
     )
-elif USE_CREDENTIALS == "jwt":
+elif USE_AUTH == "jwt":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "https://deeptsf-backend.aiodp.ai",
+            "https://deeptsf.aiodp.ai", 
+            "https://deeptsf.stage.aiodp.ai",
+            "https://deeptsf.dev.aiodp.ai",
+            "https://marketplace.aiodp.ai",
+            "https://platform.aiodp.ai"
+        ],
+        # allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
+        # allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
+
     admin_router = APIRouter()
     scientist_router = APIRouter()
     engineer_router = APIRouter()
@@ -161,6 +162,14 @@ elif USE_CREDENTIALS == "jwt":
     engineer_router.dependencies = []
     common_router.dependencies = []
 else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000",
+                       "http://localhost:8086"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"]
+        )
     admin_router = APIRouter()
     scientist_router = APIRouter()
     engineer_router = APIRouter()
@@ -1143,7 +1152,7 @@ async def get_info(token: str = Depends(oauth2_scheme)):
 app.include_router(admin_router)
 app.include_router(scientist_router)
 app.include_router(engineer_router)
-if USE_CREDENTIALS == "keycloak":
+if USE_AUTH == "keycloak":
     app.include_router(common_router)
 
 # if __name__ == "__main__":
