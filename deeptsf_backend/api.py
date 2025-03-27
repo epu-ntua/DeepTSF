@@ -567,9 +567,7 @@ async def sso_auth(request: TokenRequest, response: Response):
         logger.info(f"Decoded JWT payload: {payload}")
  
         # Check for the email claim
-        user_email = payload.get(
-            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
-        )
+        user_email = payload.get("email")
         if not user_email:
             logger.error(f"Invalid token: email not found in payload: {payload}")
             raise HTTPException(
