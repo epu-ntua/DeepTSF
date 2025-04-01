@@ -4,6 +4,12 @@ stages:
   - deploy-stage
   - deploy-prod
 # Build the Docker image for the React app and push it to Harbor
+
+variables:
+  HARBOR_IMAGE_BACKEND: "${HARBOR_HOST}/iccs/deeptsf-backend:latest"
+  HARBOR_IMAGE_DAGSTER: "${HARBOR_HOST}/iccs/deeptsf-dagster:latest"
+
+
 build-app:
   stage: build-app
   image: harbor.deployai.eu/cvm-public/ci-tools
@@ -19,15 +25,15 @@ build-app:
 
     - echo ${HARBOR_HOST} ${HARBOR_ROBOT_USER} 
     - echo "Building Docker image for deeptsf backend..."
-    - docker build -t ${HARBOR_HOST}/iccs/deeptsf-backend:latest -f deeptsf_backend/Dockerfile_keycloak deeptsf_backend
+    - docker build -t ${HARBOR_IMAGE_BACKEND} -f deeptsf_backend/Dockerfile_keycloak deeptsf_backend
     - echo "Pushing Docker image to Harbor..."
-    - docker push ${HARBOR_HOST}/iccs/deeptsf-backend:latest
+    - docker push ${HARBOR_IMAGE_BACKEND}
 
 
     - echo "Building Docker image for dagster..."
-    - docker build -t ${HARBOR_HOST}/iccs/deeptsf-dagster:latest -f deeptsf_backend/dagster-deeptsf/config/Dockerfile deeptsf_backend
+    - docker build -t ${HARBOR_IMAGE_DAGSTER} -f deeptsf_backend/dagster-deeptsf/config/Dockerfile deeptsf_backend
     - echo "Pushing Docker image to Harbor..."
-    - docker push ${HARBOR_HOST}/iccs/deeptsf-dagster:latest
+    - docker push ${HARBOR_IMAGE_DAGSTER}
 
   only:
     - master
