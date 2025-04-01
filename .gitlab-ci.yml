@@ -25,13 +25,13 @@ build-app:
 
     - echo ${HARBOR_HOST} ${HARBOR_ROBOT_USER} 
     - echo "Building Docker image for deeptsf backend..."
-    - docker build -t ${HARBOR_IMAGE_BACKEND} -f deeptsf_backend/Dockerfile_keycloak deeptsf_backend
+    - docker build -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_BACKEND} ./deeptsf_backend
     - echo "Pushing Docker image to Harbor..."
     - docker push ${HARBOR_IMAGE_BACKEND}
 
 
     - echo "Building Docker image for dagster..."
-    - docker build -t ${HARBOR_IMAGE_DAGSTER} -f deeptsf_backend/dagster-deeptsf/config/Dockerfile deeptsf_backend
+    - docker build -f deeptsf_backend/dagster-deeptsf/config/Dockerfile -t ${HARBOR_IMAGE_DAGSTER} ./deeptsf_backend
     - echo "Pushing Docker image to Harbor..."
     - docker push ${HARBOR_IMAGE_DAGSTER}
 
