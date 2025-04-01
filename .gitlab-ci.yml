@@ -6,8 +6,8 @@ stages:
 # Build the Docker image for the React app and push it to Harbor
 
 variables:
-  HARBOR_IMAGE_BACKEND: "${HARBOR_HOST}/iccs/deeptsfapp-backend:latest"
-  HARBOR_IMAGE_DAGSTER: "${HARBOR_HOST}/iccs/deeptsfapp-dagster:latest"
+  HARBOR_IMAGE_BACKEND: "${HARBOR_HOST}/iccs/deeptsf-backend:latest"
+  HARBOR_IMAGE_DAGSTER: "${HARBOR_HOST}/iccs/deeptsf-dagster:latest"
 
 
 build-app:
@@ -53,7 +53,7 @@ deploy-dev:
     - echo "Checking Kubernetes cluster connectivity..."
     - kubectl get nodes
     - echo "Deploying to Rancher using Helm..."
-    - helm upgrade --install deeptsfapp-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set env.host=.dev.deployai.eu --set env.marketplace=vc-platform.stage.aiodp.ai --set env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set env.MINIO_SSL=${MINIO_SSL} --set env.MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} --set env.MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL} --set env.MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY} --set env.MINIO_SECRET_KEY=${MINIO_SECRET_KEY} --set env.USE_KEYCLOAK=${USE_KEYCLOAK} --set env.KEYCLOAK_ID=${KEYCLOAK_ID} --set env.KEYCLOAK_SECRET=${KEYCLOAK_SECRET} --set env.TOKEN_ISSUER_URL=${TOKEN_ISSUER_URL} --set commitHash=${CI_COMMIT_SHA}
+    - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set env.host=.dev.deployai.eu --set env.marketplace=vc-platform.stage.aiodp.ai --set env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set env.MINIO_SSL=${MINIO_SSL} --set env.MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} --set env.MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL} --set env.MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY} --set env.MINIO_SECRET_KEY=${MINIO_SECRET_KEY} --set env.USE_KEYCLOAK=${USE_KEYCLOAK} --set env.KEYCLOAK_ID=${KEYCLOAK_ID} --set env.KEYCLOAK_SECRET=${KEYCLOAK_SECRET} --set env.TOKEN_ISSUER_URL=${TOKEN_ISSUER_URL} --set commitHash=${CI_COMMIT_SHA}
   only:
     - master
   tags:
@@ -73,7 +73,7 @@ deploy-stage:
     - export KUBECONFIG=${KUBECONFIG_STAGE}
   script:
     - echo "Deploying to Rancher using Helm..."
-    - helm upgrade --install deeptsfapp-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set env.host=.stage.deployai.eu --set env.marketplace=vc-platform.stage.aiodp.ai --set env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set env.MINIO_SSL=${MINIO_SSL} --set env.MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} --set env.MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL} --set env.MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY} --set env.MINIO_SECRET_KEY=${MINIO_SECRET_KEY} --set env.USE_KEYCLOAK=${USE_KEYCLOAK} --set env.KEYCLOAK_ID=${KEYCLOAK_ID} --set env.KEYCLOAK_SECRET=${KEYCLOAK_SECRET} --set env.TOKEN_ISSUER_URL=${TOKEN_ISSUER_URL} --set commitHash=${CI_COMMIT_SHA}
+    - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set env.host=.stage.deployai.eu --set env.marketplace=vc-platform.stage.aiodp.ai --set env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set env.MINIO_SSL=${MINIO_SSL} --set env.MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} --set env.MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL} --set env.MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY} --set env.MINIO_SECRET_KEY=${MINIO_SECRET_KEY} --set env.USE_KEYCLOAK=${USE_KEYCLOAK} --set env.KEYCLOAK_ID=${KEYCLOAK_ID} --set env.KEYCLOAK_SECRET=${KEYCLOAK_SECRET} --set env.TOKEN_ISSUER_URL=${TOKEN_ISSUER_URL} --set commitHash=${CI_COMMIT_SHA}
   only:
     - master
   tags:
@@ -93,7 +93,7 @@ deploy-prod:
     - export KUBECONFIG=${KUBECONFIG_PROD}
   script:
     - echo "Deploying to Rancher using Helm..."
-    - helm upgrade --install deeptsfapp-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set env.host=.aiodp.ai --set env.marketplace=platform.aiodp.ai --set env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set env.MINIO_SSL=${MINIO_SSL} --set env.MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} --set env.MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL} --set env.MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY} --set env.MINIO_SECRET_KEY=${MINIO_SECRET_KEY} --set env.USE_KEYCLOAK=${USE_KEYCLOAK} --set env.KEYCLOAK_ID=${KEYCLOAK_ID} --set env.KEYCLOAK_SECRET=${KEYCLOAK_SECRET} --set env.TOKEN_ISSUER_URL=${TOKEN_ISSUER_URL} --set commitHash=${CI_COMMIT_SHA}
+    - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set env.host=.aiodp.ai --set env.marketplace=platform.aiodp.ai --set env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set env.MINIO_SSL=${MINIO_SSL} --set env.MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} --set env.MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL} --set env.MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY} --set env.MINIO_SECRET_KEY=${MINIO_SECRET_KEY} --set env.USE_KEYCLOAK=${USE_KEYCLOAK} --set env.KEYCLOAK_ID=${KEYCLOAK_ID} --set env.KEYCLOAK_SECRET=${KEYCLOAK_SECRET} --set env.TOKEN_ISSUER_URL=${TOKEN_ISSUER_URL} --set commitHash=${CI_COMMIT_SHA}
   only:
     - mastermaster
   tags:
