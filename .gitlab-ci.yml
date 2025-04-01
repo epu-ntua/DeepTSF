@@ -6,7 +6,7 @@ stages:
 # Build the Docker image for the React app and push it to Harbor
 build-app:
   stage: build-app
-  image: harbor.aiodp.ai/cvm-public/ci-tools
+  image: harbor.deployai.eu/cvm-public/ci-tools
   services:
     - docker:dind
   variables:
@@ -36,7 +36,7 @@ build-app:
 # Deploy the app to dev using Helm and Rancher
 deploy-dev:
   stage: deploy-dev
-  image: harbor.aiodp.ai/cvm-public/ci-tools
+  image: harbor.deployai.eu/cvm-public/ci-tools
   dependencies:
     - build-app
   before_script:
@@ -57,7 +57,7 @@ deploy-dev:
 # Deploy the app to stage using Helm and Rancher
 deploy-stage:
   stage: deploy-stage
-  image: harbor.aiodp.ai/cvm-public/ci-tools
+  image: harbor.deployai.eu/cvm-public/ci-tools
   dependencies:
     - build-app
   before_script:
@@ -77,7 +77,7 @@ deploy-stage:
   # Deploy the app to prod using Helm and Rancher
 deploy-prod:
   stage: deploy-prod
-  image: harbor.aiodp.ai/cvm-public/ci-tools
+  image: harbor.deployai.eu/cvm-public/ci-tools
   dependencies:
     - build-app
   before_script:
