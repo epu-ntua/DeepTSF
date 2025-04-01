@@ -6,8 +6,8 @@ stages:
   - deploy-prod
 
 variables:
-  HARBOR_IMAGE_BACKEND: "${HARBOR_HOST}/iccs/deeptsf-backend:latest"
-  HARBOR_IMAGE_DAGSTER: "${HARBOR_HOST}/iccs/deeptsf-dagster:latest"
+  HARBOR_IMAGE_BACKEND: "harbor.aiodp.ai/iccs/deeptsf-backend:1.0"
+  HARBOR_IMAGE_DAGSTER: "harbor.aiodp.ai/iccs/deeptsf-dagster:1.0"
 
 
 build-app:
@@ -20,7 +20,6 @@ build-app:
   before_script:
     - docker info
   script:
-    - echo ${HARBOR_HOST} ${HARBOR_ROBOT_USER}
     - echo "Building Docker image for deeptsf backend..."
     - docker build -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_BACKEND} ./deeptsf_backend
     - echo "Logging into Harbor using Robot Account..."
