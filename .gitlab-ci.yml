@@ -17,6 +17,7 @@ build-app:
     - echo "Logging into Harbor using Robot Account..."
     - echo ${HARBOR_ROBOT_PASSWORD} | docker login ${HARBOR_HOST} -u ${HARBOR_ROBOT_USER} --password-stdin
 
+    - echo ${HARBOR_HOST} ${HARBOR_ROBOT_USER} 
     - echo "Building Docker image for deeptsf backend..."
     - docker build -t ${HARBOR_HOST}/iccs/deeptsf-backend:latest -f deeptsf_backend/Dockerfile_keycloak deeptsf_backend
     - echo "Pushing Docker image to Harbor..."
