@@ -6,8 +6,8 @@ stages:
   - deploy-prod
 
 variables:
-  HARBOR_IMAGE_BACKEND: "harbor.aiodp.ai/iccs/deeptsf-backend:1.0"
-  HARBOR_IMAGE_DAGSTER: "harbor.aiodp.ai/iccs/deeptsf-dagster:1.0"
+  HARBOR_IMAGE_BACKEND: "${HARBOR_HOST}/iccs/deeptsf-backend:latest"
+  HARBOR_IMAGE_DAGSTER: "${HARBOR_HOST}/iccs/deeptsf-dagster:latest"
 
 
 build-app:
