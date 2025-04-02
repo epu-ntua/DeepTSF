@@ -109,7 +109,11 @@ app = FastAPI(
 if USE_AUTH == "keycloak":
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["https://deeptsf.toolbox.epu.ntua.gr",
+        allow_origins=[
+                    "https://deeptsf.aiodp.ai", 
+                    "https://deeptsf.stage.aiodp.ai",
+                    "https://deeptsf.dev.aiodp.ai",
+                    "https://deeptsf.toolbox.epu.ntua.gr",
                     "https://dagster.deeptsf.toolbox.epu.ntua.gr",
                     "https://keycloak.toolbox.epu.ntua.gr",
                     "http://localhost:3000",
