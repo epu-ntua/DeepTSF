@@ -2,7 +2,7 @@ backend:
   service:
     name: deeptsf-backend
   image:
-    repository: harbor.deployai.eu/iccs/deeptsf-backend
+    repository: harbor.aiodp.ai/iccs/deeptsf-backend
     tag: latest
   replicas: 1
   memory_limit: 4Gi
@@ -11,7 +11,7 @@ dagster:
   service:
     name: deeptsf-dagster
   image:
-    repository: harbor.deployai.eu/iccs/deeptsf-dagster
+    repository: harbor.aiodp.ai/iccs/deeptsf-dagster
     tag: latest
   replicas: 1
   memory_limit: 4Gi
