@@ -67,8 +67,8 @@ spec:
           value: {{ required "MINIO_ACCESS_KEY environment variable is required" .Values.env.MINIO_ACCESS_KEY | quote }}
         - name: MINIO_SECRET_KEY
           value: {{ required "MINIO_SECRET_KEY environment variable is required" .Values.env.MINIO_SECRET_KEY | quote }}
-        - name: USE_KEYCLOAK
-          value: {{ required "USE_KEYCLOAK environment variable is required" .Values.env.USE_KEYCLOAK | quote }}
+        - name: USE_AUTH
+          value: {{ required "USE_AUTH environment variable is required" .Values.env.USE_AUTH | quote }}
         - name: KEYCLOAK_ID
           value: {{ required "KEYCLOAK_ID environment variable is required" .Values.env.KEYCLOAK_ID | quote }}
         - name: KEYCLOAK_SECRET
