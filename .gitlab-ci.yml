@@ -12,7 +12,7 @@ variables:
 
 build-app:
   stage: build-app
-  image: harbor.deployai.eu/cvm-public/ci-tools
+  image: harbor.aiodp.ai/cvm-public/ci-tools 
   services:
     - docker:dind
   variables:
@@ -34,7 +34,7 @@ build-app:
 
 build-dagster:
   stage: build-dagster
-  image: harbor.deployai.eu/cvm-public/ci-tools
+  image: harbor.aiodp.ai/cvm-public/ci-tools 
   services:
     - docker:dind
   variables:
@@ -57,7 +57,7 @@ build-dagster:
 # Deploy the app to dev using Helm and Rancher
 deploy-dev:
   stage: deploy-dev
-  image: harbor.deployai.eu/cvm-public/ci-tools
+  image: harbor.aiodp.ai/cvm-public/ci-tools 
   dependencies:
     - build-app
     - build-dagster
@@ -79,7 +79,7 @@ deploy-dev:
 # Deploy the app to stage using Helm and Rancher
 deploy-stage:
   stage: deploy-stage
-  image: harbor.deployai.eu/cvm-public/ci-tools
+  image: harbor.aiodp.ai/cvm-public/ci-tools 
   dependencies:
     - build-app
     - build-dagster
@@ -100,7 +100,7 @@ deploy-stage:
   # Deploy the app to prod using Helm and Rancher
 deploy-prod:
   stage: deploy-prod
-  image: harbor.deployai.eu/cvm-public/ci-tools
+  image: harbor.aiodp.ai/cvm-public/ci-tools 
   dependencies:
     - build-app
     - build-dagster
