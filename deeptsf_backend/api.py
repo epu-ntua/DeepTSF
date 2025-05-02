@@ -166,12 +166,16 @@ elif USE_AUTH == "jwt":
     engineer_router.dependencies = []
     common_router.dependencies = []
 else:
+    print("HERE")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
-        allow_headers=["*"]
+        allow_headers=["http://localhost:3000",
+                    "http://localhost:8006",
+                    "http://frontend:3000",
+                    "http://dagster:8006"],
         )
     admin_router = APIRouter()
     scientist_router = APIRouter()
