@@ -1,10 +1,8 @@
-version: '3.4'
 # to run this you need to create a .env file with the contents of .env.example
 services:
 
   s3:
     image: minio/minio:RELEASE.2024-03-30T09-41-56Z
-    # image: minio/minio:RELEASE.2020-12-18T03-27-42Z
     container_name: s3
     restart: always
     hostname: s3
@@ -30,7 +28,6 @@ services:
 
 
   create_bucket:
-    # image: minio/mc:RELEASE.2019-07-17T22-13-42Z
     image: minio/minio:RELEASE.2024-03-30T09-41-56Z
     depends_on:
       - s3    
@@ -163,7 +160,6 @@ services:
     container_name: deeptsf_dashboard
     hostname: deeptsf_dashboard
     image: deployaintua/deeptsf-dashboard:latest
-    # build: https://github.com/I-NERGY/deeptsf-dashboard.git
     restart: always
     expose:
       - 3000
@@ -184,7 +180,6 @@ services:
 volumes:
   database:
   artifact-store:
-  # dagster-logs:
 
 networks: 
   load-forecasting-net:

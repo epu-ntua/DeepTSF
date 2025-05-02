@@ -166,16 +166,15 @@ elif USE_AUTH == "jwt":
     engineer_router.dependencies = []
     common_router.dependencies = []
 else:
-    print("HERE")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["http://localhost:3000",
+        allow_origins=["http://localhost:3000",
                     "http://localhost:8006",
                     "http://frontend:3000",
                     "http://dagster:8006"],
+        allow_credentials=True,
+        allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
+        allow_headers=["*"],
         )
     admin_router = APIRouter()
     scientist_router = APIRouter()
@@ -358,268 +357,269 @@ def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='
     resolutions = make_time_list(resolution=resolution)    
     return ts, resolutions
 
+if USE_AUTH == "jwt":
 
-# This is used from VC
-@app.post("/login", dependencies=[])
-async def login(request: Request):
-    request_data = await request.json()
-    jwt_token = request_data.get("jwt")
+    # This is used from VC
+    @app.post("/login", dependencies=[])
+    async def login(request: Request):
+        request_data = await request.json()
+        jwt_token = request_data.get("jwt")
 
-    if not jwt_token:
-        return JSONResponse(status_code=400, content={"detail": "Missing JWT"})
+        if not jwt_token:
+            return JSONResponse(status_code=400, content={"detail": "Missing JWT"})
 
-    login_url = f"https://deeptsf.aiodp.ai/?jwt={jwt_token}"
-    return JSONResponse(content={"url": login_url})
-
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
- 
-@app.post("/api/login")
-def login(request: LoginRequest, response: Response):
-    url = "https://platform.aiodp.ai/connect/token"
-    # url = "https://vc-platform.stage.aiodp.ai/connect/token"
-    payload = f'grant_type=password&password={request.password}&username={request.username}&storeId=deployai'
-    headers = {
-        'content-type': 'application/x-www-form-urlencoded'
-    }
- 
-    response_api = requests.post(url, headers=headers, data=payload)
- 
-    if response_api.status_code == 200:
-        response.set_cookie(
-            key="session_token",
-            value=response_api.json().get("access_token"),
-            httponly=True)
-        return {"message": "Login successful", "token": response_api.json().get("access_token")}
-    else:
-        raise HTTPException(status_code=response_api.status_code, detail="Login failed")
+        login_url = f"https://deeptsf.aiodp.ai/?jwt={jwt_token}"
+        return JSONResponse(content={"url": login_url})
 
 
-# def get_public_key_from_x5c(x5c_value: str):
-#     # 1) Convert the base64 DER certificate into a PEM certificate
-#     cert_der = base64.b64decode(x5c_value)
-#     cert = x509.load_der_x509_certificate(cert_der, default_backend())
+    class LoginRequest(BaseModel):
+        username: str
+        password: str
     
-#     # 2) Extract the public key object
-#     public_key = cert.public_key()
+    @app.post("/api/login")
+    def login(request: LoginRequest, response: Response):
+        url = "https://platform.aiodp.ai/connect/token"
+        # url = "https://vc-platform.stage.aiodp.ai/connect/token"
+        payload = f'grant_type=password&password={request.password}&username={request.username}&storeId=deployai'
+        headers = {
+            'content-type': 'application/x-www-form-urlencoded'
+        }
     
-#     # 3) Return this object, which PyJWT can accept directly in python-jose/cryptography scenarios
-#     return public_key
+        response_api = requests.post(url, headers=headers, data=payload)
+    
+        if response_api.status_code == 200:
+            response.set_cookie(
+                key="session_token",
+                value=response_api.json().get("access_token"),
+                httponly=True)
+            return {"message": "Login successful", "token": response_api.json().get("access_token")}
+        else:
+            raise HTTPException(status_code=response_api.status_code, detail="Login failed")
 
 
-# Define a Pydantic model for the request body
-class TokenRequest(BaseModel):
-    jwt: str
-
-@app.post("/login_token")
-def login(request: TokenRequest, response: Response):
-    url = "https://platform.aiodp.ai/connect/token"
-    response.set_cookie(
-            key="session_token",
-            value=request.jwt,
-            httponly=True)
-    return {"message": "Login successful", "token": request.jwt}
-
-
-# Fetch the public key from the JWKS endpoint
-def fetch_public_key():
-    # jwks_url = "https://vc-platform.stage.aiodp.ai/.well-known/jwks"
-    jwks_url = "https://platform.aiodp.ai/.well-known/jwks"
-    try:
-        logger.info(f"Fetching JWKS from {jwks_url}")
-        response = requests.get(jwks_url)
-        response.raise_for_status()  # Raise an error for bad status codes
-        jwks = response.json()
-        logger.info(f"JWKS: {jwks}")
-
-        # Extract the key (assuming the key is in the first entry)
-        key_data = jwks['keys'][0]
-        public_key = RSAAlgorithm.from_jwk(key_data)
-        logger.info(f"Fetched public key: {public_key}")
-        return public_key
-    except requests.exceptions.RequestException as e:
-        logger.error(f"HTTP request failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch JWKS")
-    except ValueError as e:
-        logger.error(f"JSON decode failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to decode JWKS response")
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch JWKS")
-
-# @app.middleware("http")
-# async def check_session_token(request: Request, call_next):
-#     if request.url.path not in ["/api/auth", "/api/logout", "/login"]:
-#         session_token = request.cookies.get("session_token")
-#         if not session_token:
-#             return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
-#         try:
-#             jwt.decode(session_token, options={"verify_signature": False})
-#         except jwt.ExpiredSignatureError:
-#             return JSONResponse(status_code=401, content={"detail": "Session has expired"})
-#         except jwt.InvalidTokenError:
-#             return JSONResponse(status_code=401, content={"detail": "Invalid session token"})
-#     response = await call_next(request)
-#     return response
-
-PUBLIC_PATHS: List[str] = ["/login", "/api/auth", "/api/logout", "/api/login"]
-
-@app.middleware("http")
-async def auth_middleware(request: Request, call_next):
-    # Handle CORS preflight requests
-    if request.method == "OPTIONS":
-        response = await call_next(request)
-        return response
-
-    # Skip authentication for public paths
-    if request.url.path in PUBLIC_PATHS:
-        response = await call_next(request)
-        return response
-
-    try:
-        # Get authorization header
-        auth_header: Optional[str] = request.headers.get("Authorization")
+    # def get_public_key_from_x5c(x5c_value: str):
+    #     # 1) Convert the base64 DER certificate into a PEM certificate
+    #     cert_der = base64.b64decode(x5c_value)
+    #     cert = x509.load_der_x509_certificate(cert_der, default_backend())
         
-        if not auth_header:
-            raise HTTPException(status_code=401, detail="No authorization header")
+    #     # 2) Extract the public key object
+    #     public_key = cert.public_key()
+        
+    #     # 3) Return this object, which PyJWT can accept directly in python-jose/cryptography scenarios
+    #     return public_key
 
-        # Extract token from Bearer header
-        token_type, token = auth_header.split()
-        if token_type.lower() != "bearer":
-            raise HTTPException(status_code=401, detail="Invalid token type")
 
+    # Define a Pydantic model for the request body
+    class TokenRequest(BaseModel):
+        jwt: str
+
+    @app.post("/login_token")
+    def login(request: TokenRequest, response: Response):
+        url = "https://platform.aiodp.ai/connect/token"
+        response.set_cookie(
+                key="session_token",
+                value=request.jwt,
+                httponly=True)
+        return {"message": "Login successful", "token": request.jwt}
+
+
+    # Fetch the public key from the JWKS endpoint
+    def fetch_public_key():
+        # jwks_url = "https://vc-platform.stage.aiodp.ai/.well-known/jwks"
+        jwks_url = "https://platform.aiodp.ai/.well-known/jwks"
         try:
-            # Verify token
-            # Note: Add your secret key and proper verification for production
-            payload = jwt.decode(token, options={"verify_signature": False})
-            
-            # Add user info to request state for use in routes
-            request.state.user = payload
-            
-            # Continue with the request
+            logger.info(f"Fetching JWKS from {jwks_url}")
+            response = requests.get(jwks_url)
+            response.raise_for_status()  # Raise an error for bad status codes
+            jwks = response.json()
+            logger.info(f"JWKS: {jwks}")
+
+            # Extract the key (assuming the key is in the first entry)
+            key_data = jwks['keys'][0]
+            public_key = RSAAlgorithm.from_jwk(key_data)
+            logger.info(f"Fetched public key: {public_key}")
+            return public_key
+        except requests.exceptions.RequestException as e:
+            logger.error(f"HTTP request failed: {e}")
+            raise HTTPException(status_code=500, detail="Failed to fetch JWKS")
+        except ValueError as e:
+            logger.error(f"JSON decode failed: {e}")
+            raise HTTPException(status_code=500, detail="Failed to decode JWKS response")
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            raise HTTPException(status_code=500, detail="Failed to fetch JWKS")
+
+    # @app.middleware("http")
+    # async def check_session_token(request: Request, call_next):
+    #     if request.url.path not in ["/api/auth", "/api/logout", "/login"]:
+    #         session_token = request.cookies.get("session_token")
+    #         if not session_token:
+    #             return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+    #         try:
+    #             jwt.decode(session_token, options={"verify_signature": False})
+    #         except jwt.ExpiredSignatureError:
+    #             return JSONResponse(status_code=401, content={"detail": "Session has expired"})
+    #         except jwt.InvalidTokenError:
+    #             return JSONResponse(status_code=401, content={"detail": "Invalid session token"})
+    #     response = await call_next(request)
+    #     return response
+
+    PUBLIC_PATHS: List[str] = ["/login", "/api/auth", "/api/logout", "/api/login"]
+
+    @app.middleware("http")
+    async def auth_middleware(request: Request, call_next):
+        # Handle CORS preflight requests
+        if request.method == "OPTIONS":
             response = await call_next(request)
             return response
 
-        except jwt.ExpiredSignatureError:
+        # Skip authentication for public paths
+        if request.url.path in PUBLIC_PATHS:
+            response = await call_next(request)
+            return response
+
+        try:
+            # Get authorization header
+            auth_header: Optional[str] = request.headers.get("Authorization")
+            
+            if not auth_header:
+                raise HTTPException(status_code=401, detail="No authorization header")
+
+            # Extract token from Bearer header
+            token_type, token = auth_header.split()
+            if token_type.lower() != "bearer":
+                raise HTTPException(status_code=401, detail="Invalid token type")
+
+            try:
+                # Verify token
+                # Note: Add your secret key and proper verification for production
+                payload = jwt.decode(token, options={"verify_signature": False})
+                
+                # Add user info to request state for use in routes
+                request.state.user = payload
+                
+                # Continue with the request
+                response = await call_next(request)
+                return response
+
+            except jwt.ExpiredSignatureError:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Token has expired"}
+                )
+            except jwt.InvalidTokenError:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid token"}
+                )
+
+        except HTTPException as e:
             return JSONResponse(
-                status_code=401,
-                content={"detail": "Token has expired"}
+                status_code=e.status_code,
+                content={"detail": str(e.detail)}
             )
-        except jwt.InvalidTokenError:
+        except Exception as e:
             return JSONResponse(
-                status_code=401,
-                content={"detail": "Invalid token"}
+                status_code=500,
+                content={"detail": "Internal server error"}
             )
 
-    except HTTPException as e:
+    # Add error handlers for common cases
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
         return JSONResponse(
-            status_code=e.status_code,
-            content={"detail": str(e.detail)}
-        )
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"}
-        )
-
-# Add error handlers for common cases
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail},
-        headers={
-            "Access-Control-Allow-Origin": request.headers.get("Origin", origins[0]),
-            "Access-Control-Allow-Credentials": "false"
-        }
-    )
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error"},
-        headers={
-            "Access-Control-Allow-Origin": request.headers.get("Origin", origins[0]),
-            "Access-Control-Allow-Credentials": "false"
-        }
-    )
-
-# Utility function to get the current user from the session token
-def get_current_user(request: Request):
-    session_token = request.cookies.get("session_token")
-    if not session_token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        payload = jwt.decode(session_token, options={"verify_signature": False})
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Session has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid session token")
-
-
-@app.post("/api/auth")
-async def sso_auth(request: TokenRequest, response: Response):
-    try:
-        # Fetch the public key
-        public_key = fetch_public_key()
- 
-        # Decode and validate the JWT
-        logger.info(f"Decoding JWT: {request.jwt}")
-        payload = jwt.decode(
-            request.jwt, public_key, algorithms=["RS256"], audience="resource_server"
-        )
-        logger.info(f"Decoded JWT payload: {payload}")
- 
-        # Check for the email claim
-        user_email = payload.get("email")
-        if not user_email:
-            logger.error(f"Invalid token: email not found in payload: {payload}")
-            raise HTTPException(
-                status_code=400, detail="Invalid token: email not found"
-            )
- 
-        # Extract additional user information
-        username = payload.get("preferred_username", "unknown")
-        roles = payload.get("roles", [])
- 
-        # Create a session token (for simplicity, using the JWT itself as the session token)
-        session_token = request.jwt
- 
-        # Set the session token as a cookie
-        response.set_cookie(key="session_token", value=session_token, httponly=True)
- 
-        # Respond with the login URL and user information
-        login_url = f"https://deeptsf.aiodp.ai/?jwt={session_token}"
-        return JSONResponse(
-            content={
-                "message": "Session created successfully",
-                "url": login_url,
-                "user": {"email": user_email, "username": username, "roles": roles},
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("Origin", origins[0]),
+                "Access-Control-Allow-Credentials": "false"
             }
         )
- 
-    except jwt.ExpiredSignatureError:
-        logger.error("Token has expired")
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError as e:
-        logger.error(f"Invalid token: {e}")
-        raise HTTPException(status_code=401, detail="Invalid token")
-    except HTTPException as e:
-        logger.error(f"HTTPException: {e.detail}")
-        raise e
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-    
 
-@app.post("/api/logout")
-async def logout(response: Response):
-    response.delete_cookie("session_token")
-    return JSONResponse(content={"message": "Logged out successfully"})
+    @app.exception_handler(Exception)
+    async def general_exception_handler(request: Request, exc: Exception):
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("Origin", origins[0]),
+                "Access-Control-Allow-Credentials": "false"
+            }
+        )
+
+    # Utility function to get the current user from the session token
+    def get_current_user(request: Request):
+        session_token = request.cookies.get("session_token")
+        if not session_token:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        try:
+            payload = jwt.decode(session_token, options={"verify_signature": False})
+            return payload
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Session has expired")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid session token")
+
+
+    @app.post("/api/auth")
+    async def sso_auth(request: TokenRequest, response: Response):
+        try:
+            # Fetch the public key
+            public_key = fetch_public_key()
+    
+            # Decode and validate the JWT
+            logger.info(f"Decoding JWT: {request.jwt}")
+            payload = jwt.decode(
+                request.jwt, public_key, algorithms=["RS256"], audience="resource_server"
+            )
+            logger.info(f"Decoded JWT payload: {payload}")
+    
+            # Check for the email claim
+            user_email = payload.get("email")
+            if not user_email:
+                logger.error(f"Invalid token: email not found in payload: {payload}")
+                raise HTTPException(
+                    status_code=400, detail="Invalid token: email not found"
+                )
+    
+            # Extract additional user information
+            username = payload.get("preferred_username", "unknown")
+            roles = payload.get("roles", [])
+    
+            # Create a session token (for simplicity, using the JWT itself as the session token)
+            session_token = request.jwt
+    
+            # Set the session token as a cookie
+            response.set_cookie(key="session_token", value=session_token, httponly=True)
+    
+            # Respond with the login URL and user information
+            login_url = f"https://deeptsf.aiodp.ai/?jwt={session_token}"
+            return JSONResponse(
+                content={
+                    "message": "Session created successfully",
+                    "url": login_url,
+                    "user": {"email": user_email, "username": username, "roles": roles},
+                }
+            )
+    
+        except jwt.ExpiredSignatureError:
+            logger.error("Token has expired")
+            raise HTTPException(status_code=401, detail="Token has expired")
+        except jwt.InvalidTokenError as e:
+            logger.error(f"Invalid token: {e}")
+            raise HTTPException(status_code=401, detail="Invalid token")
+        except HTTPException as e:
+            logger.error(f"HTTPException: {e.detail}")
+            raise e
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            raise HTTPException(status_code=500, detail="Internal Server Error")
+        
+
+    @app.post("/api/logout")
+    async def logout(response: Response):
+        response.delete_cookie("session_token")
+        return JSONResponse(content={"message": "Logged out successfully"})
 
         
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
