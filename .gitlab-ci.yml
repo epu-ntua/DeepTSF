@@ -68,7 +68,6 @@ deploy-dev:
   image: harbor.aiodp.ai/cvm-public/ci-tools 
   dependencies:
     - build-app
-    - build-dagster
   before_script:
     - echo "Secure the KUBECONFIG file"
     - chmod 600 ${KUBECONFIG}
@@ -91,7 +90,6 @@ deploy-stage:
   image: harbor.aiodp.ai/cvm-public/ci-tools 
   dependencies:
     - build-app
-    - build-dagster
   before_script:
     - echo "Secure the KUBECONFIG file"
     - chmod 600 ${KUBECONFIG_STAGE}
@@ -112,7 +110,6 @@ deploy-prod:
   image: harbor.aiodp.ai/cvm-public/ci-tools 
   dependencies:
     - build-app
-    - build-dagster
   before_script:
     - echo "Secure the KUBECONFIG file"
     - chmod 600 ${KUBECONFIG_PROD}
