@@ -58,7 +58,7 @@ build-app:
     - docker push ${HARBOR_IMAGE_REDIS}
 
   only:
-    - master
+    - dagster_intergration
   tags:
     - shared
 
