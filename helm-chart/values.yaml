@@ -16,6 +16,33 @@ dagster:
   replicas: 1
   memory_limit: 4Gi
 
+worker:
+  service:
+    name: deeptsf-worker
+  image:
+    repository: harbor.aiodp.ai/iccs/deeptsf-worker
+    tag: latest
+  replicas: 1
+  memory_limit: 4Gi
+
+pgdb:
+  service:
+    name: deeptsf-pgdb
+  image:
+    repository: harbor.aiodp.ai/iccs/deeptsf-pgdb
+    tag: latest
+  replicas: 1
+  memory_limit: 1Gi
+
+redis:
+  service:
+    name: deeptsf-redis
+  image:
+    repository: harbor.aiodp.ai/iccs/deeptsf-redis
+    tag: latest
+  replicas: 1
+  memory_limit: 1Gi
+
 minio:
   ssl: false
 

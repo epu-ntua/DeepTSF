@@ -1,7 +1,7 @@
 # to run this you need to create a .env file with the contents of .env.example
 services:
   s3:
-    image: minio/minio:RELEASE.2025-02-18T16-25-55Z
+    image: minio/minio:RELEASE.2024-03-30T09-41-56Z
     container_name: s3
     restart: always
     hostname: s3
@@ -27,7 +27,7 @@ services:
 
 
   create_bucket:
-    image: minio/minio:RELEASE.2025-02-18T16-25-55Z
+    image: minio/minio:RELEASE.2024-03-30T09-41-56Z
     depends_on:
       - s3    
     networks:
