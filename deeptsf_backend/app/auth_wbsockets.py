@@ -41,8 +41,11 @@ class WebSocketAuthValidator:
     async def __call__(self, websocket: WebSocket) -> bool:
         # Extract token from query parameters
         token = websocket.query_params.get("token")
+
+        print(token, "HERE")
         
         if not token:
+            print(token, "HERESDDSSD")
             await websocket.close(code=1008)
             raise WebSocketDisconnect(code=1008)
 

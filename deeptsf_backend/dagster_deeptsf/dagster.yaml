@@ -3,8 +3,8 @@ run_storage:
   class: PostgresRunStorage
   config:
     postgres_db:
-      username: postgres
-      password: postgres
+      username: {env: POSTGRES_USER}
+      password: {env: POSTGRES_PASSWORD}
       hostname: pgdb
       db_name: dagster_celery
       port: 5432
@@ -14,8 +14,8 @@ event_log_storage:
   class: PostgresEventLogStorage
   config:
     postgres_db:
-      username: postgres
-      password: postgres
+      username: {env: POSTGRES_USER}
+      password: {env: POSTGRES_PASSWORD}
       hostname: pgdb
       db_name: dagster_celery
       port: 5432
@@ -25,8 +25,8 @@ schedule_storage:
   class: PostgresScheduleStorage
   config:
     postgres_db:
-      username: postgres
-      password: postgres
+      username: {env: POSTGRES_USER}
+      password: {env: POSTGRES_PASSWORD}
       hostname: pgdb
       db_name: dagster_celery
       port: 5432
@@ -38,13 +38,12 @@ compute_logs:
     bucket: "dagster-storage"
     local_dir: "/app/dagster_deeptsf/storage/"
     prefix: "dagster-compute-logs"
-    use_ssl: false
+    use_ssl: true
     verify: false
-    endpoint_url: "http://s3:9000"
+    endpoint_url: {env: MLFLOW_S3_ENDPOINT_URL}
     skip_empty_files: true
     upload_interval: 1
     show_url_only: false
-
 
 # compute_logs:
 #   module: dagster_deeptsf.MyS3ComputeLogManager

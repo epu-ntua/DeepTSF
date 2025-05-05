@@ -125,7 +125,7 @@ if USE_AUTH == "keycloak":
                     "http://localhost:3000",
                     "http://localhost:8086"],
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
         allow_headers=["*"],
 )
 
@@ -1260,6 +1260,7 @@ async def get_info(token: str = Depends(oauth2_scheme)):
 app.include_router(admin_router)
 app.include_router(scientist_router)
 app.include_router(engineer_router)
+app.include_router(scientist_router_websockets)
 
 if USE_AUTH == "keycloak":
     app.include_router(common_router)
