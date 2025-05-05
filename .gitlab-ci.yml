@@ -1,6 +1,5 @@
 stages:
   - build-app
-  - build-dagster
   - deploy-dev
   - deploy-stage
   - deploy-prod
