@@ -32,11 +32,13 @@ build-app:
     - echo "Building Docker image for worker..."
     - docker build --target celery-worker -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_WORKER} ./deeptsf_backend
 
-    - echo "Building Docker image for pgdb..."
-    - docker pull inergy2020iccs/pgdb:16.2 -t ${HARBOR_IMAGE_PGDB}
+    - echo "Pulling pgdb image..."
+    - docker pull inergy2020iccs/pgdb:16.2
+    - docker tag  inergy2020iccs/pgdb:16.2  ${HARBOR_IMAGE_PGDB}
 
-    - echo "Building Docker image for redis..."
-    - docker pull redis:7-alpine -t ${HARBOR_IMAGE_REDIS}
+    - echo "Pulling redis image..."
+    - docker pull redis:7-alpine
+    - docker tag  redis:7-alpine  ${HARBOR_IMAGE_REDIS}
 
     ###PUSHING###
     - echo "Logging into Harbor using Robot Account..."
