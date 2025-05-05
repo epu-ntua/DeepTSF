@@ -127,5 +127,11 @@ the addresses on the .env file.
 
 For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation). 
 
+#### 📺 DeepTSF — Video Demonstration
+
+Also, a video demonstration of DeepTSF is avaialble on Youtube.
+
+[![Watch on YouTube](https://img.shields.io/badge/Watch%20on-YouTube-red?logo=youtube&logoColor=white&style=for-the-badge)](https://www.youtube.com/watch?v=hJbnvXummTI) 
+
 ## References
 [1] S. Pelekis et al., “DeepTSF: Codeless machine learning operations for time series forecasting,” SoftwareX, vol. 27, p. 101758, Sep. 2024, doi: [10.1016/J.SOFTX.2024.101758](https://doi.org/10.1016/j.softx.2024.101758). <br>

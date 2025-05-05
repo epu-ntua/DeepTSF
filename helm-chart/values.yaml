@@ -2,7 +2,7 @@ backend:
   service:
     name: deeptsf-backend
   image:
-    repository: harbor.deployai.eu/iccs/deeptsf-backend
+    repository: harbor.aiodp.ai/iccs/deeptsf-backend
     tag: latest
   replicas: 1
   memory_limit: 4Gi
@@ -11,7 +11,7 @@ dagster:
   service:
     name: deeptsf-dagster
   image:
-    repository: harbor.deployai.eu/iccs/deeptsf-dagster
+    repository: harbor.aiodp.ai/iccs/deeptsf-dagster
     tag: latest
   replicas: 1
   memory_limit: 4Gi
@@ -30,7 +30,7 @@ env:
   MLFLOW_S3_ENDPOINT_URL: ""
   MINIO_ACCESS_KEY: ""
   MINIO_SECRET_KEY: ""
-  USE_KEYCLOAK: ""
+  USE_AUTH: ""
   KEYCLOAK_ID: ""
   KEYCLOAK_SECRET: ""
   TOKEN_ISSUER_URL: ""

@@ -187,8 +187,7 @@ services:
   frontend:
     container_name: deeptsf_dashboard
     hostname: deeptsf_dashboard
-    image: inergy2020iccs/deeptsf_dashboard:1.0.2
-    # build: https://github.com/I-NERGY/deeptsf-dashboard.git
+    image: deployaintua/deeptsf-dashboard:latest
     restart: always
     expose:
       - 3000
