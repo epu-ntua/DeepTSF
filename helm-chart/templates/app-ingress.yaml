@@ -34,5 +34,24 @@ spec:
                   number: 80
             path: / 
             pathType: Prefix 
-
+    # - host: "deeptsf-pgdb{{ .Values.env.host }}"
+    #   http:
+    #     paths:
+    #       - backend: 
+    #           service: 
+    #             name: "{{ .Release.Name }}-deeptsf-pgdb" 
+    #             port: 
+    #               number: 80
+    #         path: / 
+    #         pathType: Prefix 
+    # - host: "deeptsf-redis{{ .Values.env.host }}"
+    #   http:
+    #     paths:
+    #       - backend: 
+    #           service: 
+    #             name: "{{ .Release.Name }}-deeptsf-redis" 
+    #             port: 
+    #               number: 80
+    #         path: / 
+    #         pathType: Prefix 
 {{- end }}

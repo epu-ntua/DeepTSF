@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    component: volume
+  name: "{{ .Release.Name }}-shared-storage-pvc"  # Updated name
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.storage.size | default "20Gi" | quote }}
+  storageClassName: longhorn

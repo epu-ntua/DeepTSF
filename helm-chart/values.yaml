@@ -61,9 +61,19 @@ env:
   KEYCLOAK_ID: ""
   KEYCLOAK_SECRET: ""
   TOKEN_ISSUER_URL: ""
+  PYTHONUNBUFFERED: ""
+  CELERYD_HIJACK_ROOT_LOGGER: ""
+  CELERY_BROKER_URL: ""
+  CELERY_RESULT_BACKEND: ""
+  POSTGRES_USER: ""
+  POSTGRES_DATABASE: ""
+  POSTGRES_PASSWORD: ""
 
 ingress:
   enabled: true
   tlsSecretName: deeptsf-tls
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+storage:
+  size: 20Gi
