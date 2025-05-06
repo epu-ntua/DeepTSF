@@ -15,6 +15,7 @@ spec:
     app: {{ .Values.pgdb.service.name }}
     release: {{ .Release.Name }}
 ---
+apiVersion: v1
 kind: NetworkPolicy
 metadata:
   name: allow-postgres
