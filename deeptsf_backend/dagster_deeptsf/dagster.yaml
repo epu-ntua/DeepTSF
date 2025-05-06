@@ -40,29 +40,10 @@ schedule_storage:
       db_name: dagster_celery
       port: 5432
 
-# compute_logs:
-#   module: dagster_aws.s3.compute_log_manager
-#   class: S3ComputeLogManager
-#   config:
-#     bucket: "dagster-storage"
-#     local_dir: "/app/dagster_deeptsf/storage/"
-#     prefix: "dagster-compute-logs"
-#     use_ssl: true
-#     verify: false
-#     endpoint_url: 
-#       env: MLFLOW_S3_ENDPOINT_URL
-#     skip_empty_files: true
-#     upload_interval: 1
-#     show_url_only: false
-
 compute_logs:
-  module: dagster_deeptsf.MyS3ComputeLogManager
-  class: MyS3ComputeLogManager
+  module: dagster_aws.s3.compute_log_manager
+  class: S3ComputeLogManager
   config:
-    access_key: 
-          env: MINIO_ACCESS_KEY
-    secret_key:
-          env: MINIO_SECRET_KEY
     bucket: "dagster-storage"
     local_dir: "/app/dagster_deeptsf/storage/"
     prefix: "dagster-compute-logs"
@@ -73,6 +54,25 @@ compute_logs:
     skip_empty_files: true
     upload_interval: 1
     show_url_only: false
+
+# compute_logs:
+#   module: dagster_deeptsf.MyS3ComputeLogManager
+#   class: MyS3ComputeLogManager
+#   config:
+#     access_key: 
+#           env: MINIO_ACCESS_KEY
+#     secret_key:
+#           env: MINIO_SECRET_KEY
+#     bucket: "dagster-storage"
+#     local_dir: "/app/dagster_deeptsf/storage/"
+#     prefix: "dagster-compute-logs"
+#     use_ssl: true
+#     verify: false
+#     endpoint_url: 
+#       env: MLFLOW_S3_ENDPOINT_URL
+#     skip_empty_files: true
+#     upload_interval: 1
+#     show_url_only: false
 
     # run_launcher:
 #   module: dagster.core.launcher.default_run_launcher
