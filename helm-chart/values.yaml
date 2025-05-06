@@ -68,6 +68,7 @@ env:
   POSTGRES_USER: ""
   POSTGRES_DATABASE: ""
   POSTGRES_PASSWORD: ""
+  POSTGRES_HOST: ""
 
 ingress:
   enabled: true

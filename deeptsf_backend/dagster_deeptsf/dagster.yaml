@@ -5,7 +5,7 @@ run_storage:
     postgres_db:
       username: {env: POSTGRES_USER}
       password: {env: POSTGRES_PASSWORD}
-      hostname: pgdb
+      hostname: {env: POSTGRES_HOST}
       db_name: dagster_celery
       port: 5432
 
@@ -16,7 +16,7 @@ event_log_storage:
     postgres_db:
       username: {env: POSTGRES_USER}
       password: {env: POSTGRES_PASSWORD}
-      hostname: pgdb
+      hostname: {env: POSTGRES_HOST}
       db_name: dagster_celery
       port: 5432
 
@@ -27,7 +27,7 @@ schedule_storage:
     postgres_db:
       username: {env: POSTGRES_USER}
       password: {env: POSTGRES_PASSWORD}
-      hostname: pgdb
+      hostname: {env: POSTGRES_HOST}
       db_name: dagster_celery
       port: 5432
 
