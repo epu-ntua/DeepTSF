@@ -58,6 +58,12 @@ spec:
           value: {{ required "KEYCLOAK_SECRET environment variable is required" .Values.env.KEYCLOAK_SECRET | quote }}
         - name: TOKEN_ISSUER_URL
           value: {{ required "TOKEN_ISSUER_URL environment variable is required" .Values.env.TOKEN_ISSUER_URL | quote }}
+        - name: POSTGRES_USER
+          value: {{ required "POSTGRES_USER environment variable is required" .Values.env.POSTGRES_USER | quote }}
+        - name: POSTGRES_DATABASE
+          value: {{ required "POSTGRES_DATABASE environment variable is required" .Values.env.POSTGRES_DATABASE | quote }}
+        - name: POSTGRES_PASSWORD
+          value: {{ required "POSTGRES_PASSWORD environment variable is required" .Values.env.POSTGRES_PASSWORD | quote }}
         - name: PYTHONUNBUFFERED
           value: {{ required "PYTHONUNBUFFERED environment variable is required" .Values.env.PYTHONUNBUFFERED | quote }}
         - name: CELERYD_HIJACK_ROOT_LOGGER 
@@ -66,3 +72,7 @@ spec:
           value: {{ required "CELERY_RESULT_BACKEND environment variable is required" .Values.env.CELERY_RESULT_BACKEND | quote }}
         - name: CELERY_BROKER_URL
           value: {{ required "CELERY_BROKER_URL environment variable is required" .Values.env.CELERY_BROKER_URL | quote }}
+        - name: POSTGRES_HOST
+          value: {{ required "POSTGRES_HOST environment variable is required" .Values.env.POSTGRES_HOST | quote }}
+        - name: DAGSTER_HOME
+          value: {{ required "DAGSTER_HOME environment variable is required" .Values.env.DAGSTER_HOME | quote }}
