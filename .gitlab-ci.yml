@@ -27,7 +27,7 @@ build-app:
     - docker build --target backend -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_BACKEND} ./deeptsf_backend
 
     - echo "Building Docker image for dagster..."
-    - docker build --target backend -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_DAGSTER} ./deeptsf_backend
+    - docker build --target dagster -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_DAGSTER} ./deeptsf_backend
 
     - echo "Building Docker image for worker..."
     - docker build --target celery-worker -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_WORKER} ./deeptsf_backend
