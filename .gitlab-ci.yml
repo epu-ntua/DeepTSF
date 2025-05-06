@@ -34,15 +34,13 @@ build-app:
 
     - echo "Pulling pgdb image..."
     - docker pull inergy2020iccs/pgdb:16.2
-    - docker tag  inergy2020iccs/pgdb:16.2  ${HARBOR_IMAGE_PGDB}
+    - docker tag inergy2020iccs/pgdb:16.2 ${HARBOR_IMAGE_PGDB}
 
     - echo "Pulling redis image..."
     - docker pull redis:7-alpine
     - docker tag  redis:7-alpine  ${HARBOR_IMAGE_REDIS}
 
     ###PUSHING###
-
-    - echo "‑${HARBOR_ROBOT_PASSWORD}‑"
     - echo "Logging into Harbor using Robot Account..."
     - echo ${HARBOR_ROBOT_PASSWORD} | docker login ${HARBOR_HOST} -u ${HARBOR_ROBOT_USER} --password-stdin
 
