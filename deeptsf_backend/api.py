@@ -371,7 +371,6 @@ def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='
     return ts, resolutions
 
 if USE_AUTH == "jwt":
-
     # This is used from VC
     @app.post("/login", dependencies=[])
     async def login(request: Request):
@@ -477,7 +476,12 @@ if USE_AUTH == "jwt":
     #     response = await call_next(request)
     #     return response
 
-    PUBLIC_PATHS: List[str] = ["/login", "/api/auth", "/api/logout", "/api/login", "/ws/test"]
+    PUBLIC_PATHS: List[str] = ["/login", "/api/auth", "/api/logout", "/api/login"]
+
+            # if "/ws/" in request.url.path:
+            #     auth_header: Optional[str] = request.query_params.get("token")
+
+
 
     @app.middleware("http")
     async def auth_middleware(request: Request, call_next):
@@ -536,6 +540,22 @@ if USE_AUTH == "jwt":
                 status_code=500,
                 content={"detail": "Internal server error"}
             )
+        
+    # WebSocket authentication helper
+    async def websocket_auth(websocket: WebSocket):
+        token = websocket.query_params.get("token")
+        if not token:
+            await websocket.close(code=1008)
+            return None
+
+        try:
+            payload = jwt.decode(token, options={"verify_signature": False})
+            websocket.state.user = payload
+            return payload
+        except jwt.ExpiredSignatureError:
+            await websocket.close(code=4003)
+        except jwt.InvalidTokenError:
+            await websocket.close(code=4003)
 
     # Add error handlers for common cases
     @app.exception_handler(HTTPException)
@@ -633,6 +653,110 @@ if USE_AUTH == "jwt":
     async def logout(response: Response):
         response.delete_cookie("session_token")
         return JSONResponse(content={"message": "Logged out successfully"})
+    
+    @app.websocket("/ws/task-status/{task_id}")
+    async def websocket_task_status(websocket: WebSocket, task_id: str):
+        await websocket.accept()
+        user = await websocket_auth(websocket)
+        if not user:
+            return  # Already closed
+
+        try:
+            while True:
+                # Retrieve task state and progress
+                task_result = AsyncResult(task_id)
+                task_state = task_result.state
+                task_info = task_result.info or {}
+
+                # Prepare the response message
+                if task_state == 'PENDING':
+                    response = {"status": "Task is pending"}
+                elif task_state == 'PROGRESS':
+                    response = {
+                        "status": "Task is in progress",
+                        "current": task_info.get("current", 0),
+                        "total": task_info.get("total", 100),
+                        "message": task_info.get("status", "Processing")
+                    }
+                elif task_state == 'SUCCESS':
+                    print(task_result.result)
+                    response = {"status": "Task completed", "result": task_result.result}
+                    await websocket.send_json(response)
+                    break  # Task completed, exit the loop
+                elif task_state == 'FAILURE':
+                    response = {"status": "Task failed", "error": str(task_result.info)}
+                    await websocket.send_json(response)
+                    break  # Task failed, exit the loop
+                else:
+                    response = {"status": "Unknown status"}
+
+                # Send the current task state to the client
+                await websocket.send_json(response)
+
+                # Wait a bit before the next check
+                await asyncio.sleep(1)
+
+        except WebSocketDisconnect:
+            print("Client disconnected from task status WebSocket")
+
+    @app.websocket("/ws/test")
+    async def websocket_test(websocket: WebSocket):
+        await websocket.accept()
+        user = await websocket_auth(websocket)
+        if not user:
+            return  # Already closed
+        while True:
+            await websocket.send_json({"status": "Connection working"})
+            await asyncio.sleep(1)
+
+else:
+    @scientist_router_websockets.websocket("/ws/task-status/{task_id}")
+    async def websocket_task_status(websocket: WebSocket, task_id: str):
+        await websocket.accept()
+        try:
+            while True:
+                # Retrieve task state and progress
+                task_result = AsyncResult(task_id)
+                task_state = task_result.state
+                task_info = task_result.info or {}
+
+                # Prepare the response message
+                if task_state == 'PENDING':
+                    response = {"status": "Task is pending"}
+                elif task_state == 'PROGRESS':
+                    response = {
+                        "status": "Task is in progress",
+                        "current": task_info.get("current", 0),
+                        "total": task_info.get("total", 100),
+                        "message": task_info.get("status", "Processing")
+                    }
+                elif task_state == 'SUCCESS':
+                    print(task_result.result)
+                    response = {"status": "Task completed", "result": task_result.result}
+                    await websocket.send_json(response)
+                    break  # Task completed, exit the loop
+                elif task_state == 'FAILURE':
+                    response = {"status": "Task failed", "error": str(task_result.info)}
+                    await websocket.send_json(response)
+                    break  # Task failed, exit the loop
+                else:
+                    response = {"status": "Unknown status"}
+
+                # Send the current task state to the client
+                await websocket.send_json(response)
+
+                # Wait a bit before the next check
+                await asyncio.sleep(1)
+
+        except WebSocketDisconnect:
+            print("Client disconnected from task status WebSocket")
+
+    @scientist_router_websockets.websocket("/ws/test")
+    async def websocket_test(websocket: WebSocket):
+        await websocket.accept()
+        while True:
+            await websocket.send_json({"status": "Connection working"})
+            await asyncio.sleep(1)
 
         
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
@@ -730,54 +854,6 @@ async def create_upload_csv_file(file: UploadFile = File(...),
 #         return {"status": "Task failed", "error": str(task_result.info)}
 #     else:
 #         return {"status": "Unknown status"}
-
-@scientist_router_websockets.websocket("/ws/task-status/{task_id}")
-async def websocket_task_status(websocket: WebSocket, task_id: str):
-    await websocket.accept()
-    try:
-        while True:
-            # Retrieve task state and progress
-            task_result = AsyncResult(task_id)
-            task_state = task_result.state
-            task_info = task_result.info or {}
-
-            # Prepare the response message
-            if task_state == 'PENDING':
-                response = {"status": "Task is pending"}
-            elif task_state == 'PROGRESS':
-                response = {
-                    "status": "Task is in progress",
-                    "current": task_info.get("current", 0),
-                    "total": task_info.get("total", 100),
-                    "message": task_info.get("status", "Processing")
-                }
-            elif task_state == 'SUCCESS':
-                print(task_result.result)
-                response = {"status": "Task completed", "result": task_result.result}
-                await websocket.send_json(response)
-                break  # Task completed, exit the loop
-            elif task_state == 'FAILURE':
-                response = {"status": "Task failed", "error": str(task_result.info)}
-                await websocket.send_json(response)
-                break  # Task failed, exit the loop
-            else:
-                response = {"status": "Unknown status"}
-
-            # Send the current task state to the client
-            await websocket.send_json(response)
-
-            # Wait a bit before the next check
-            await asyncio.sleep(1)
-
-    except WebSocketDisconnect:
-        print("Client disconnected from task status WebSocket")
-
-@scientist_router_websockets.websocket("/ws/test")
-async def websocket_test(websocket: WebSocket):
-    await websocket.accept()
-    while True:
-        await websocket.send_json({"status": "Connection working"})
-        await asyncio.sleep(1)
 
 
 def store_df_to_csv(df, csv_name, index):
