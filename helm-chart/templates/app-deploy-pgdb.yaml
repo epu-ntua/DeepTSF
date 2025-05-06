@@ -62,5 +62,5 @@ spec:
       volumes:
         - name: database
           persistentVolumeClaim:
-            claimName: "{{ .Release.Name }}-shared-storage-pvc"
+            claimName: "{{ .Release.Name }}-pgdb-storage-pvc"
 

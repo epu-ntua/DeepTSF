@@ -3,7 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   labels:
     component: volume
-  name: "{{ .Release.Name }}-shared-storage-pvc"  # Updated name
+  name: "{{ .Release.Name }}-pgdb-storage-pvc"
 spec:
   accessModes:
     - ReadWriteOnce
