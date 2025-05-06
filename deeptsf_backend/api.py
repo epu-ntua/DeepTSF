@@ -546,7 +546,7 @@ if USE_AUTH == "jwt":
         token = websocket.query_params.get("token")
         if not token:
             await websocket.close(code=1008)
-            return None
+            raise WebSocketDisconnect(code=1008)
 
         try:
             payload = jwt.decode(token, options={"verify_signature": False})
@@ -554,8 +554,10 @@ if USE_AUTH == "jwt":
             return payload
         except jwt.ExpiredSignatureError:
             await websocket.close(code=4003)
+            raise WebSocketDisconnect(code=4003)
         except jwt.InvalidTokenError:
             await websocket.close(code=4003)
+            raise WebSocketDisconnect(code=4003)
 
     # Add error handlers for common cases
     @app.exception_handler(HTTPException)
