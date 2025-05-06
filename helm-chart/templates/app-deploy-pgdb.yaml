@@ -15,6 +15,21 @@ spec:
     app: {{ .Values.pgdb.service.name }}
     release: {{ .Release.Name }}
 ---
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres
+  namespace: iccs
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Values.pgdb.service.name }}
+  ingress:
+    - from:
+        - namespaceSelector: {}        # allow any namespace (or restrict)
+      ports:
+        - protocol: TCP
+          port: 5432
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
