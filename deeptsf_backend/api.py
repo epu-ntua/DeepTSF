@@ -477,7 +477,7 @@ if USE_AUTH == "jwt":
     #     response = await call_next(request)
     #     return response
 
-    PUBLIC_PATHS: List[str] = ["/login", "/api/auth", "/api/logout", "/api/login"]
+    PUBLIC_PATHS: List[str] = ["/login", "/api/auth", "/api/logout", "/api/login", "/ws/test"]
 
     @app.middleware("http")
     async def auth_middleware(request: Request, call_next):
