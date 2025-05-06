@@ -15,22 +15,6 @@ spec:
     app: {{ .Values.pgdb.service.name }}
     release: {{ .Release.Name }}
 ---
-apiVersion: v1
-kind: NetworkPolicy
-metadata:
-  name: allow-postgres
-  namespace: iccs
-spec:
-  podSelector:
-    matchLabels:
-      app: {{ .Values.pgdb.service.name }}
-  ingress:
-    - from:
-        - namespaceSelector: {}        # allow any namespace (or restrict)
-      ports:
-        - protocol: TCP
-          port: 5432
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -68,6 +52,8 @@ spec:
           value: {{ required "POSTGRES_PASSWORD environment variable is required" .Values.env.POSTGRES_PASSWORD | quote }}
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
+        ports:
+        - containerPort: 5432
 
         volumeMounts:
           - name: database
