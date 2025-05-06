@@ -89,6 +89,8 @@ spec:
           value: {{ required "CELERY_RESULT_BACKEND environment variable is required" .Values.env.CELERY_RESULT_BACKEND | quote }}
         - name: CELERY_BROKER_URL
           value: {{ required "CELERY_BROKER_URL environment variable is required" .Values.env.CELERY_BROKER_URL | quote }}
+        - name: POSTGRES_HOST
+          value: {{ required "POSTGRES_HOST environment variable is required" .Values.env.POSTGRES_HOST | quote }}
 
         ports:
         - containerPort: 8006
