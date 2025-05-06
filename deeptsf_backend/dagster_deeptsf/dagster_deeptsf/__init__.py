@@ -8,6 +8,24 @@ from dagster_aws.s3 import s3_pickle_io_manager, s3_resource
 
 all_assets = load_assets_from_modules([load_raw_data, etl, assets, evaluate_forecasts])
 
+# defs = Definitions(
+#     assets=all_assets,
+#     jobs=[deeptsf_dagster_job],
+#     # schedules=[basic_schedule],
+#     schedules=[],
+#     executor=celery_executor,
+#     resources={
+#         "config": DeepTSFConfig(),
+#         "io_manager": s3_pickle_io_manager.configured({
+#             "s3_bucket": "dagster-storage",
+#             "s3_prefix": "dagster-data/io-manager"
+#         }),
+#         "s3": s3_resource.configured({
+#             "endpoint_url": "http://s3:9000"
+#         }),
+#     }
+# )
+
 defs = Definitions(
     assets=all_assets,
     jobs=[deeptsf_dagster_job],
@@ -16,12 +34,5 @@ defs = Definitions(
     executor=celery_executor,
     resources={
         "config": DeepTSFConfig(),
-        "io_manager": s3_pickle_io_manager.configured({
-            "s3_bucket": "dagster-storage",
-            "s3_prefix": "dagster-data/io-manager"
-        }),
-        "s3": s3_resource.configured({
-            "endpoint_url": "http://s3:9000"
-        }),
     }
 )
