@@ -32,9 +32,8 @@ build-app:
     - echo "Building Docker image for worker..."
     - docker build --target celery-worker -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_WORKER} ./deeptsf_backend
 
-    - echo "Pulling pgdb image..."
-    - docker pull inergy2020iccs/pgdb:16.2
-    - docker tag inergy2020iccs/pgdb:16.2 ${HARBOR_IMAGE_PGDB}
+    - echo "Building pgdb image..."
+    - docker build -t ${HARBOR_IMAGE_PGDB} ./deeptsf_backend/docker-db
 
     - echo "Pulling redis image..."
     - docker pull redis:7-alpine

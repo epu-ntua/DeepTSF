@@ -50,7 +50,9 @@ spec:
           value: {{ required "POSTGRES_DATABASE environment variable is required" .Values.env.POSTGRES_DATABASE | quote }}
         - name: POSTGRES_PASSWORD
           value: {{ required "POSTGRES_PASSWORD environment variable is required" .Values.env.POSTGRES_PASSWORD | quote }}
-
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+          
         volumeMounts:
           - name: database
             mountPath: /var/lib/postgresql/data
