@@ -69,6 +69,7 @@ env:
   POSTGRES_DATABASE: ""
   POSTGRES_PASSWORD: ""
   POSTGRES_HOST: ""
+  DAGSTER_HOME: "/app/dagster_deeptsf"
 
 ingress:
   enabled: true
