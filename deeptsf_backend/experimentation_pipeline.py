@@ -451,7 +451,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
     time_covs = truth_checker(time_covs)
 
     download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
-    series_csv = 'dataset-storage/{series_csv}'
+    series_csv = f'dataset-storage/{series_csv}'
 
     # Note: The entrypoint names are defined in MLproject. The artifact directories
     # are documented by each step's .py file.
