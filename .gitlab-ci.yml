@@ -5,7 +5,7 @@ stages:
   - deploy-prod
 
 variables:
-  VERSION: "1.1.0"
+  VERSION: "1.2.0"
   HARBOR_IMAGE_BACKEND: "${HARBOR_HOST}/iccs/deeptsf-backend"
   HARBOR_IMAGE_DAGSTER: "${HARBOR_HOST}/iccs/deeptsf-dagster"
   HARBOR_IMAGE_WORKER: "${HARBOR_HOST}/iccs/deeptsf-worker"
