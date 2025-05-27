@@ -3,7 +3,6 @@ backend:
     name: deeptsf-backend
   image:
     repository: harbor.aiodp.ai/iccs/deeptsf-backend
-    tag: latest
   replicas: 1
   memory_limit: 4Gi
 
@@ -12,7 +11,6 @@ dagster:
     name: deeptsf-dagster
   image:
     repository: harbor.aiodp.ai/iccs/deeptsf-dagster
-    tag: latest
   replicas: 1
   memory_limit: 4Gi
 
@@ -21,7 +19,6 @@ worker:
     name: deeptsf-worker
   image:
     repository: harbor.aiodp.ai/iccs/deeptsf-worker
-    tag: latest
   replicas: 1
   memory_limit: 4Gi
 
@@ -30,7 +27,6 @@ pgdb:
     name: deeptsf-pgdb
   image:
     repository: harbor.aiodp.ai/iccs/deeptsf-pgdb
-    tag: latest
   replicas: 1
   memory_limit: 1Gi
 
@@ -39,7 +35,6 @@ redis:
     name: deeptsf-redis
   image:
     repository: harbor.aiodp.ai/iccs/deeptsf-redis
-    tag: latest
   replicas: 1
   memory_limit: 1Gi
 
@@ -69,6 +64,7 @@ env:
   POSTGRES_DATABASE: ""
   POSTGRES_PASSWORD: ""
   POSTGRES_HOST: ""
+  VERSION: ""
   DAGSTER_HOME: "/app/dagster_deeptsf"
 
 ingress:

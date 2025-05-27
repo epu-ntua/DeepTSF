@@ -38,7 +38,7 @@ spec:
       - name: {{ .Release.Name }}-image-pull-secret
       containers:
       - name: deeptsf-dagster
-        image: "{{ .Values.dagster.image.repository }}:{{ .Values.dagster.image.tag }}"
+        image: "{{ .Values.dagster.image.repository }}:{{ .Values.env.VERSION }}"
         imagePullPolicy: Always
         resources:
           limits:
@@ -93,6 +93,8 @@ spec:
           value: {{ required "POSTGRES_HOST environment variable is required" .Values.env.POSTGRES_HOST | quote }}
         - name: DAGSTER_HOME
           value: {{ required "DAGSTER_HOME environment variable is required" .Values.env.DAGSTER_HOME | quote }}
+        - name: VERSION
+          value: {{ required "VERSION environment variable is required" .Values.env.VERSION | quote }}
 
 
         ports:

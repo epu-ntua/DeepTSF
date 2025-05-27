@@ -38,7 +38,7 @@ spec:
       - name: {{ .Release.Name }}-image-pull-secret
       containers:
       - name: deeptsf-pgdb
-        image: "{{ .Values.pgdb.image.repository }}:{{ .Values.pgdb.image.tag }}"
+        image: "{{ .Values.pgdb.image.repository }}:{{ .Values.env.VERSION }}"
         imagePullPolicy: Always
         resources:
           limits:
@@ -52,6 +52,9 @@ spec:
           value: {{ required "POSTGRES_PASSWORD environment variable is required" .Values.env.POSTGRES_PASSWORD | quote }}
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
+        - name: VERSION
+          value: {{ required "VERSION environment variable is required" .Values.env.VERSION | quote }}
+
         ports:
         - containerPort: 5432
 

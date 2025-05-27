@@ -38,7 +38,7 @@ spec:
       - name: {{ .Release.Name }}-image-pull-secret
       containers:
       - name: deeptsf-redis
-        image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+        image: "{{ .Values.redis.image.repository }}:{{ .Values.env.VERSION }}"
         imagePullPolicy: Always
         resources:
           limits:
@@ -46,5 +46,8 @@ spec:
         # envFrom:
         # - configMapRef:
         #     name: {{ .Release.Name }}-{{ .Values.redis.service.name }}-cm
+        env:
+        - name: VERSION
+          value: {{ required "VERSION environment variable is required" .Values.env.VERSION | quote }}
         ports:
         - containerPort: 6379
