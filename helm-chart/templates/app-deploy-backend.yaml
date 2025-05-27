@@ -38,7 +38,7 @@ spec:
       - name: {{ .Release.Name }}-image-pull-secret
       containers:
       - name: deeptsf-backend
-        image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+        image: "{{ .Values.backend.image.repository }}:{{ .Values.env.VERSION }}"
         imagePullPolicy: Always
         resources:
           limits:
@@ -75,5 +75,8 @@ spec:
           value: {{ required "KEYCLOAK_SECRET environment variable is required" .Values.env.KEYCLOAK_SECRET | quote }}
         - name: TOKEN_ISSUER_URL
           value: {{ required "TOKEN_ISSUER_URL environment variable is required" .Values.env.TOKEN_ISSUER_URL | quote }}
+        - name: VERSION
+          value: {{ required "VERSION environment variable is required" .Values.env.VERSION | quote }}
+
         ports:
         - containerPort: 8081
