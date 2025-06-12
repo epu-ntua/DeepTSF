@@ -73,7 +73,7 @@ def upload_and_validate_csv(self, filename: str, multiple: bool, format: str):
             "ts_used_id": None,
             "evaluate_all_ts": True if multiple else None
             }
-
+            
 execute_plan = create_task(celery_app)
 
 if __name__ == '__main__':
