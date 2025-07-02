@@ -20,7 +20,7 @@ class DeepTSFConfig(ConfigurableResource):
     experiment_name: str = "Default"
     parent_run_name: str = "None"
     series_csv: str = "series_csv"
-    series_uri: str = "series_uri"
+    series_uri: str = "None"
     past_covs_csv: str = "None"
     past_covs_uri: str = "None"
     future_covs_csv: str = "None"
