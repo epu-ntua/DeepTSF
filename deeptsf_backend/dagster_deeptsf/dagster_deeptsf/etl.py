@@ -800,10 +800,8 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
     future_covs_uri = load_raw_data_out["future_covs_uri"]
     series_uri = load_raw_data_out["series_uri"]
 
-
     config = context.resources.config
     series_csv = config.series_csv
-    series_uri = config.series_uri
     year_range = config.year_range
     resolution = config.resolution
     time_covs = config.time_covs
@@ -823,9 +821,7 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
     min_non_nan_interval = config.min_non_nan_interval
     cut_date_val = config.cut_date_val
     past_covs_csv = config.past_covs_csv
-    past_covs_uri = config.past_covs_uri
     future_covs_csv = config.future_covs_csv
-    future_covs_uri = config.future_covs_uri
     resampling_agg_method = config.resampling_agg_method
     format = config.format
     experiment_name = config.experiment_name

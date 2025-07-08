@@ -91,10 +91,14 @@ def check_and_convert_column_types(df, intended_types):
         actual_type = df[column].dtype
         if intended_type == str:
             df[column] = df[column].astype(intended_type)
+
+            if df[column].astype(str).str.contains("/", regex=False).any():
+                print("WARNING: Replacing / with _")
+                df[column] = df[column].str.replace("/", "_", regex=False)
+
             float_pattern = re.compile(r'^\d+\.\d+$')
             for row_id, row in df.iterrows():
                 value = row[column]
-
                 # Check if the string matches the float pattern
                 if float_pattern.match(value):
                      raise ValueError(f"Column '{column}' must strictly be str or int, and not float. First value to be float: {value} in row with id {row_id}")

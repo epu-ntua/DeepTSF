@@ -81,6 +81,11 @@ def check_and_convert_column_types(df, intended_types):
         actual_type = df[column].dtype
         if intended_type == str:
             df[column] = df[column].astype(intended_type)
+        
+            if df[column].str.contains("/", regex=False).any():
+                print("WARNING: Replacing / with _")
+                df[column] = df[column].str.replace("/", "_", regex=False)
+
             float_pattern = re.compile(r'^\d+\.\d+$')
             for row_id, row in df.iterrows():
                 value = row[column]
