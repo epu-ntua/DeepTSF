@@ -39,6 +39,8 @@ from math import nan
 import bson
 from minio import Minio
 from minio.error import S3Error
+from dagster_graphql import DagsterGraphQLClient, DagsterGraphQLClientError
+
 # import base64
 # from cryptography import x509
 # from cryptography.hazmat.backends import default_backend
@@ -67,6 +69,7 @@ USE_AUTH = none_checker(os.getenv("USE_AUTH"))
 
 client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
 CELERY_BROKER_URL= os.environ.get("CELERY_BROKER_URL")
+DAGSTER_ENDPOINT_URL = os.environ.get("DAGSTER_ENDPOINT_URL")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1073,14 +1076,18 @@ def mlflow_run(params: dict, experiment_name: str, uc: str = "2"):
 
 @scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
 async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks):
-
+    if parameters["evaluate_all_ts"] == None:
+        parameters["evaluate_all_ts"] = False
+    for key, value in parameters.items():
+        if value == None:
+            parameters[key] = "None"
     # if this key exists then I am on the "user uploaded dataset" case so I proceed to the changes of the other parameters in the dict
     try:
         uc = parameters['uc']  # Trying to access a key that doesn't exist
     except KeyError:
         uc = "2" # the default uc
         if parameters["multiple"]:
-           parameters["ts_used_id"] = None
+           parameters["ts_used_id"] = "None"
            parameters["eval_all_ts"] = True
            # this is the default use case for all other runs except uc7
         pass  
@@ -1091,39 +1098,124 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     if parameters['model'] == "TFT":
         parameters["hyperparams_entrypoint"]["add_relative_index"] = 'True'
     # format hparams string
-    hparam_str = str(parameters["hyperparams_entrypoint"])
-    hparam_str = hparam_str.replace('"', '')
-    hparam_str = hparam_str.replace("'", "")
-    print(hparam_str)
+    hparam = parameters["hyperparams_entrypoint"]
+    print(hparam)
 
-    params = { 
-        "rmv_outliers": parameters["rmv_outliers"],  
-        "multiple": parameters["multiple"],
-        "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
-        "resolution": change_form(freq=parameters["resolution"], change_format_to="pandas_form"), # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
-        "resampling_agg_method": parameters["resampling_agg_method"],
-        "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
-        "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
-        "test_end_date": parameters["test_end_date"],  # input: user | type: str | example: "20220101" | Choose from calendar, should be > cut_date_test and <= dataset_end, defaults to dataset_end
-        "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
-        "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
-        "hyperparams_entrypoint": hparam_str,
-        "ignore_previous_runs": parameters["ignore_previous_runs"],
-        "imputation_method": parameters["imputation_method"],    
-	    "ts_used_id": parameters["ts_used_id"], # uc2: None, uc6: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active', uc7: None 
-        "eval_series": parameters["ts_used_id"], # same as above,
-	    "evaluate_all_ts": parameters["evaluate_all_ts"],
-        "format": parameters["format"] 	    
-        # "country": parameters["country"], this should be given if we want to have advanced imputation
-     }
+    try:
+        parameters["series_csv"] = parameters["series_csv"].split("/")[-1]
+    except:
+        pass
+
+    run_config = {
+        "resources": {
+            "config": {
+                "config": {
+                    "a": 0.3,
+                    "analyze_with_shap": False,
+                    "convert_to_local_tz": True,
+                    "country": "PT",
+                    "database_name": "rdn_load_data",
+                    "device": "gpu",
+                    "eval_method": "ts_ID",
+                    "from_database": False,
+                    "future_covs_csv": "None",
+                    "future_covs_uri": "None",
+                    "grid_search": False,
+                    "loss_function": "mape",
+                    "m_mase": 1,
+                    "max_thr": -1,
+                    "min_non_nan_interval": 24,
+                    "n_trials": 100,
+                    "num_samples": 1,
+                    "num_workers": 4,
+                    "opt_test": False,
+                    "order": 1,
+                    "parent_run_name": "None",
+                    "past_covs_csv": "None",
+                    "past_covs_uri": "None",
+                    "pv_ensemble": False,
+                    "retrain": False,
+                    "scale": True,
+                    "scale_covs": True,
+                    "series_uri": "None",
+                    "shap_data_size": 100,
+                    "shap_input_length": -1,
+                    "std_dev": 4.5,
+                    "stride": -1,
+                    "time_covs": False,
+                    "trial_name": "Default",
+                    "wncutoff": 0.000694,
+                    "ycutoff": 3,
+                    "ydcutoff": 30,
+                    "year_range": "None",
+                    "experiment_name":  parameters['experiment_name'],
+                    "rmv_outliers":     parameters["rmv_outliers"],
+                    "multiple":         parameters["multiple"],
+                    "series_csv":       "dataset-storage/" + parameters["series_csv"],
+                    "resolution":       change_form(freq=parameters["resolution"],
+                                                    change_format_to="pandas_form"),
+                    "resampling_agg_method": parameters["resampling_agg_method"],
+                    "cut_date_val":     parameters["validation_start_date"],
+                    "cut_date_test":    parameters["test_start_date"],
+                    "test_end_date":    parameters["test_end_date"],
+                    "darts_model":      parameters["model"],
+                    "forecast_horizon": int(parameters["forecast_horizon"]),
+                    "hyperparams_entrypoint": hparam,
+                    "ignore_previous_runs": parameters["ignore_previous_runs"],
+                    "imputation_method": parameters["imputation_method"],
+                    "ts_used_id":       parameters["ts_used_id"],
+                    "eval_series":      parameters["ts_used_id"],
+                    "evaluate_all_ts":  parameters["evaluate_all_ts"],
+                    "format":           parameters["format"],
+                }
+            }
+        }
+    }
+
+
+    # params = { 
+    #     "rmv_outliers": parameters["rmv_outliers"],  
+    #     "multiple": parameters["multiple"],
+    #     "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
+    #     "resolution": change_form(freq=parameters["resolution"], change_format_to="pandas_form"), # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
+    #     "resampling_agg_method": parameters["resampling_agg_method"],
+    #     "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
+    #     "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
+    #     "test_end_date": parameters["test_end_date"],  # input: user | type: str | example: "20220101" | Choose from calendar, should be > cut_date_test and <= dataset_end, defaults to dataset_end
+    #     "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
+    #     "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
+    #     "hyperparams_entrypoint": hparam_str,
+    #     "ignore_previous_runs": parameters["ignore_previous_runs"],
+    #     "imputation_method": parameters["imputation_method"],    
+	#     "ts_used_id": parameters["ts_used_id"], # uc2: None, uc6: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active', uc7: None 
+    #     "eval_series": parameters["ts_used_id"], # same as above,
+	#     "evaluate_all_ts": parameters["evaluate_all_ts"],
+    #     "format": parameters["format"] 	    
+    #     # "country": parameters["country"], this should be given if we want to have advanced imputation
+    #  }
     
     # TODO: generalize for all countries
     # if parameters["model"] != "NBEATS":
     #    params["time_covs"] = "PT"
-    
+    print(run_config)
+    DAGSTER_HOST = DAGSTER_ENDPOINT_URL.split("://")[-1]
+
+    if USE_AUTH == "jwt" or USE_AUTH == "keycloak":
+        client = DagsterGraphQLClient(DAGSTER_HOST, use_https=True)
+    else: 
+        PORT = DAGSTER_HOST.split(":")[-1]
+        DAGSTER_HOST = DAGSTER_HOST.split(":")[0]
+        client = DagsterGraphQLClient(DAGSTER_HOST, port_number=int(PORT), use_https=False)
+
+    # 3  submit an asynchronous run
     try:
-        background_tasks.add_task(mlflow_run, params, parameters['experiment_name'], uc)
-    except Exception as e:
+        run_id = client.submit_job_execution(
+            "deeptsf_dagster_job",
+            run_config=run_config,
+        )
+        print(f"Launched Dagster run {run_id}")
+    except DagsterGraphQLClientError as exc:          # handy for surfacing schema errors
+        print(f"Dagster rejected the launch: {exc}")
         raise HTTPException(status_code=404, detail="Could not initiate run. Check system logs")
     
     return {"message": "Experimentation pipeline initiated. Proceed to MLflow for details..."}

@@ -31,7 +31,7 @@ FROM base AS backend
 # Make RUN commands use the new environment:
 SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
 
-RUN pip install uvicorn[standard]==0.29.0 cryptography==44.0.2
+RUN pip install uvicorn[standard]==0.29.0 cryptography==44.0.2 dagster-graphql==1.8.13
 
 COPY . .
  
