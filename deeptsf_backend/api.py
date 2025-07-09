@@ -158,6 +158,8 @@ elif USE_AUTH == "jwt":
         allow_origins=[
             "https://deeptsf-backend.aiodp.ai",
             "https://deeptsf.aiodp.ai", 
+            "https://deeptsf-dagster.stage.aiodp.ai",
+            "https://deeptsf-dagster.aiodp.ai",
             "https://deeptsf.stage.aiodp.ai",
             "https://deeptsf.dev.aiodp.ai",
             "https://marketplace.aiodp.ai",
@@ -1203,6 +1205,7 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     if USE_AUTH == "jwt" or USE_AUTH == "keycloak":
         KUBE_HOST = os.environ.get('host')
         DAGSTER_HOST = "deeptsf-backend" + KUBE_HOST
+        print(DAGSTER_HOST)
         client = DagsterGraphQLClient(DAGSTER_HOST, use_https=True)
     else: 
         DAGSTER_HOST = DAGSTER_ENDPOINT_URL.split("://")[-1]
@@ -1212,6 +1215,7 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
 
     # 3  submit an asynchronous run
     try:
+        print("SUBMIT")
         run_id = client.submit_job_execution(
             "deeptsf_dagster_job",
             run_config=run_config,
