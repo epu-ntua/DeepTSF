@@ -1204,7 +1204,7 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
 
     if USE_AUTH == "jwt" or USE_AUTH == "keycloak":
         KUBE_HOST = os.environ.get('host')
-        DAGSTER_HOST = "deeptsf-backend" + KUBE_HOST
+        DAGSTER_HOST = "deeptsf-dagster" + KUBE_HOST
         print(DAGSTER_HOST)
         client = DagsterGraphQLClient(DAGSTER_HOST, use_https=True)
     else: 
