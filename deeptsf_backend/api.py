@@ -8,6 +8,7 @@ from celery import Celery
 from celery_DeepTSF.tasks import upload_and_validate_csv
 from celery.result import AsyncResult
 import json
+import traceback
 from pydantic import BaseModel
 from typing import Optional, Dict, List
 import pandas as pd
@@ -1360,6 +1361,7 @@ async def get_result(request: ForecastRequest) -> str:
         return JSONResponse(content=json.loads(predictions.to_json(orient='columns', index=True)))
 
     except Exception as e:
+        traceback.print_exc()
         print(f"There was an error in inference of series: {e}")
         raise HTTPException(status_code=415, detail=f"There was an error in inference of series: {e}")
 
