@@ -1199,11 +1199,13 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     # if parameters["model"] != "NBEATS":
     #    params["time_covs"] = "PT"
     print(run_config)
-    DAGSTER_HOST = DAGSTER_ENDPOINT_URL.split("://")[-1]
 
     if USE_AUTH == "jwt" or USE_AUTH == "keycloak":
+        KUBE_HOST = os.environ.get('host')
+        DAGSTER_HOST = "deeptsf-backend" + KUBE_HOST
         client = DagsterGraphQLClient(DAGSTER_HOST, use_https=True)
     else: 
+        DAGSTER_HOST = DAGSTER_ENDPOINT_URL.split("://")[-1]
         PORT = DAGSTER_HOST.split(":")[-1]
         DAGSTER_HOST = DAGSTER_HOST.split(":")[0]
         client = DagsterGraphQLClient(DAGSTER_HOST, port_number=int(PORT), use_https=False)

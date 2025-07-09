@@ -228,6 +228,28 @@ def cut_extra_samples(ts_list):
         ts_list_cut.append(list(comp[(comp.index <= earliest_end) & (comp.index >= latest_beginning)] for comp in ts))
     return ts_list_cut
 
+# def ends_before_cut_date_test(s: pd.Series, cut_date_test) -> bool:
+#         after_mask = s.index >= cut_date_test
+#         return not after_mask.any()
+
+# def has_nans_after_cut_date_test(s: pd.Series, cut_date_test) -> bool:
+#         after_mask = s.index >= cut_date_test
+#         return s.loc[after_mask].isna().any()
+
+# def check_dataset_after_cut_date_test(ts_list):
+#     print("\nMaking sure all components of each ts end after cut_date_test and have no nan values after that...")
+#     logging.info("\nnMaking sure all components of each ts end after cut_date_test and have no nan values after that...")
+
+#     for i, ts in enumerate(ts_list):
+#         earliest_end = min(comp.index[-1] for comp in ts)
+#         latest_beginning = max(comp.index[0] for comp in ts)
+
+#         print(f"\nMaking series {i} \\ {len(ts_list) - 1} start on {latest_beginning} and end on {earliest_end}...")
+#         logging.info(f"\nMaking series {i} \\ {len(ts_list) - 1} start on {latest_beginning} and end on {earliest_end}...")
+#         ts_list_cut.append(list(comp[(comp.index <= earliest_end) & (comp.index >= latest_beginning)] for comp in ts))
+#     return ts_list_cut
+
+
 def remove_outliers(ts: pd.DataFrame,
                     name: str = "Portugal",
                     std_dev: float = 4.5,
@@ -820,6 +842,7 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
     ts_used_id = config.ts_used_id
     min_non_nan_interval = config.min_non_nan_interval
     cut_date_val = config.cut_date_val
+    cut_date_test = config.cut_date_test
     past_covs_csv = config.past_covs_csv
     future_covs_csv = config.future_covs_csv
     resampling_agg_method = config.resampling_agg_method
