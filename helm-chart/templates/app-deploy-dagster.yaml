@@ -95,7 +95,5 @@ spec:
           value: {{ required "DAGSTER_HOME environment variable is required" .Values.env.DAGSTER_HOME | quote }}
         - name: VERSION
           value: {{ required "VERSION environment variable is required" .Values.env.VERSION | quote }}
-
-
         ports:
         - containerPort: 8006
