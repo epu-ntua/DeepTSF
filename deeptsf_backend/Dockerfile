@@ -15,6 +15,10 @@ RUN wget \
 
 RUN conda --version
 
+RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+
+RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
 WORKDIR /app 
 
 COPY ./conda.yaml ./conda.yaml

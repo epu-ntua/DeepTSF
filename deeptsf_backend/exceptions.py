@@ -174,14 +174,14 @@ class TSIDNotFoundInferenceError(Exception):
             self.message += " multiple series file provided by the user"
         super().__init__(self.message)
 
-class EndsBeforeTestException(Exception):
-    """Exception raised if a component of the timeseries ends before the test set begins"""
-    def __init__(self, id, ts_id, date, cut_date_test, type):
-        self.message = f"{type} series component {id} of timeseries {ts_id} ends at {date} which is before cut_date_test ({cut_date_test}). All time series in the test set should have complete data"
+class EndsBeforeValException(Exception):
+    """Exception raised if a component of the timeseries ends before the validation set begins"""
+    def __init__(self, id, ts_id, date, cut_date_val, type):
+        self.message = f"{type} series component {id} of timeseries {ts_id} ends at {date} which is before cut_date_val ({cut_date_val}). All time series in the validation and test sets should have complete data"
         super().__init__(self.message)
 
-class HasNansAfterTestException(Exception):
-    """Exception raised if a component of the timeseries has nans in the test set"""
-    def __init__(self, id, ts_id, date, cut_date_test, type):
-        self.message = f"{type} series component {id} of timeseries {ts_id} has a nan value at {date}, which is after cut_date_test ({cut_date_test}). All time series in the test set should have complete data"
+class HasNansAfterValException(Exception):
+    """Exception raised if a component of the timeseries has nans in the test or the validation sets"""
+    def __init__(self, id, ts_id, date, cut_date_val, type):
+        self.message = f"{type} series component {id} of timeseries {ts_id} has a nan value at {date}, which is after cut_date_val ({cut_date_val}). All time series in the test and validation sets should have complete data"
         super().__init__(self.message)

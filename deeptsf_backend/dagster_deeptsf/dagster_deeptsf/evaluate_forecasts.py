@@ -77,7 +77,33 @@ client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secur
 #     return mape_error
 
 def append(x, y):
-    return x.append(y)
+    """
+    Append `y` to `x`, discarding any part of `y` whose timestamps already appear in `x`.
+
+    Parameters
+    ----------
+    x : TimeSeries
+        Leading series.
+    y : TimeSeries
+        Series to append.
+
+    Returns
+    -------
+    TimeSeries
+        `x` followed by the non‑overlapping portion of `y`.
+    """
+    last_ts = x.end_time()              # final timestamp in x
+    if last_ts > y.start_time():
+        y_tail  = y.drop_before(last_ts)    # keeps strictly after last_ts
+    else:
+        y_tail  = y
+
+    # If y had nothing new, just return x (copy so caller can mutate safely)
+    if y_tail.n_timesteps == 0:
+        return x.copy()
+
+    return x.append(y_tail)
+
 
 def backtester(model,
                series_transformed,
@@ -135,10 +161,42 @@ def backtester(model,
                                                              verbose=False,
                                                              num_samples=num_samples)
 
+    # with open("/app/dagster_deeptsf/all_series.txt", "w", encoding="utf-8") as fh:
+    #     for i, ts in enumerate(backtest_series_transformed, start=1):
+    #         fh.write(f"# ---- series_{i} ----\n")
+    #         fh.write(ts.pd_dataframe().to_csv(index=True))  # keep timestamps
+    #         fh.write("\n")  # blank line between blocks
+
+    overlap = forecast_horizon - stride          # positive ⇒ overlapping windows
+
+    if overlap > 0:
+        print(
+            f"\nDetected overlap of {overlap} time steps "
+            f"(stride={stride} < forecast_horizon={forecast_horizon}).\n"
+            f"→ This will be treated as forecasting "
+            f"{1+ forecast_horizon - stride} to {forecast_horizon} "
+            f"steps ahead instead of the usual 1 to {forecast_horizon}.\n"
+            f"→ Dropping the first {overlap} time steps of the forecasted time series."
+        )
+
+    elif overlap == 0:
+        # stride and forecast_horizon align perfectly – nothing to do
+        pass
+    else:
+        raise ValueError(
+            f"Stride ({stride}) exceeds forecast_horizon ({forecast_horizon})."
+            "This is not supported for now."
+        )
+
     # flatten lists of forecasts due to last_points_only=False
     if isinstance(backtest_series_transformed, list):
         backtest_series_transformed = reduce(
             append, backtest_series_transformed)
+        
+    # Drop the first timesteps equal to the overlap
+    backtest_series_transformed = backtest_series_transformed[overlap:]
+
+    # backtest_series_transformed.pd_dataframe().to_csv("/app/dagster_deeptsf/combined_series.csv", index=True)
 
     # inverse scaling
     if transformer_ts is not None and series is not None:
@@ -214,8 +272,16 @@ def backtester(model,
     #     f'Weekly forecast, Start date: {forecast_start_date}, Forecast horizon (timesteps): {forecast_horizon}, Forecast extended with backtesting...')
     # except:
     #     pass
-    # Metrix
-    test_series = series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(resolution))
+    # Metrics
+
+    #Making the test series (ground truth) start at the same time as backtest_series (the result produced by the model)    
+    test_series = series.drop_before(pd.Timestamp(test_start_date) + (overlap - 1) * pd.Timedelta(resolution))
+    # print("test series start", test_series.pd_dataframe().index[0])
+    # print("test series end", test_series.pd_dataframe().index[-1])
+    # print("backtest series start", backtest_series.pd_dataframe().index[0])
+    # print("backtest series end", backtest_series.pd_dataframe().index[-1])
+    # print("insample start", series.drop_after(pd.Timestamp(test_start_date) + overlap * pd.Timedelta(resolution)).pd_dataframe().index[0])
+    # print("insample end", series.drop_after(pd.Timestamp(test_start_date) + overlap * pd.Timedelta(resolution)).pd_dataframe().index[-1])
     metrics = {
         "mae": mae_darts(
             test_series,
@@ -241,11 +307,12 @@ def backtester(model,
         print("\nModel result or testing series not strictly positive. Setting mape to NaN...")
         logging.info("\nModel result or testing series not strictly positive. Setting mape to NaN...")
         metrics["mape"] = np.nan
+    #note: insample series for mase begins at the start of the training set and ends at the end of the val set + some values in case of overlap
     try:
         metrics["mase"] = mase_darts(
             test_series,
             backtest_series,
-            insample=series.drop_after(pd.Timestamp(test_start_date)),
+            insample=series.drop_after(pd.Timestamp(test_start_date) + overlap * pd.Timedelta(resolution)),
             m = m_mase)
     except:
         print("\nSeries is periodical. Setting mase to NaN...")
@@ -260,9 +327,6 @@ def backtester(model,
         print("\nSeries not strictly positive. Setting smape to NaN...")
         logging.info("\nSeries not strictly positive. Setting smape to NaN...")
         metrics["smape"] = np.nan
-
-    
-
 
     for key, value in metrics.items():
         print(key, ': ', value)

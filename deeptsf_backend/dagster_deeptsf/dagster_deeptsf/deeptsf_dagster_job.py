@@ -62,7 +62,7 @@ class DeepTSFConfig(ConfigurableResource):
     rmv_outliers: bool = True
     loss_function: str = "mape"
     evaluate_all_ts: bool = True
-    convert_to_local_tz: bool = True
+    convert_to_local_tz: bool = False
     grid_search: bool = False
     shap_input_length: int = -1
     ts_used_id: str = "None"

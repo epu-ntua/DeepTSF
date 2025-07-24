@@ -19,7 +19,7 @@ import shutil
 import logging
 from darts.dataprocessing.transformers import MissingValuesFiller
 import tempfile
-from exceptions import CountryDoesNotExist, NoUpsamplingException, TsUsedIdDoesNotExcist, EndsBeforeTestException, HasNansAfterTestException
+from exceptions import CountryDoesNotExist, NoUpsamplingException, TsUsedIdDoesNotExcist, EndsBeforeValException, HasNansAfterValException
 import holidays
 from calendar import isleap
 from pytz import timezone
@@ -228,28 +228,28 @@ def cut_extra_samples(ts_list):
         ts_list_cut.append(list(comp[(comp.index <= earliest_end) & (comp.index >= latest_beginning)] for comp in ts))
     return ts_list_cut
 
-def ends_before_cut_date_test(s: pd.Series, cut_date_test) -> bool:
-        after_mask = s.index >= cut_date_test
+def ends_before_cut_date_val(s: pd.Series, cut_date_val) -> bool:
+        after_mask = s.index >= cut_date_val
         return not after_mask.any()
 
-def has_nans_after_cut_date_test(s: pd.Series, cut_date_test) -> bool:
-        after_mask = s.index >= cut_date_test
+def has_nans_after_cut_date_val(s: pd.Series, cut_date_val) -> bool:
+        after_mask = s.index >= cut_date_val
         return s.loc[after_mask]['Value'].isna().any()
 
-def first_na(s: pd.Series, cut_date_test) -> bool:
-        after_mask = s.index >= cut_date_test
+def first_na(s: pd.Series, cut_date_val) -> bool:
+        after_mask = s.index >= cut_date_val
         return s.loc[after_mask]['Value'].isna().idxmax()
 
-def check_dataset_after_cut_date_test(ts_list, id_l, ts_id_l, cut_date_test, type):
-    print("\nMaking sure all components of each ts end after cut_date_test and have no nan values after that...")
-    logging.info("\nnMaking sure all components of each ts end after cut_date_test and have no nan values after that...")
-    cut_date_test = pd.to_datetime(cut_date_test, format='%Y%m%d')
+def check_dataset_after_cut_date_val(ts_list, id_l, ts_id_l, cut_date_val, type):
+    print("\nMaking sure all components of each ts end after cut_date_val and have no nan values after that...")
+    logging.info("\nnMaking sure all components of each ts end after cut_date_val and have no nan values after that...")
+    cut_date_val = pd.to_datetime(cut_date_val, format='%Y%m%d')
     for i, ts in enumerate(ts_list):
         for comp_i, comp in enumerate(ts):
-            if ends_before_cut_date_test(comp, cut_date_test):
-                raise EndsBeforeTestException(id_l[i][comp_i], ts_id_l[i][comp_i], comp.index[-1], cut_date_test, type)
-            if has_nans_after_cut_date_test(comp, cut_date_test):
-                raise HasNansAfterTestException(id_l[i][comp_i], ts_id_l[i][comp_i], first_na(comp, cut_date_test), cut_date_test, type)
+            if ends_before_cut_date_val(comp, cut_date_val):
+                raise EndsBeforeValException(id_l[i][comp_i], ts_id_l[i][comp_i], comp.index[-1], cut_date_val, type)
+            if has_nans_after_cut_date_val(comp, cut_date_val):
+                raise HasNansAfterValException(id_l[i][comp_i], ts_id_l[i][comp_i], first_na(comp, cut_date_val), cut_date_val, type)
 
 
 def remove_outliers(ts: pd.DataFrame,
@@ -1121,11 +1121,11 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
             if multiple:
                 res_ = cut_extra_samples(res_)
 
-            check_dataset_after_cut_date_test(res_, id_l, ts_id_l, cut_date_test, "Target")
+            check_dataset_after_cut_date_val(res_, id_l, ts_id_l, cut_date_val, "Target")
             if past_covs_csv != None:
-                check_dataset_after_cut_date_test(res_past, id_l_past_covs, ts_id_l_past_covs, cut_date_test, "Past covariates")
+                check_dataset_after_cut_date_val(res_past, id_l_past_covs, ts_id_l_past_covs, cut_date_val, "Past covariates")
             if future_covs_csv != None:
-                check_dataset_after_cut_date_test(res_future, id_l_future_covs, ts_id_l_future_covs, cut_date_test, "Future covariates")
+                check_dataset_after_cut_date_val(res_future, id_l_future_covs, ts_id_l_future_covs, cut_date_val, "Future covariates")
 
             print("\nCreating local folder to store the datasets as csv...")
             logging.info("\nCreating local folder to store the datasets as csv...")
