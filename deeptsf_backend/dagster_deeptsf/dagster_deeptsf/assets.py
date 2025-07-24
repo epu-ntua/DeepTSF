@@ -8,13 +8,73 @@ from dagster_shell.ops import shell_op
 from dagster import multi_asset, AssetIn, AssetOut, MetadataValue, Output, graph_multi_asset, define_asset_job, asset
 from dagster import ConfigurableResource
 from dagster_mlflow import end_mlflow_on_run_finished, mlflow_tracking
-from .utils import none_checker, check_mandatory, truth_checker, download_online_file, load_yaml_as_dict
 from .optuna_search import optuna_search
 from .training import train
 from dotenv import load_dotenv
 load_dotenv()
 from minio import Minio
 import logging
+import sys
+sys.path.append('..')
+from utils import none_checker, check_mandatory, truth_checker, download_online_file, load_yaml_as_dict
+
+import re
+from datetime import datetime
+from typing import Optional
+
+def validate_dates(
+    cut_date_val: str,
+    cut_date_test: str,
+    test_end_date: Optional[str] = None,
+) -> None:
+    """
+    Validate experiment‑split dates.
+
+    • Every non‑None date string must be exactly YYYYMMDD and a real calendar date.
+    • Always enforce:         cut_date_val < cut_date_test
+    • Additionally enforce:   cut_date_test < test_end_date  (if test_end_date is provided)
+
+    Raises
+    ------
+    ValueError – on the first failure encountered.
+    """
+
+    DATE_PATTERN = re.compile(r"\d{8}$")  # exactly eight digits → YYYYMMDD
+    FMT = "%Y%m%d"
+
+    # ---------- 1. Format check ------------------------------------------------
+    for name, value in {
+        "cut_date_val": cut_date_val,
+        "cut_date_test": cut_date_test,
+        "test_end_date": test_end_date,
+    }.items():
+        if value is None:
+            continue  # optional -> skip
+        if not DATE_PATTERN.fullmatch(str(value)):
+            raise ValueError(f"{name}='{value}' is not in YYYYMMDD format.")
+
+    # ---------- 2. Parse to datetime (validity) --------------------------------
+    try:
+        d_val  = datetime.strptime(cut_date_val,  FMT)
+        d_test = datetime.strptime(cut_date_test, FMT)
+        d_end  = (
+            datetime.strptime(test_end_date, FMT)
+            if test_end_date is not None else None
+        )
+    except ValueError as exc:                    # e.g. 20250230
+        raise ValueError(f"Invalid calendar date: {exc}")
+
+    # ---------- 3. Chronological ordering --------------------------------------
+    if not (d_val < d_test):
+        raise ValueError(
+            f"Date order must satisfy cut_date_val < cut_date_test "
+            f"({cut_date_val} !< {cut_date_test})"
+        )
+    if d_end is not None and not (d_test < d_end):
+        raise ValueError(
+            f"Date order must satisfy cut_date_test < test_end_date "
+            f"({cut_date_test} !< {test_end_date})"
+        )
 
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
@@ -46,10 +106,12 @@ def start_pipeline_run(context):
     hyperparams_entrypoint = config.hyperparams_entrypoint
     cut_date_val = config.cut_date_val
     cut_date_test = config.cut_date_test
+    test_end_date = config.test_end_date
     forecast_horizon = config.forecast_horizon
     eval_series = config.eval_series
     multiple = config.multiple
     evaluate_all_ts = config.evaluate_all_ts
+    stride = config.stride
 
     if none_checker(series_uri) is None and not from_database and none_checker(series_uri) is None:
         check_mandatory(series_csv, "series_csv", [["series_uri", "None"], ["from_database", "False"]])
@@ -76,6 +138,15 @@ def start_pipeline_run(context):
     if none_checker(eval_series) is None and multiple and not evaluate_all_ts:
         check_mandatory(eval_series, "eval_series", [["multiple", "True"], ["evaluate_all_ts", "False"]])
 
+    test_end_date = none_checker(test_end_date)
+    validate_dates(cut_date_val, cut_date_test, test_end_date)
+
+    if not (none_checker(stride) is None) and not (stride == -1):
+        if stride > forecast_horizon:
+            raise ValueError(
+                "Stride values greater than the forecast horizon "
+                "are not supported currently."
+            )
 
     if none_checker(series_csv):
         download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')

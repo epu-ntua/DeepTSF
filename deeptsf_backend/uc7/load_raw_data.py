@@ -9,13 +9,13 @@ import click
 import sys
 sys.path.append('..')
 from pandas.tseries.frequencies import to_offset
-from utils import ConfigParser
+from utils_backend import ConfigParser
 import logging
 import pandas as pd
 import numpy as np
 import csv
 from datetime import datetime
-from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, truth_checker, none_checker, allow_empty_series_fun
+from utils_backend import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, truth_checker, none_checker, allow_empty_series_fun
 import shutil
 import pretty_errors
 import uuid

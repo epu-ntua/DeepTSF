@@ -9,19 +9,20 @@ import mlflow
 import click
 import sys
 sys.path.append('..')
+import celery
 from pandas.tseries.frequencies import to_offset
-from utils import ConfigParser
+from utils_backend import ConfigParser
 import logging
 import pandas as pd
 import numpy as np
 import csv
 from datetime import datetime
-from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form
+from utils_backend import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form
 import shutil
 import pretty_errors
 import uuid
 from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder, WrongDateFormat, DuplicateDateError, MissingMultipleIndexError, NonIntegerMultipleIndexError, ComponentTooShortError
-from utils import truth_checker, none_checker
+from utils_backend import truth_checker, none_checker
 import tempfile
 from math import ceil
 # get environment variables
@@ -80,6 +81,11 @@ def check_and_convert_column_types(df, intended_types):
         actual_type = df[column].dtype
         if intended_type == str:
             df[column] = df[column].astype(intended_type)
+        
+            if df[column].str.contains("/", regex=False).any():
+                print("WARNING: Replacing / with _")
+                df[column] = df[column].str.replace("/", "_", regex=False)
+
             float_pattern = re.compile(r'^\d+\.\d+$')
             for row_id, row in df.iterrows():
                 value = row[column]
@@ -97,6 +103,10 @@ def check_and_convert_column_types(df, intended_types):
 
     return df
 
+def update_task(current, total, status, progress, task):
+    print(task)
+    if task:
+        task.update_state(state='PROGRESS', meta={'current': current, 'total': total, 'status': status, 'progress': progress}) 
 
 def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
                             multiple: bool = False,
@@ -104,7 +114,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                             covariates: str = "series",
                             allow_empty_series=False,
                             format="long",
-                            log_to_mlflow=True):
+                            log_to_mlflow=True,
+                            task=None):
     """
     Validates the input after read_csv is called and throws apropriate exception if it detects an error.
     
@@ -200,6 +211,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     (pandas.DataFrame, int)
         A tuple consisting of the resulting dataframe from series_csv as well as the resolution
     """
+    print(task)
     ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,
@@ -209,12 +221,14 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     ######## NON MULTIPLE ########
     if not multiple:
         #Dataframe can not be empty or have just one row
-        print("Check 1: Dataframe can not be empty or have just one row")
+        print("Check 1: Dataframe can not be empty or have just one row...")
+        update_task(0, 7, "Dataframe can not be empty or have just one row...", 0, task)
         if len(ts) <= 1:
             raise EmptyDataframe(from_database)
-
+        
         #CORRECT COLUMNS PRESENT
-        print("Check 2: Correct columns present")
+        print("Check 2: Correct columns present...")
+        update_task(1, 7, "Checking correct columns present...", 14, task)
         #Check that column Datetime is used as index, and that Value is the only other column in the csv for the series csv
         if covariates == "series" and not (len(ts.columns) == 1 and ts.columns[0] == "Value" and ts.index.name == 'Datetime'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', "Value"])
@@ -224,7 +238,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
         #TYPE CHECKS
 
-        print("Check 3: Check date index column has correct format and type")
+        print("Check 3: Check date index column has correct format and type...")
+        update_task(2, 7, "Checking date index column has correct format and type...", 28, task)
         #Check date index column has correct format
         check_datetime_format(ts.index, ts.index)
         ts.index = pd.to_datetime(ts.index)
@@ -234,18 +249,21 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         if index_type != pd.Timestamp:
             raise TypeError(f"The index column Datetime must be of type pd.Timestamp.")
 
-        print("Check 4: Check Value column type")
+        print("Check 4: Check Value column type...")
+        update_task(3, 7, "Checking Value column type...", 43, task)
         #Check Value column type
         ts = check_and_convert_column_types(ts, [float])
 
-        print("Check 5: Check for duplicates")
+        print("Check 5: Check for duplicates...")
+        update_task(4, 7, "Checking for duplicates...", 57, task)
         #Check for duplicates
         duplicates = ts.index[ts.index.duplicated()]
         if not duplicates.empty:
             # Raise the custom exception if duplicates are found
             raise DuplicateDateError(duplicates[0], duplicates[0])
 
-        print("Check 6: Check that dates are in order") 
+        print("Check 6: Check that dates are in order...")
+        update_task(5, 7, "Checking that dates are in order...", 72, task)
         #Check that dates are in order.
         dates_not_in_order = ts[ts.index.sort_values() != ts.index]
         if not dates_not_in_order.empty:
@@ -254,15 +272,19 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                     first_wrong_date = ts.index[i]
             raise DatetimesNotInOrder(first_wrong_date=first_wrong_date, row_id=first_wrong_date)
 
-        print("Check 7: Infering resolution for single timeseries") 
+        print("Check 7: Infering resolution for single timeseries...")
+        update_task(6, 7, "Infering resolution for single timeseries...", 86, task)
         #Infering resolution for single timeseries
         resolution = to_standard_form(pd.to_timedelta(np.diff(ts.index).min()))
+
+        update_task(7, 7, "Validation completed!", 100, task)
 
 
     ######## MULTIPLE ########
     else:
         
-        print("Check 1: Dataframe can not be empty")
+        print("Check 1: Dataframe can not be empty...")
+        update_task(0, 9, "Dataframe can not be empty...", 0, task)
         #Dataframe can not be empty
         if len(ts) == 0:
             raise EmptyDataframe(from_database)
@@ -288,12 +310,14 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             except:
                 pass
         
-        print("Check 2: Check if the index is of integer type")
+        print("Check 2: Check if the index is of integer type...")
+        update_task(1, 9, "Checking if the index is of integer type...", 11, task)
         # Check if the index is of integer type
         if not pd.api.types.is_integer_dtype(ts.index):
             raise NonIntegerMultipleIndexError(ts.index.dtype)
 
-        print("Check 3: Check present columns according to format")
+        print("Check 3: Check present columns according to format...")
+        update_task(2, 9, "Checking present columns according to format...", 22, task)
         #Check present columns according to format
         if format == "short":
             if set(des_columns).issubset(set(list(ts.columns))):
@@ -318,7 +342,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
         #TYPE CHECKS
 
-        print("Check 4: Check index range and missing values")
+        print("Check 4: Check index range and missing values...")
+        update_task(3, 9, "Checking index range and missing values...", 33, task)
         # Expected complete index range
         expected_index = pd.Index(range(len(ts)))
     
@@ -327,17 +352,20 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         if not missing_index.empty:
             raise MissingMultipleIndexError(missing_index[0])
 
-        print("Check 5: Check date column has correct format")
+        print("Check 5: Check date column has correct format...")
+        update_task(4, 9, "Checking date column has correct format...", 45, task)
         #Check date column has correct format
         check_datetime_format(ts[date_col], ts.index, format)
         ts[date_col] = pd.to_datetime(ts[date_col])
 
-        print("Check 6: Check column types and if needed, convert them")
+        print("Check 6: Check column types and if needed, convert them...")
+        update_task(5, 9, "Checking column types and if needed, convert them...", 56, task)
         #Check column types and if needed, convert them
         ts = check_and_convert_column_types(ts, intended_col_types)
 
         #Check each component individualy
-        print("Check 7: each component individualy for duplicates and out of order dates")
+        print("Check 7: each component individualy for duplicates and out of order dates...")
+        update_task(6, 9, "Checking Seach component individualy for duplicates and out of order dates...", 67, task)
         for ts_id in np.unique(ts["Timeseries ID"]):
             for id in np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"]):
                 dates = ts[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)].copy()
@@ -362,19 +390,23 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     
                         
         #Check that all timeseries in a multiple timeseries file have the same number of components
-        print("Check 8: Check that all timeseries in a multiple timeseries file have the same number of components")
+        print("Check 8: Check that all timeseries in a multiple timeseries file have the same number of components...")
+        update_task(7, 9, "Checking that all timeseries in a multiple timeseries file have the same number of components...", 78, task)
         comp_dict = {ts_id: len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"])}
         if len(set(comp_dict.values())) != 1:
             raise DifferentComponentDimensions(comp_dict)
         
         #Infering resolution for multiple ts
-        print("Check 9: Infering resolution for multiple ts and checking if all ts have the same one")
+        print("Check 9: Infering resolution for multiple ts and checking if all ts have the same one...")
+        update_task(8, 9, "Infering resolution for multiple ts and checking if all ts have the same one...", 89, task)
         ts_l, id_l, ts_id_l, resolution = multiple_ts_file_to_dfs(series_csv, None, format=format)
 
         if allow_empty_series:
             ts_list_ret, id_l_ret, ts_id_l_ret = allow_empty_series_fun(ts_l, id_l, ts_id_l, allow_empty_series=allow_empty_series)
             ts = multiple_dfs_to_ts_file(ts_list_ret, id_l_ret, ts_id_l_ret, "", save=False, format=format)
-
+                
+        update_task(9, 9, "Validation completed!", 100, task)
+        
     if log_to_mlflow:
         mlflow.set_tag(f'infered_resolution_{covariates}', resolution)
             

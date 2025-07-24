@@ -44,6 +44,29 @@ import pytz
 from datetime import datetime
 from typing import Union, List, Tuple
 from minio import S3Error
+from minio.commonconfig import CopySource
+
+def move_object(minio_client, source_bucket, source_object, dest_bucket, dest_object):
+    try:
+        # Copy the object from the source to the destination.
+        # The copy source format is "/<source_bucket>/<source_object>".
+        copy_result = minio_client.copy_object(
+            dest_bucket,
+            dest_object,
+            CopySource(source_bucket, source_object)
+        )
+        print(f"Copied {source_bucket}/{source_object} to {dest_bucket}/{dest_object}")
+    except S3Error as err:
+        print(f"Error during copy operation: {err}")
+        return
+
+    try:
+        # Delete the original object after the copy succeeds.
+        minio_client.remove_object(source_bucket, source_object)
+        print(f"Deleted original object: {source_bucket}/{source_object}")
+    except S3Error as err:
+        print(f"Error during delete operation: {err}")
+
 class ConfigParser:
     def __init__(self, config_file=f'{cur_dir}/config.yml', config_string=None):
         import yaml
@@ -138,6 +161,45 @@ def get_pv_forecast(ts_id, start=None, end=None, inference=False, kW=185, use_sa
         print(f"Using covs of {ts_id[0]}")
         return darts.TimeSeries.from_dataframe(pvlib_forecast(covs_weather=covs_list_final[0], start=start, end=end, kW=kW))
 
+def upload_file_to_minio(bucket_name, file_path, csv_name, client):
+    try:
+        # Ensure the bucket exists
+        if not client.bucket_exists(bucket_name):
+            client.make_bucket(bucket_name)
+        
+        # Upload the file
+        client.fput_object(bucket_name, csv_name, file_path)
+        print(f"File '{csv_name}' uploaded successfully to bucket '{bucket_name}'.")
+    except S3Error as e:
+        print(f"Error uploading file: {e}")
+
+
+def download_online_file(client, url, dst_filename=None, dst_dir=None, bucket_name='mlflow-bucket'):
+    import sys
+    import tempfile
+    import requests
+    print("Donwloading_online_file")
+    print(url)
+    if dst_dir is None:
+        dst_dir = tempfile.mkdtemp()
+    else:
+        os.makedirs(dst_dir, exist_ok=True)
+    if dst_filename is None:
+        dst_filename = url.split('/')[-1]
+    filepath = os.path.join(dst_dir, dst_filename)
+    url = url.split(bucket_name)[-1]
+    client.fget_object(bucket_name, url, filepath)
+    # print(req)
+    # if req.status_code != 200:
+    #     raise Exception(f"\nResponse is not 200\nProblem downloading: {url}")
+    #     sys.exit()
+    # url_content = req.content
+    # filepath = os.path.join(dst_dir, dst_filename)
+    # file = open(filepath, 'wb')
+    # file.write(url_content)
+    # file.close()
+    return filepath
+
 def pvlib_forecast(covs_weather=[], start=None, end=None, kW=185):
     #init params
     latitude=42.567055
@@ -210,46 +272,6 @@ def load_local_pkl_as_object(local_path):
     import pickle
     pkl_object = pickle.load(open(local_path, "rb"))
     return pkl_object
-
-def upload_file_to_minio(bucket_name, file_path, csv_name, client):
-    try:
-        # Ensure the bucket exists
-        if not client.bucket_exists(bucket_name):
-            client.make_bucket(bucket_name)
-        
-        # Upload the file
-        client.fput_object(bucket_name, csv_name, file_path)
-        print(f"File '{csv_name}' uploaded successfully to bucket '{bucket_name}'.")
-    except S3Error as e:
-        print(f"Error uploading file: {e}")
-
-
-def download_online_file(client, url, dst_filename=None, dst_dir=None, bucket_name='mlflow-bucket'):
-    import sys
-    import tempfile
-    import requests
-    print("Donwloading_online_file")
-    print(url)
-    if dst_dir is None:
-        dst_dir = tempfile.mkdtemp()
-    else:
-        os.makedirs(dst_dir, exist_ok=True)
-    if dst_filename is None:
-        dst_filename = url.split('/')[-1]
-    filepath = os.path.join(dst_dir, dst_filename)
-    url = url.split(bucket_name)[-1]
-    client.fget_object(bucket_name, url, filepath)
-    # print(req)
-    # if req.status_code != 200:
-    #     raise Exception(f"\nResponse is not 200\nProblem downloading: {url}")
-    #     sys.exit()
-    # url_content = req.content
-    # filepath = os.path.join(dst_dir, dst_filename)
-    # file = open(filepath, 'wb')
-    # file.write(url_content)
-    # file.close()
-    return filepath
-
 
 def download_mlflow_file(client, url, dst_dir=None):
     S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
@@ -434,7 +456,9 @@ def none_checker(argument):
     """ Returns True if string has specific truth values else False"""
     if argument is None:
         return None
-    if argument.lower() in ['none', 'nope', 'nan', 'na', 'null', 'nope', 'n/a', 'mlflow_artifact_uri']:
+    elif type(argument) == str and argument.lower() in ['none', 'nope', 'nan', 'na', 'null', 'nope', 'n/a', 'mlflow_artifact_uri']:
+        return None
+    elif type(argument) == dict and argument == {"insert key": "insert value"}:
         return None
     else:
         return argument

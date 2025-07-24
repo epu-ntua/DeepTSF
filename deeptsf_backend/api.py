@@ -1,21 +1,26 @@
 from enum import Enum
 import uvicorn
 import httpx
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends, Response, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect, Response, Request
+import asyncio
 from fastapi.responses import JSONResponse, RedirectResponse
+from celery import Celery
+from celery_DeepTSF.tasks import upload_and_validate_csv
+from celery.result import AsyncResult
 import json
+import traceback
 from pydantic import BaseModel
 from typing import Optional, Dict, List
 import pandas as pd
 import mlflow
-from utils import ConfigParser, load_model
+from utils_backend import ConfigParser, load_model
 import tempfile
 from uc2.load_raw_data import read_and_validate_input
 from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils import load_artifacts, to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio, none_checker
+from utils_backend import load_artifacts, to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio, none_checker
 import psutil, nvsmi
 import os
 import requests
@@ -26,6 +31,7 @@ from jwt.algorithms import RSAAlgorithm
 from dotenv import load_dotenv
 from fastapi import APIRouter
 from app.auth import admin_validator, scientist_validator, engineer_validator, common_validator, oauth2_scheme
+from app.auth_wbsockets import websocket_scientist_validator
 from app.config import settings
 import pymongo
 from pymongo import MongoClient
@@ -33,10 +39,12 @@ import datetime
 from math import nan
 import bson
 from minio import Minio
-import base64
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
+from minio.error import S3Error
+from dagster_graphql import DagsterGraphQLClient, DagsterGraphQLClientError
 
+# import base64
+# from cryptography import x509
+# from cryptography.hazmat.backends import default_backend
 
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
@@ -61,6 +69,8 @@ USE_AUTH = none_checker(os.getenv("USE_AUTH"))
 # USE_KEYCLOAK = truth_checker(os.getenv("USE_KEYCLOAK"))
 
 client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
+CELERY_BROKER_URL= os.environ.get("CELERY_BROKER_URL")
+DAGSTER_ENDPOINT_URL = os.environ.get("DAGSTER_ENDPOINT_URL")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -119,12 +129,12 @@ if USE_AUTH == "keycloak":
                     "http://localhost:3000",
                     "http://localhost:8086"],
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
         allow_headers=["*"],
 )
 
-# creating routers
-# admin validator passed as dependency
+    # creating routers
+    # admin validator passed as dependency
     admin_router = APIRouter(
         dependencies=[Depends(admin_validator)]
     )
@@ -138,12 +148,18 @@ if USE_AUTH == "keycloak":
     common_router = APIRouter(
         dependencies=[Depends(common_validator)]
     )
+    scientist_router_websockets = APIRouter(
+        dependencies=[Depends(websocket_scientist_validator)]
+    )
+
 elif USE_AUTH == "jwt":
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
             "https://deeptsf-backend.aiodp.ai",
             "https://deeptsf.aiodp.ai", 
+            "https://deeptsf-dagster.stage.aiodp.ai",
+            "https://deeptsf-dagster.aiodp.ai",
             "https://deeptsf.stage.aiodp.ai",
             "https://deeptsf.dev.aiodp.ai",
             "https://marketplace.aiodp.ai",
@@ -161,10 +177,12 @@ elif USE_AUTH == "jwt":
     scientist_router = APIRouter()
     engineer_router = APIRouter()
     common_router = APIRouter()
+    scientist_router_websockets = APIRouter()
     admin_router.dependencies = []
     scientist_router.dependencies = []
     engineer_router.dependencies = []
     common_router.dependencies = []
+    scientist_router_websockets.dependencies = []
 else:
     app.add_middleware(
         CORSMiddleware,
@@ -184,6 +202,8 @@ else:
     scientist_router.dependencies = []
     engineer_router.dependencies = []
     common_router.dependencies = []
+    scientist_router_websockets = APIRouter()
+    scientist_router_websockets.dependencies = []
 
 # implement this method for login functionality
 # @app.post('/token')
@@ -339,7 +359,6 @@ async def get_model_names(resolution: str, multiple: bool):
 async def get_metric_names():
     return metrics
 
-
 def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='long'):
 
     fileExtension = fname.split(".")[-1].lower() == "csv"
@@ -358,7 +377,6 @@ def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='
     return ts, resolutions
 
 if USE_AUTH == "jwt":
-
     # This is used from VC
     @app.post("/login", dependencies=[])
     async def login(request: Request):
@@ -466,6 +484,11 @@ if USE_AUTH == "jwt":
 
     PUBLIC_PATHS: List[str] = ["/login", "/api/auth", "/api/logout", "/api/login"]
 
+            # if "/ws/" in request.url.path:
+            #     auth_header: Optional[str] = request.query_params.get("token")
+
+
+
     @app.middleware("http")
     async def auth_middleware(request: Request, call_next):
         # Handle CORS preflight requests
@@ -523,6 +546,24 @@ if USE_AUTH == "jwt":
                 status_code=500,
                 content={"detail": "Internal server error"}
             )
+        
+    # WebSocket authentication helper
+    async def websocket_auth(websocket: WebSocket):
+        token = websocket.query_params.get("token")
+        if not token:
+            await websocket.close(code=1008)
+            raise WebSocketDisconnect(code=1008)
+
+        try:
+            payload = jwt.decode(token, options={"verify_signature": False})
+            websocket.state.user = payload
+            return payload
+        except jwt.ExpiredSignatureError:
+            await websocket.close(code=4003)
+            raise WebSocketDisconnect(code=4003)
+        except jwt.InvalidTokenError:
+            await websocket.close(code=4003)
+            raise WebSocketDisconnect(code=4003)
 
     # Add error handlers for common cases
     @app.exception_handler(HTTPException)
@@ -620,6 +661,110 @@ if USE_AUTH == "jwt":
     async def logout(response: Response):
         response.delete_cookie("session_token")
         return JSONResponse(content={"message": "Logged out successfully"})
+    
+    @app.websocket("/ws/task-status/{task_id}")
+    async def websocket_task_status(websocket: WebSocket, task_id: str):
+        await websocket.accept()
+        user = await websocket_auth(websocket)
+        if not user:
+            return  # Already closed
+
+        try:
+            while True:
+                # Retrieve task state and progress
+                task_result = AsyncResult(task_id)
+                task_state = task_result.state
+                task_info = task_result.info or {}
+
+                # Prepare the response message
+                if task_state == 'PENDING':
+                    response = {"status": "Task is pending"}
+                elif task_state == 'PROGRESS':
+                    response = {
+                        "status": "Task is in progress",
+                        "current": task_info.get("current", 0),
+                        "total": task_info.get("total", 100),
+                        "message": task_info.get("status", "Processing")
+                    }
+                elif task_state == 'SUCCESS':
+                    print(task_result.result)
+                    response = {"status": "Task completed", "result": task_result.result}
+                    await websocket.send_json(response)
+                    break  # Task completed, exit the loop
+                elif task_state == 'FAILURE':
+                    response = {"status": "Task failed", "error": str(task_result.info)}
+                    await websocket.send_json(response)
+                    break  # Task failed, exit the loop
+                else:
+                    response = {"status": "Unknown status"}
+
+                # Send the current task state to the client
+                await websocket.send_json(response)
+
+                # Wait a bit before the next check
+                await asyncio.sleep(1)
+
+        except WebSocketDisconnect:
+            print("Client disconnected from task status WebSocket")
+
+    @app.websocket("/ws/test")
+    async def websocket_test(websocket: WebSocket):
+        await websocket.accept()
+        user = await websocket_auth(websocket)
+        if not user:
+            return  # Already closed
+        while True:
+            await websocket.send_json({"status": "Connection working"})
+            await asyncio.sleep(1)
+
+else:
+    @scientist_router_websockets.websocket("/ws/task-status/{task_id}")
+    async def websocket_task_status(websocket: WebSocket, task_id: str):
+        await websocket.accept()
+        try:
+            while True:
+                # Retrieve task state and progress
+                task_result = AsyncResult(task_id)
+                task_state = task_result.state
+                task_info = task_result.info or {}
+
+                # Prepare the response message
+                if task_state == 'PENDING':
+                    response = {"status": "Task is pending"}
+                elif task_state == 'PROGRESS':
+                    response = {
+                        "status": "Task is in progress",
+                        "current": task_info.get("current", 0),
+                        "total": task_info.get("total", 100),
+                        "message": task_info.get("status", "Processing")
+                    }
+                elif task_state == 'SUCCESS':
+                    print(task_result.result)
+                    response = {"status": "Task completed", "result": task_result.result}
+                    await websocket.send_json(response)
+                    break  # Task completed, exit the loop
+                elif task_state == 'FAILURE':
+                    response = {"status": "Task failed", "error": str(task_result.info)}
+                    await websocket.send_json(response)
+                    break  # Task failed, exit the loop
+                else:
+                    response = {"status": "Unknown status"}
+
+                # Send the current task state to the client
+                await websocket.send_json(response)
+
+                # Wait a bit before the next check
+                await asyncio.sleep(1)
+
+        except WebSocketDisconnect:
+            print("Client disconnected from task status WebSocket")
+
+    @scientist_router_websockets.websocket("/ws/test")
+    async def websocket_test(websocket: WebSocket):
+        await websocket.accept()
+        while True:
+            await websocket.send_json({"status": "Connection working"})
+            await asyncio.sleep(1)
 
         
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
@@ -667,15 +812,57 @@ async def create_upload_csv_file(file: UploadFile = File(...),
             "evaluate_all_ts": True if multiple else None
             }
 
-    # return {"message": "Validation successful", 
-    #         "fname": fname,
-    #         "dataset_start": "2020-01-01",
-    #         "allowed_validation_start": "2020-06-01",
-    #         "dataset_end": "2021-01-01",
-    #         "allowed_resolutions": "1h",
-    #         "ts_used_id": None,
-    #         "evaluate_all_ts": True if multiple else None
-    #         }
+@scientist_router.post('/upload/uploadCSVfile_celery', tags=['Experimentation Pipeline'])
+async def create_upload_csv_file(file: UploadFile = File(...), 
+                                 multiple: bool = Form(default=False), format: str = Form(default=False)):
+
+    # Store uploaded dataset to minio
+    print("Uploading file...")
+    try:
+        # write locally
+        local_dir = tempfile.mkdtemp()
+        contents = await file.read()
+        fpath = os.path.join(local_dir, file.filename)
+        filename=file.filename
+        with open(fpath, 'wb') as f:
+            f.write(contents)
+    except Exception:
+        raise HTTPException(status_code=415, detail="There was an error uploading the file")
+    finally:
+        print(f'\n{fpath}\n')
+        await file.close()
+
+    upload_file_to_minio("dataset-storage", fpath, f'unvalidated/{filename}', client)
+
+    # Enqueue the Celery task
+    task = upload_and_validate_csv.delay(filename, multiple, format)
+
+    # Return task ID to the client
+    return {"task_id": task.id, "status": "Task submitted"}
+
+# @app.get('/task-status/{task_id}')
+# def get_task_status(task_id: str):
+#     print(task_id)
+#     task_result = AsyncResult(task_id)
+#     print(task_result)
+#     if task_result.state == 'PENDING':
+#         return {"status": "Task is pending"}
+#     elif task_result.state == 'PROGRESS':
+#         # If the task is in progress, retrieve progress info from task meta
+#         progress = task_result.info or {}
+#         return {
+#             "status": "Task is in progress",
+#             "current": progress.get("current", 0),
+#             "total": progress.get("total", 100),
+#             "message": progress.get("status", "Processing")
+#         }
+#     elif task_result.state == 'SUCCESS':
+#         return {"status": "Task completed", "result": task_result.result}
+#     elif task_result.state == 'FAILURE':
+#         return {"status": "Task failed", "error": str(task_result.info)}
+#     else:
+#         return {"status": "Unknown status"}
+
 
 def store_df_to_csv(df, csv_name, index):
     local_dir = tempfile.mkdtemp()
@@ -892,14 +1079,18 @@ def mlflow_run(params: dict, experiment_name: str, uc: str = "2"):
 
 @scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
 async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks):
-
+    if parameters["evaluate_all_ts"] == None:
+        parameters["evaluate_all_ts"] = False
+    for key, value in parameters.items():
+        if value == None:
+            parameters[key] = "None"
     # if this key exists then I am on the "user uploaded dataset" case so I proceed to the changes of the other parameters in the dict
     try:
         uc = parameters['uc']  # Trying to access a key that doesn't exist
     except KeyError:
         uc = "2" # the default uc
         if parameters["multiple"]:
-           parameters["ts_used_id"] = None
+           parameters["ts_used_id"] = "None"
            parameters["eval_all_ts"] = True
            # this is the default use case for all other runs except uc7
         pass  
@@ -910,39 +1101,128 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     if parameters['model'] == "TFT":
         parameters["hyperparams_entrypoint"]["add_relative_index"] = 'True'
     # format hparams string
-    hparam_str = str(parameters["hyperparams_entrypoint"])
-    hparam_str = hparam_str.replace('"', '')
-    hparam_str = hparam_str.replace("'", "")
-    print(hparam_str)
+    hparam = parameters["hyperparams_entrypoint"]
+    print(hparam)
 
-    params = { 
-        "rmv_outliers": parameters["rmv_outliers"],  
-        "multiple": parameters["multiple"],
-        "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
-        "resolution": change_form(freq=parameters["resolution"], change_format_to="pandas_form"), # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
-        "resampling_agg_method": parameters["resampling_agg_method"],
-        "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
-        "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
-        "test_end_date": parameters["test_end_date"],  # input: user | type: str | example: "20220101" | Choose from calendar, should be > cut_date_test and <= dataset_end, defaults to dataset_end
-        "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
-        "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
-        "hyperparams_entrypoint": hparam_str,
-        "ignore_previous_runs": parameters["ignore_previous_runs"],
-        "imputation_method": parameters["imputation_method"],    
-	    "ts_used_id": parameters["ts_used_id"], # uc2: None, uc6: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active', uc7: None 
-        "eval_series": parameters["ts_used_id"], # same as above,
-	    "evaluate_all_ts": parameters["evaluate_all_ts"],
-        "format": parameters["format"] 	    
-        # "country": parameters["country"], this should be given if we want to have advanced imputation
-     }
+    try:
+        parameters["series_csv"] = parameters["series_csv"].split("/")[-1]
+    except:
+        pass
+
+    run_config = {
+        "resources": {
+            "config": {
+                "config": {
+                    "a": 0.3,
+                    "analyze_with_shap": False,
+                    "convert_to_local_tz": True,
+                    "country": "PT",
+                    "database_name": "rdn_load_data",
+                    "device": "gpu",
+                    "eval_method": "ts_ID",
+                    "from_database": False,
+                    "future_covs_csv": "None",
+                    "future_covs_uri": "None",
+                    "grid_search": False,
+                    "loss_function": "mape",
+                    "m_mase": 1,
+                    "max_thr": -1,
+                    "min_non_nan_interval": 24,
+                    "n_trials": 100,
+                    "num_samples": 1,
+                    "num_workers": 4,
+                    "opt_test": False,
+                    "order": 1,
+                    "parent_run_name": "None",
+                    "past_covs_csv": "None",
+                    "past_covs_uri": "None",
+                    "pv_ensemble": False,
+                    "retrain": False,
+                    "scale": True,
+                    "scale_covs": True,
+                    "series_uri": "None",
+                    "shap_data_size": 100,
+                    "shap_input_length": -1,
+                    "std_dev": 4.5,
+                    "stride": -1,
+                    "time_covs": False,
+                    "trial_name": "Default",
+                    "wncutoff": 0.000694,
+                    "ycutoff": 3,
+                    "ydcutoff": 30,
+                    "year_range": "None",
+                    "experiment_name":  parameters['experiment_name'],
+                    "rmv_outliers":     parameters["rmv_outliers"],
+                    "multiple":         parameters["multiple"],
+                    "series_csv":       "dataset-storage/" + parameters["series_csv"],
+                    "resolution":       change_form(freq=parameters["resolution"],
+                                                    change_format_to="pandas_form"),
+                    "resampling_agg_method": parameters["resampling_agg_method"],
+                    "cut_date_val":     parameters["validation_start_date"],
+                    "cut_date_test":    parameters["test_start_date"],
+                    "test_end_date":    parameters["test_end_date"],
+                    "darts_model":      parameters["model"],
+                    "forecast_horizon": int(parameters["forecast_horizon"]),
+                    "hyperparams_entrypoint": hparam,
+                    "ignore_previous_runs": parameters["ignore_previous_runs"],
+                    "imputation_method": parameters["imputation_method"],
+                    "ts_used_id":       parameters["ts_used_id"],
+                    "eval_series":      parameters["ts_used_id"],
+                    "evaluate_all_ts":  parameters["evaluate_all_ts"],
+                    "format":           parameters["format"],
+                }
+            }
+        }
+    }
+
+
+    # params = { 
+    #     "rmv_outliers": parameters["rmv_outliers"],  
+    #     "multiple": parameters["multiple"],
+    #     "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
+    #     "resolution": change_form(freq=parameters["resolution"], change_format_to="pandas_form"), # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
+    #     "resampling_agg_method": parameters["resampling_agg_method"],
+    #     "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
+    #     "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
+    #     "test_end_date": parameters["test_end_date"],  # input: user | type: str | example: "20220101" | Choose from calendar, should be > cut_date_test and <= dataset_end, defaults to dataset_end
+    #     "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
+    #     "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
+    #     "hyperparams_entrypoint": hparam_str,
+    #     "ignore_previous_runs": parameters["ignore_previous_runs"],
+    #     "imputation_method": parameters["imputation_method"],    
+	#     "ts_used_id": parameters["ts_used_id"], # uc2: None, uc6: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active', uc7: None 
+    #     "eval_series": parameters["ts_used_id"], # same as above,
+	#     "evaluate_all_ts": parameters["evaluate_all_ts"],
+    #     "format": parameters["format"] 	    
+    #     # "country": parameters["country"], this should be given if we want to have advanced imputation
+    #  }
     
     # TODO: generalize for all countries
     # if parameters["model"] != "NBEATS":
     #    params["time_covs"] = "PT"
-    
+    print(run_config)
+
+    if USE_AUTH == "jwt" or USE_AUTH == "keycloak":
+        KUBE_HOST = os.environ.get('host')
+        DAGSTER_HOST = "deeptsf-dagster" + KUBE_HOST
+        print(DAGSTER_HOST)
+        client = DagsterGraphQLClient(DAGSTER_HOST, use_https=True)
+    else: 
+        DAGSTER_HOST = DAGSTER_ENDPOINT_URL.split("://")[-1]
+        PORT = DAGSTER_HOST.split(":")[-1]
+        DAGSTER_HOST = DAGSTER_HOST.split(":")[0]
+        client = DagsterGraphQLClient(DAGSTER_HOST, port_number=int(PORT), use_https=False)
+
+    # 3  submit an asynchronous run
     try:
-        background_tasks.add_task(mlflow_run, params, parameters['experiment_name'], uc)
-    except Exception as e:
+        print("SUBMIT")
+        run_id = client.submit_job_execution(
+            "deeptsf_dagster_job",
+            run_config=run_config,
+        )
+        print(f"Launched Dagster run {run_id}")
+    except DagsterGraphQLClientError as exc:          # handy for surfacing schema errors
+        print(f"Dagster rejected the launch: {exc}")
         raise HTTPException(status_code=404, detail="Could not initiate run. Check system logs")
     
     return {"message": "Experimentation pipeline initiated. Proceed to MLflow for details..."}
@@ -1087,6 +1367,7 @@ async def get_result(request: ForecastRequest) -> str:
         return JSONResponse(content=json.loads(predictions.to_json(orient='columns', index=True)))
 
     except Exception as e:
+        traceback.print_exc()
         print(f"There was an error in inference of series: {e}")
         raise HTTPException(status_code=415, detail=f"There was an error in inference of series: {e}")
 
@@ -1157,6 +1438,8 @@ async def get_info(token: str = Depends(oauth2_scheme)):
 app.include_router(admin_router)
 app.include_router(scientist_router)
 app.include_router(engineer_router)
+app.include_router(scientist_router_websockets)
+
 if USE_AUTH == "keycloak":
     app.include_router(common_router)
 

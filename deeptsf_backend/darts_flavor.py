@@ -1,10 +1,10 @@
 import os
-from utils import load_model, load_scaler, load_ts_id, parse_uri_prediction_input, load_local_model_info, to_seconds
+from utils_backend import load_model, load_scaler, load_ts_id, parse_uri_prediction_input, load_local_model_info, to_seconds
 import pretty_errors
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
 from minio import Minio
-from utils import truth_checker 
+from utils_backend import truth_checker 
 
 disable_warnings(InsecureRequestWarning)
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")

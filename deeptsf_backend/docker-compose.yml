@@ -1,6 +1,5 @@
 # to run this you need to create a .env file with the contents of .env.example
 services:
-
   s3:
     image: minio/minio:RELEASE.2024-03-30T09-41-56Z
     container_name: s3
@@ -37,9 +36,15 @@ services:
       /bin/sh -c '
       sleep 5;
       /usr/bin/mc config host add s3 http://s3:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} --api S3v4;
-      [[ ! -z "`/usr/bin/mc ls s3 | grep challenge`" ]] || /usr/bin/mc mb s3/${BUCKET_NAME};
-      /usr/bin/mc policy download s3/${BUCKET_NAME};
-      /usr/bin/mc policy set public s3/${BUCKET_NAME};
+      [[ ! -z "`/usr/bin/mc ls s3 | grep challenge`" ]] || /usr/bin/mc mb s3/${MLFLOW_BUCKET_NAME};
+      [[ ! -z "`/usr/bin/mc ls s3 | grep challenge`" ]] || /usr/bin/mc mb s3/${DAGSTER_BUCKET_NAME};
+      [[ ! -z "`/usr/bin/mc ls s3 | grep challenge`" ]] || /usr/bin/mc mb s3/${DATASET_BUCKET_NAME};
+      /usr/bin/mc policy download s3/${MLFLOW_BUCKET_NAME};
+      /usr/bin/mc policy set public s3/${MLFLOW_BUCKET_NAME};
+      /usr/bin/mc policy download s3/${DAGSTER_BUCKET_NAME};
+      /usr/bin/mc policy set public s3/${DAGSTER_BUCKET_NAME};
+      /usr/bin/mc policy download s3/${DATASET_BUCKET_NAME};
+      /usr/bin/mc policy set public s3/${DATASET_BUCKET_NAME};
       exit 0;
       '
     env_file:
@@ -56,6 +61,7 @@ services:
     image: inergy2020iccs/pgdb:16.2
     volumes:
         - database:/var/lib/postgresql/data
+        - ./init-extra-db.sql:/docker-entrypoint-initdb.d/init-extra-db.sql:ro
     ports:
       - 5432:5432
     expose:
@@ -87,7 +93,7 @@ services:
     networks:
       - load-forecasting-net
     command: bash -c 
-      "mlflow server --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgdb:5432/${POSTGRES_DATABASE} --host 0.0.0.0 --default-artifact-root s3://${BUCKET_NAME}/"
+      "mlflow server --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgdb:5432/${POSTGRES_DATABASE} --host 0.0.0.0 --default-artifact-root s3://${MLFLOW_BUCKET_NAME}/"
     env_file:
       - .env
       # Uses following .env parameters:
@@ -103,18 +109,21 @@ services:
     hostname: deeptsf_backend
     container_name: deeptsf_backend
     # image: inergy2020iccs/deeptsf_backend:1.0.2  # only for releases
-    build: .
+    build:
+      context: ./
+      target: backend
+      dockerfile:  Dockerfile
     restart: always
     ports:
       - '8080:8080'
     expose:
       - '8080'
-    # volumes:
-      # - .:/app/. #debugging only
     stdin_open: 
       true
     env_file:
       - .env
+    depends_on:
+      - redis
     # Uses all .env parameters
     # deploy: # activate this if you want gpu usage
     #   resources:
@@ -125,13 +134,36 @@ services:
     networks:
        - load-forecasting-net
 
+  worker:
+    build:
+      context: ./
+      target: celery-worker
+      dockerfile:  Dockerfile
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    networks:
+       - load-forecasting-net
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    networks:
+       - load-forecasting-net
+       
   dagster:
     container_name: deeptsf_dagster
     hostname: deeptsf_dagster
+    restart: always
     # image: inergy2020iccs/deeptsf_dagster:1.0.1 # only for releases
     build:
-      context: .
-      dockerfile: ./dagster-deeptsf/config/Dockerfile
+      context: ./
+      target: dagster
+      dockerfile:  Dockerfile
+    depends_on:
+      - redis
     # deploy: # activate this if you want gpu usage
     #   resources:
     #     reservations:
@@ -142,10 +174,6 @@ services:
       - 8006
     ports:
       - 8006:8006
-    # volumes:
-    #   - dagster-logs:/app/dagster-deeptsf
-    #   - ./uc2/user_datasets:/app/dagster-deeptsf/user_datasets
-      # - ./dagster-deeptsf/dagster_deeptsf:/app/dagster-deeptsf/dagster_deeptsf  #debugging only
     networks:
       - load-forecasting-net
     env_file:
@@ -179,6 +207,7 @@ services:
 
 volumes:
   database:
+  database2:
   artifact-store:
 
 networks: 

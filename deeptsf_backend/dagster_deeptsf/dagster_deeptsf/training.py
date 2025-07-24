@@ -1,5 +1,4 @@
 import pretty_errors
-from .utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, get_pv_forecast, to_seconds #, log_curves
 from .preprocessing import scale_covariates, split_dataset, split_nans
 
 # the following are used through eval(darts_model + 'Model')
@@ -25,6 +24,10 @@ from minio import Minio
 # Inference requirements to be stored with the darts flavor !!
 from sys import version_info
 import torch, cloudpickle, darts
+import sys
+sys.path.append('..')
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, get_pv_forecast, to_seconds #, log_curves
+
 PYTHON_VERSION = "{major}.{minor}.{micro}".format(major=version_info.major,
                                                   minor=version_info.minor,
                                                   micro=version_info.micro)
@@ -572,7 +575,7 @@ def train(context, start_pipeline_run, etl_out):
             mlflow.pyfunc.log_model(mlflow_model_root_dir,
                                     loader_module="darts_flavor",
                                     data_path=logs_path_new,
-                                    code_path=['../exceptions.py', '../utils.py', '../inference.py', '../darts_flavor.py'],
+                                    code_path=['exceptions.py', 'utils.py', 'inference.py', 'darts_flavor.py'],
                                     conda_env=mlflow_serve_conda_env)
             # elif model_type == 'pkl':
             #     mlflow.pyfunc.log_model(mlflow_model_root_dir,

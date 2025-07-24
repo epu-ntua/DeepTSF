@@ -1,6 +1,4 @@
 import pretty_errors
-from .utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
-from .exceptions import EvalSeriesNotFound
 from .preprocessing import scale_covariates, split_dataset, split_nans, filtering
 from darts.utils.missing_values import extract_subseries
 import string
@@ -46,6 +44,11 @@ from minio import Minio
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
+import sys
+sys.path.append('..')
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
+from exceptions import EvalSeriesNotFound
+
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
@@ -159,7 +162,7 @@ def log_optuna(study,
         mlflow.pyfunc.log_model(mlflow_model_root_dir,
                             loader_module="darts_flavor",
                             data_path=logs_path_new,
-                            code_path=['../exceptions.py', '../utils.py', '../inference.py', '../darts_flavor.py'],
+                            code_path=['exceptions.py', 'utils.py', 'inference.py', 'darts_flavor.py'],
                             conda_env=mlflow_serve_conda_env)
             
         shutil.rmtree(logs_path_new)
@@ -278,12 +281,37 @@ def log_optuna(study,
     mlflow.log_artifacts(opt_tmpdir, "optuna_results")
 
 def append(x, y):
-    return x.append(y)
+    """
+    Append `y` to `x`, discarding any part of `y` whose timestamps already appear in `x`.
+
+    Parameters
+    ----------
+    x : TimeSeries
+        Leading series.
+    y : TimeSeries
+        Series to append.
+
+    Returns
+    -------
+    TimeSeries
+        `x` followed by the non‑overlapping portion of `y`.
+    """
+    last_ts = x.end_time()              # final timestamp in x
+    if last_ts > y.start_time():
+        y_tail  = y.drop_before(last_ts)    # keeps strictly after last_ts
+    else:
+        y_tail  = y
+
+    # If y had nothing new, just return x (copy so caller can mutate safely)
+    if y_tail.n_timesteps == 0:
+        return x.copy()
+
+    return x.append(y_tail)
 
 def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
              past_covs_csv, past_covs_uri, year_range, resolution,
              darts_model, hyperparams_entrypoint, trial_name, cut_date_val, test_end_date, 
-             cut_date_test, device, forecast_horizon, stride, retrain, scale, 
+             cut_date_test, device, forecast_horizon, m_mase, stride, retrain, scale, 
              scale_covs, multiple, eval_series, mlrun, trial, study, opt_tmpdir, 
              num_workers, eval_method, loss_function, opt_all_results,
              evaluate_all_ts, num_samples, pv_ensemble, format):
@@ -354,6 +382,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                     test_end_date=test_end_date,#check that again
                     model=model,
                     forecast_horizon=forecast_horizon,
+                    m_mase=m_mase,
                     stride=stride,
                     retrain=retrain,
                     multiple=multiple,
@@ -791,6 +820,7 @@ def backtester(model,
                future_covariates=None,
                past_covariates=None,
                path_to_save_backtest=None,
+               m_mase=1,
                num_samples=1,
                pv_ensemble=False,
                resolution="60min"):
@@ -826,11 +856,44 @@ def backtester(model,
                                                              last_points_only=False,
                                                              verbose=False,
                                                              num_samples=num_samples)
+    
+    # with open("/app/dagster_deeptsf/all_series.txt", "w", encoding="utf-8") as fh:
+    #     for i, ts in enumerate(backtest_series_transformed, start=1):
+    #         fh.write(f"# ---- series_{i} ----\n")
+    #         fh.write(ts.pd_dataframe().to_csv(index=True))  # keep timestamps
+    #         fh.write("\n")  # blank line between blocks
+
+    overlap = forecast_horizon - stride          # positive ⇒ overlapping windows
+
+    if overlap > 0:
+        print(
+            f"\nDetected overlap of {overlap} time steps "
+            f"(stride={stride} < forecast_horizon={forecast_horizon}).\n"
+            f"→ This will be treated as forecasting "
+            f"{1+ forecast_horizon - stride} to {forecast_horizon} "
+            f"steps ahead instead of the usual 1 to {forecast_horizon}.\n"
+            f"→ Dropping the first {overlap} time steps of the forecasted time series."
+        )
+
+    elif overlap == 0:
+        # stride and forecast_horizon align perfectly – nothing to do
+        pass
+    else:
+        raise ValueError(
+            f"Stride ({stride}) exceeds forecast_horizon ({forecast_horizon})."
+            "This is not supported for now."
+        )
+
 
     # flatten lists of forecasts due to last_points_only=False
     if isinstance(backtest_series_transformed, list):
         backtest_series_transformed = reduce(
             append, backtest_series_transformed)
+        
+    # Drop the first timesteps equal to the overlap
+    backtest_series_transformed = backtest_series_transformed[overlap:]
+
+    # backtest_series_transformed.pd_dataframe().to_csv("/app/dagster_deeptsf/combined_series.csv", index=True)
 
     # inverse scaling
     if transformer_ts is not None and series is not None:
@@ -850,13 +913,15 @@ def backtester(model,
                                                             inference=False, 
                                                             kW=60, 
                                                             use_saved=True)
-    # Metrix
-    test_series = series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(resolution))
+    # Metrics
+    test_series = series.drop_before(pd.Timestamp(test_start_date) + (overlap - 1) * pd.Timedelta(resolution))
+    # print("test series start", test_series.pd_dataframe().index[0])
+    # print("test series end", test_series.pd_dataframe().index[-1])
+    # print("backtest series start", backtest_series.pd_dataframe().index[0])
+    # print("backtest series end", backtest_series.pd_dataframe().index[-1])
+    # print("insample start", series.drop_after(pd.Timestamp(test_start_date) + overlap * pd.Timedelta(resolution)).pd_dataframe().index[0])
+    # print("insample end", series.drop_after(pd.Timestamp(test_start_date) + overlap * pd.Timedelta(resolution)).pd_dataframe().index[-1])
     metrics = {
-        "mase": mase_darts(
-            test_series,
-            backtest_series,
-            insample=series.drop_after(pd.Timestamp(test_start_date))),
         "mae": mae_darts(
             test_series,
             backtest_series),
@@ -866,21 +931,31 @@ def backtester(model,
         "nrmse_min_max": rmse_darts(
             test_series,
             backtest_series) / (
-            test_series.pd_dataframe().max()[0]- 
-            test_series.pd_dataframe().min()[0]),
+            test_series.pd_dataframe().max().iloc[0]- 
+            test_series.pd_dataframe().min().iloc[0]),
         "nrmse_mean": rmse_darts(
             test_series,
             backtest_series) / (
-            test_series.pd_dataframe().mean()[0])
+            test_series.pd_dataframe().mean().iloc[0])
     }
     if min(test_series.min(axis=1).values()) > 0 and min(backtest_series.min(axis=1).values()) > 0:
         metrics["mape"] = mape_darts(
             test_series,
             backtest_series)
     else:
-        print("\nModel result or validation series not strictly positive. Setting mape to NaN...")
-        logging.info("\nModel result or validation series not strictly positive. Setting mape to NaN...")
+        print("\nModel result or testing series not strictly positive. Setting mape to NaN...")
+        logging.info("\nModel result or testing series not strictly positive. Setting mape to NaN...")
         metrics["mape"] = np.nan
+    try:
+        metrics["mase"] = mase_darts(
+            test_series,
+            backtest_series,
+            insample=series.drop_after(pd.Timestamp(test_start_date) + overlap * pd.Timedelta(resolution)),
+            m = m_mase)
+    except:
+        print("\nSeries is periodical. Setting mase to NaN...")
+        logging.info("\nModel result or testing series not strictly positive. Setting mape to NaN...")
+        metrics["mase"] = np.nan
 
     try:
         metrics["smape"] = smape_darts(
@@ -890,7 +965,6 @@ def backtester(model,
         print("\nSeries not strictly positive. Setting smape to NaN...")
         logging.info("\nSeries not strictly positive. Setting smape to NaN...")
         metrics["smape"] = np.nan
-
     
     for key, value in metrics.items():
         print(key, ': ', value)
@@ -899,7 +973,7 @@ def backtester(model,
 
 
 def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_test, test_end_date,
-             model, forecast_horizon, stride, retrain, multiple, eval_series, cut_date_val, mlrun, 
+             model, forecast_horizon, m_mase, stride, retrain, multiple, eval_series, cut_date_val, mlrun, 
              resolution, eval_method, opt_all_results, evaluate_all_ts, study, num_samples, pv_ensemble, format, mode='remote'):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
@@ -907,6 +981,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     # Argument processing
     stride = none_checker(stride)
     forecast_horizon = int(forecast_horizon)
+    m_mase = int(m_mase)
     stride = int(forecast_horizon) if stride == -1 or stride == None else int(stride)
     retrain = retrain
     multiple = multiple
@@ -994,6 +1069,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                             retrain=retrain,
                                             future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
                                             past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
+                                            m_mase=m_mase,
                                             num_samples=num_samples,
                                             pv_ensemble=pv_ensemble,
                                             resolution=resolution)
@@ -1059,6 +1135,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                         retrain=retrain,
                                         future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
                                         past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
+                                        m_mase=m_mase,
                                         num_samples=num_samples,
                                         pv_ensemble=pv_ensemble,
                                         resolution=resolution)
@@ -1096,6 +1173,7 @@ def optuna_search(context, start_pipeline_run, etl_out):
     eval_series = config.eval_series
     n_trials = config.n_trials
     num_workers = config.num_workers
+    m_mase = config.m_mase
     eval_method = config.eval_method
     loss_function = config.loss_function
     evaluate_all_ts = config.evaluate_all_ts
@@ -1178,7 +1256,7 @@ def optuna_search(context, start_pipeline_run, etl_out):
                 opt_all_results = None
             study.optimize(lambda trial: objective(series_csv, series_uri, future_covs_csv, future_covs_uri, past_covs_csv, past_covs_uri, year_range, resolution,
                         darts_model, hyperparams_entrypoint, trial_name, cut_date_val, test_end_date, cut_date_test, device,
-                        forecast_horizon, stride, retrain, scale, scale_covs,
+                        forecast_horizon, m_mase, stride, retrain, scale, scale_covs,
                         multiple, eval_series, mlrun, trial, study, opt_tmpdir, num_workers, eval_method, 
                         loss_function, opt_all_results, evaluate_all_ts, num_samples, pv_ensemble, format),
                         n_trials=n_trials, n_jobs = 1)

@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: "{{ .Release.Name }}-deeptsf-redis"
+  labels:
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 6379
+      protocol: TCP
+      targetPort: 6379
+  selector:
+    app: {{ .Values.redis.service.name }}
+    release: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.redis.service.name }}
+  labels:
+    app: {{ .Values.redis.service.name }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.redis.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.redis.service.name }}
+      release: {{ .Release.Name }} 
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.redis.service.name }}
+        release: {{ .Release.Name }}
+    spec:
+      imagePullSecrets: 
+      - name: {{ .Release.Name }}-image-pull-secret
+      containers:
+      - name: deeptsf-redis
+        image: "{{ .Values.redis.image.repository }}:{{ .Values.env.VERSION }}"
+        imagePullPolicy: Always
+        resources:
+          limits:
+            memory: {{ .Values.redis.memory_limit | quote }}
+        # envFrom:
+        # - configMapRef:
+        #     name: {{ .Release.Name }}-{{ .Values.redis.service.name }}-cm
+        env:
+        - name: VERSION
+          value: {{ required "VERSION environment variable is required" .Values.env.VERSION | quote }}
+        ports:
+        - containerPort: 6379

@@ -62,7 +62,7 @@ class DeepTSFConfig(ConfigurableResource):
     rmv_outliers: bool = True
     loss_function: str = "mape"
     evaluate_all_ts: bool = True
-    convert_to_local_tz: bool = True
+    convert_to_local_tz: bool = False
     grid_search: bool = False
     shap_input_length: int = -1
     ts_used_id: str = "None"
@@ -166,4 +166,6 @@ def deepTSF_pipeline():
 
 deeptsf_dagster_job = define_asset_job("deeptsf_dagster_job", selection=[deepTSF_pipeline])
 
-# basic_schedule = ScheduleDefinition(job=uc2_mlflow_cli_job, cron_schedule="0 0 * * *")
+# basic_schedule = ScheduleDefinition(job=deeptsf_dagster_job, 
+#                                     cron_schedule="0 0 * * *",
+#                                     run_config=DeepTSFConfig())

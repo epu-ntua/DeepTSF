@@ -1,11 +1,11 @@
 import sys
 sys.path.append('..')
 import pretty_errors
-from .utils import none_checker
+from utils import none_checker
 import os
 from os import times
-from .utils import download_online_file, truth_checker, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
-from .utils import plot_imputation, plot_removed, get_weather_covariates, to_seconds
+from utils import download_online_file, truth_checker, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
+from utils import plot_imputation, plot_removed, get_weather_covariates, to_seconds
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 import darts
 from darts.utils.timeseries_generation import holidays_timeseries
@@ -19,7 +19,7 @@ import shutil
 import logging
 from darts.dataprocessing.transformers import MissingValuesFiller
 import tempfile
-from .exceptions import CountryDoesNotExist, NoUpsamplingException, TsUsedIdDoesNotExcist
+from exceptions import CountryDoesNotExist, NoUpsamplingException, TsUsedIdDoesNotExcist, EndsBeforeValException, HasNansAfterValException
 import holidays
 from calendar import isleap
 from pytz import timezone
@@ -227,6 +227,30 @@ def cut_extra_samples(ts_list):
         logging.info(f"\nMaking series {i} \\ {len(ts_list) - 1} start on {latest_beginning} and end on {earliest_end}...")
         ts_list_cut.append(list(comp[(comp.index <= earliest_end) & (comp.index >= latest_beginning)] for comp in ts))
     return ts_list_cut
+
+def ends_before_cut_date_val(s: pd.Series, cut_date_val) -> bool:
+        after_mask = s.index >= cut_date_val
+        return not after_mask.any()
+
+def has_nans_after_cut_date_val(s: pd.Series, cut_date_val) -> bool:
+        after_mask = s.index >= cut_date_val
+        return s.loc[after_mask]['Value'].isna().any()
+
+def first_na(s: pd.Series, cut_date_val) -> bool:
+        after_mask = s.index >= cut_date_val
+        return s.loc[after_mask]['Value'].isna().idxmax()
+
+def check_dataset_after_cut_date_val(ts_list, id_l, ts_id_l, cut_date_val, type):
+    print("\nMaking sure all components of each ts end after cut_date_val and have no nan values after that...")
+    logging.info("\nnMaking sure all components of each ts end after cut_date_val and have no nan values after that...")
+    cut_date_val = pd.to_datetime(cut_date_val, format='%Y%m%d')
+    for i, ts in enumerate(ts_list):
+        for comp_i, comp in enumerate(ts):
+            if ends_before_cut_date_val(comp, cut_date_val):
+                raise EndsBeforeValException(id_l[i][comp_i], ts_id_l[i][comp_i], comp.index[-1], cut_date_val, type)
+            if has_nans_after_cut_date_val(comp, cut_date_val):
+                raise HasNansAfterValException(id_l[i][comp_i], ts_id_l[i][comp_i], first_na(comp, cut_date_val), cut_date_val, type)
+
 
 def remove_outliers(ts: pd.DataFrame,
                     name: str = "Portugal",
@@ -657,7 +681,7 @@ def save_consecutive_nans(ts, resolution, tmpdir, name):
     """
     output = "Consecutive nans left in df:\n"
     null_dates = ts[ts["Value"].isnull()].index
-    prev = null_dates[0]
+    null_date = prev = null_dates[0]
     output = output + str(prev) + " - "
     for null_date in null_dates[1:]:
         if (null_date - prev)!= pd.Timedelta(resolution):
@@ -800,10 +824,8 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
     future_covs_uri = load_raw_data_out["future_covs_uri"]
     series_uri = load_raw_data_out["series_uri"]
 
-
     config = context.resources.config
     series_csv = config.series_csv
-    series_uri = config.series_uri
     year_range = config.year_range
     resolution = config.resolution
     time_covs = config.time_covs
@@ -822,10 +844,9 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
     ts_used_id = config.ts_used_id
     min_non_nan_interval = config.min_non_nan_interval
     cut_date_val = config.cut_date_val
+    cut_date_test = config.cut_date_test
     past_covs_csv = config.past_covs_csv
-    past_covs_uri = config.past_covs_uri
     future_covs_csv = config.future_covs_csv
-    future_covs_uri = config.future_covs_uri
     resampling_agg_method = config.resampling_agg_method
     format = config.format
     experiment_name = config.experiment_name
@@ -1099,6 +1120,13 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
                     res_[-1].append(comp_res)
             if multiple:
                 res_ = cut_extra_samples(res_)
+
+            check_dataset_after_cut_date_val(res_, id_l, ts_id_l, cut_date_val, "Target")
+            if past_covs_csv != None:
+                check_dataset_after_cut_date_val(res_past, id_l_past_covs, ts_id_l_past_covs, cut_date_val, "Past covariates")
+            if future_covs_csv != None:
+                check_dataset_after_cut_date_val(res_future, id_l_future_covs, ts_id_l_future_covs, cut_date_val, "Future covariates")
+
             print("\nCreating local folder to store the datasets as csv...")
             logging.info("\nCreating local folder to store the datasets as csv...")
             if not multiple:
