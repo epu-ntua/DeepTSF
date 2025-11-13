@@ -1233,17 +1233,15 @@ def optuna_search(context, start_pipeline_run, etl_out):
     mlflow.set_experiment(experiment_name)
     with mlflow.start_run(tags={"mlflow.runName": parent_run_name}, run_id=start_pipeline_run) as parent_run:
         with mlflow.start_run(tags={"mlflow.runName": f'optuna_test_{darts_model}'}, nested=True) as mlrun:
-        local_db = "memory.db"
+            local_db = "memory.db"
 
-        if not os.path.exists(local_db):
-            try:
-                if not os.path.exists(os.path.dirname(local_db)):
-                    download_online_file(client, f'dagster-storage/dagster-data/memory.db', dst_dir='.', bucket_name='dagster-storage')
-                    print(f"[optuna] Downloaded memory.db")
-            except ClientError as e:
-                print(f"[optuna] No existing memory.db found in S3 ({e}). Starting fresh.")
-            except Exception as e:
-                print(f"[optuna] Error downloading from S3: {e}. Starting fresh.")
+            if not os.path.exists(local_db):
+                try:
+                    if not os.path.exists(os.path.dirname(local_db)):
+                        download_online_file(client, f'dagster-storage/dagster-data/memory.db', dst_dir='.', bucket_name='dagster-storage')
+                        print(f"[optuna] Downloaded memory.db")
+                except Exception as e:
+                    print(f"[optuna] Error downloading from S3: {e}. Starting fresh.")
                     
             if grid_search:
                 # hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
