@@ -13,6 +13,7 @@ from darts.models import (
 )
 # the following are used through eval(darts_model + 'Model')
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
+from darts_mlp.models import MLPModel
 from darts.models.forecasting.arima import ARIMA
 # from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.lgbm import LightGBMModel
@@ -107,7 +108,7 @@ def log_optuna(study,
         mlflow.log_artifacts(opt_all_results, "optuna_val_results_all_timeseries")
     
     if log_model and (len(study.trials_dataframe()[study.trials_dataframe()["state"] == "COMPLETE"]) < 1 or study.best_trial.values[0] >= curr_loss):
-        if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
+        if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer', 'MLP']:
             logs_path = f"./darts_logs/{mlrun.info.run_id}"
             model_type = "pl"
         elif darts_model in ['LightGBM', 'RandomForest', 'ARIMA']:
@@ -479,7 +480,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     ## model
     # TODO: Take care of future covariates (RNN, ...) / past covariates (BlockRNN, NBEATS, ...)
-    if darts_model in ["NBEATS", "BlockRNN", "TCN", "NHiTS", "Transformer"]:
+    if darts_model in ["NBEATS", "BlockRNN", "TCN", "NHiTS", "Transformer", "MLP"]:
         """They do not accept future covariates as they predict blocks all together.
         They won't use initial forecasted values to predict the rest of the block
         So they won't need to additionally feed future covariates during the recurrent process.
@@ -711,7 +712,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     
 
     ## choose architecture
-    if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'NHiTS', 'Transformer']:
+    if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'NHiTS', 'Transformer', 'MLP']:
         hparams_to_log = hyperparameters
         if 'learning_rate' in hyperparameters:
             hyperparameters['optimizer_kwargs'] = {'lr': hyperparameters['learning_rate']}
