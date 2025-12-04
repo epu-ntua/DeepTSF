@@ -419,7 +419,7 @@ if USE_AUTH == "jwt":
                 key="session_token",
                 value=response_api.json().get("access_token"),
                 httponly=True,
-                domain=".deeptsf" + host,   # or ".dev.aiodp.ai" if you want to scope to that env
+                domain=host,   # or ".dev.aiodp.ai" if you want to scope to that env
                 path="/",
                 secure=True,          # you’re on HTTPS
                 samesite="Lax",       # or "None" if you ever need true cross-site usage
@@ -453,7 +453,7 @@ if USE_AUTH == "jwt":
                 key="session_token",
                 value=request.jwt,
                 httponly=True,
-                domain=".deeptsf" + host,   # or ".dev.aiodp.ai" if you want to scope to that env
+                domain=host,   # or ".dev.aiodp.ai" if you want to scope to that env
                 path="/",
                 secure=True,          # you’re on HTTPS
                 samesite="Lax",       # or "None" if you ever need true cross-site usage
@@ -657,7 +657,7 @@ if USE_AUTH == "jwt":
                 key="session_token",
                 value=session_token,
                 httponly=True,
-                domain=".deeptsf" + host,   # or ".dev.aiodp.ai" if you want to scope to that env
+                domain=host,   # or ".dev.aiodp.ai" if you want to scope to that env
                 path="/",
                 secure=True,          # you’re on HTTPS
                 samesite="Lax",       # or "None" if you ever need true cross-site usage
