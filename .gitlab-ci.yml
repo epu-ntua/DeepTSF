@@ -99,7 +99,7 @@ deploy-stage:
     - echo "Deploying to Rancher using Helm..."
     - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set env.host=.stage.aiodp.ai --set env.marketplace=platform.aiodp.ai --set env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set env.MINIO_SSL=${MINIO_SSL} --set env.MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} --set env.MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL} --set env.MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY} --set env.MINIO_SECRET_KEY=${MINIO_SECRET_KEY} --set env.USE_AUTH=${USE_AUTH} --set env.KEYCLOAK_ID=${KEYCLOAK_ID} --set env.KEYCLOAK_SECRET=${KEYCLOAK_SECRET} --set env.TOKEN_ISSUER_URL=${TOKEN_ISSUER_URL} --set env.PYTHONUNBUFFERED=${PYTHONUNBUFFERED} --set env.CELERYD_HIJACK_ROOT_LOGGER=${CELERYD_HIJACK_ROOT_LOGGER} --set env.CELERY_BROKER_URL=${CELERY_BROKER_URL} --set env.CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND} --set env.POSTGRES_USER=${POSTGRES_USER} --set env.POSTGRES_DATABASE=${POSTGRES_DATABASE} --set env.POSTGRES_PASSWORD=${POSTGRES_PASSWORD} --set env.POSTGRES_HOST=${POSTGRES_HOST} --set env.VERSION=${VERSION} --set commitHash=${CI_COMMIT_SHA}
   only:
-    - no
+    - main
   tags:
     - shared
   environment:
@@ -119,7 +119,7 @@ deploy-prod:
     - echo "Deploying to Rancher using Helm..."
     - helm upgrade --install deeptsf-backend ./helm-chart -f helm-chart/values.yaml --namespace iccs --set storageClassName=longhorn --set registry.password=${HARBOR_ROBOT_PASSWORD} --set registry.username=${HARBOR_ROBOT_USER} --set registry.registry=${HARBOR_HOST} --set env.host=.aiodp.ai --set env.marketplace=platform.aiodp.ai --set env.AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} --set env.AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} --set env.MINIO_CLIENT_URL=${MINIO_CLIENT_URL} --set env.MINIO_SSL=${MINIO_SSL} --set env.MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} --set env.MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL} --set env.MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY} --set env.MINIO_SECRET_KEY=${MINIO_SECRET_KEY} --set env.USE_AUTH=${USE_AUTH} --set env.KEYCLOAK_ID=${KEYCLOAK_ID} --set env.KEYCLOAK_SECRET=${KEYCLOAK_SECRET} --set env.TOKEN_ISSUER_URL=${TOKEN_ISSUER_URL} --set env.PYTHONUNBUFFERED=${PYTHONUNBUFFERED} --set env.CELERYD_HIJACK_ROOT_LOGGER=${CELERYD_HIJACK_ROOT_LOGGER} --set env.CELERY_BROKER_URL=${CELERY_BROKER_URL} --set env.CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND} --set env.POSTGRES_USER=${POSTGRES_USER} --set env.POSTGRES_DATABASE=${POSTGRES_DATABASE} --set env.POSTGRES_PASSWORD=${POSTGRES_PASSWORD} --set env.POSTGRES_HOST=${POSTGRES_HOST} --set env.VERSION=${VERSION} --set commitHash=${CI_COMMIT_SHA}
   only:
-    - no
+    - main
   tags:
     - shared
   environment:
