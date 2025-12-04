@@ -59,6 +59,7 @@ mongo_collection_uc6 = os.environ.get('MONGO_COLLECTION_UC6')
 mongo_url = f"mongodb://{user}:{password}@{address}"
 
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
+host = os.environ.get('host')
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
@@ -153,9 +154,7 @@ if USE_AUTH == "keycloak":
     )
 
 elif USE_AUTH == "jwt":
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[
+    ORIGINS = [
             "https://deeptsf-backend.aiodp.ai",
             "https://deeptsf.aiodp.ai", 
             "https://deeptsf-dagster.stage.aiodp.ai",
@@ -164,7 +163,10 @@ elif USE_AUTH == "jwt":
             "https://deeptsf.dev.aiodp.ai",
             "https://marketplace.aiodp.ai",
             "https://platform.aiodp.ai"
-        ],
+        ]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ORIGINS,
         # allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
@@ -377,6 +379,13 @@ def csv_validator(fname: str, multiple: bool, allow_empty_series=False, format='
     return ts, resolutions
 
 if USE_AUTH == "jwt":
+    def _get_cors_origin(request: Request) -> str:
+        origin = request.headers.get("Origin")
+        if origin in ORIGINS:
+            return origin
+        # fallback: pick first allowed origin or omit header
+        return ORIGINS[0]
+
     # This is used from VC
     @app.post("/login", dependencies=[])
     async def login(request: Request):
@@ -405,11 +414,17 @@ if USE_AUTH == "jwt":
     
         response_api = requests.post(url, headers=headers, data=payload)
     
-        if response_api.status_code == 200:
+        if response_api.status_code == 200:            
             response.set_cookie(
                 key="session_token",
                 value=response_api.json().get("access_token"),
-                httponly=True)
+                httponly=True,
+                domain=".deeptsf" + host,   # or ".dev.aiodp.ai" if you want to scope to that env
+                path="/",
+                secure=True,          # you’re on HTTPS
+                samesite="Lax",       # or "None" if you ever need true cross-site usage
+            )
+
             return {"message": "Login successful", "token": response_api.json().get("access_token")}
         else:
             raise HTTPException(status_code=response_api.status_code, detail="Login failed")
@@ -437,7 +452,12 @@ if USE_AUTH == "jwt":
         response.set_cookie(
                 key="session_token",
                 value=request.jwt,
-                httponly=True)
+                httponly=True,
+                domain=".deeptsf" + host,   # or ".dev.aiodp.ai" if you want to scope to that env
+                path="/",
+                secure=True,          # you’re on HTTPS
+                samesite="Lax",       # or "None" if you ever need true cross-site usage
+            )
         return {"message": "Login successful", "token": request.jwt}
 
 
@@ -568,22 +588,24 @@ if USE_AUTH == "jwt":
     # Add error handlers for common cases
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
+        origin = _get_cors_origin(request)
         return JSONResponse(
             status_code=exc.status_code,
             content={"detail": exc.detail},
             headers={
-                "Access-Control-Allow-Origin": request.headers.get("Origin", origins[0]),
+                "Access-Control-Allow-Origin": request.headers.get("Origin", origin),
                 "Access-Control-Allow-Credentials": "false"
             }
         )
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
+        origin = _get_cors_origin(request)
         return JSONResponse(
             status_code=500,
             content={"detail": "Internal server error"},
             headers={
-                "Access-Control-Allow-Origin": request.headers.get("Origin", origins[0]),
+                "Access-Control-Allow-Origin": request.headers.get("Origin", origin),
                 "Access-Control-Allow-Credentials": "false"
             }
         )
@@ -631,7 +653,15 @@ if USE_AUTH == "jwt":
             session_token = request.jwt
     
             # Set the session token as a cookie
-            response.set_cookie(key="session_token", value=session_token, httponly=True)
+            response.set_cookie(
+                key="session_token",
+                value=session_token,
+                httponly=True,
+                domain=".deeptsf" + host,   # or ".dev.aiodp.ai" if you want to scope to that env
+                path="/",
+                secure=True,          # you’re on HTTPS
+                samesite="Lax",       # or "None" if you ever need true cross-site usage
+            )
     
             # Respond with the login URL and user information
             login_url = f"https://deeptsf.aiodp.ai/?jwt={session_token}"
