@@ -91,7 +91,7 @@ S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 
 def start_pipeline_run(context):
     config = context.resources.config
-    tenant = context.config.tenant
+    tenant = config.tenant
     mlflow_uri = f"http://{tenant}-mlflow:5000"
     mlflow.set_tracking_uri(mlflow_uri)
 
@@ -178,7 +178,7 @@ def start_pipeline_run(context):
 
 def training_and_hyperparameter_tuning_asset(context, start_pipeline_run, etl_out):
     config = context.resources.config
-    tenant = context.config.tenant
+    tenant = config.tenant
     mlflow_uri = f"http://{tenant}-mlflow:5000"
     mlflow.set_tracking_uri(mlflow_uri)
     opt_test = config.opt_test

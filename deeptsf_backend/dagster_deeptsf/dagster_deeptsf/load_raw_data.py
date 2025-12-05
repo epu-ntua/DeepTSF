@@ -498,7 +498,7 @@ def load_data_to_csv(tmpdir, database_name):
 def load_raw_data_asset(context, start_pipeline_run):
     config = context.resources.config
     # Use config parameters in the asset logic
-    tenant = context.config.tenant
+    tenant = config.tenant
     mlflow_uri = f"http://{tenant}-mlflow:5000"
     mlflow.set_tracking_uri(mlflow_uri)
 

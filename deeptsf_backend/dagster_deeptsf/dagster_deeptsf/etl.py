@@ -824,7 +824,7 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
     future_covs_uri = load_raw_data_out["future_covs_uri"]
     series_uri = load_raw_data_out["series_uri"]
 
-    tenant = context.config.tenant
+    tenant = config.tenant
     mlflow_uri = f"http://{tenant}-mlflow:5000"
     mlflow.set_tracking_uri(mlflow_uri)
 
