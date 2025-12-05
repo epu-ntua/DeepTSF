@@ -726,6 +726,10 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
     test_end_date = training_and_hyperparameter_tuning_out["test_end_date"]
 
     config = context.resources.config
+    tenant = context.config.tenant
+    mlflow_uri = f"http://{tenant}-mlflow:5000"
+    mlflow.set_tracking_uri(mlflow_uri)
+
     #TODO Maybe remove mode?
     mode = 'remote'
     forecast_horizon = config.forecast_horizon

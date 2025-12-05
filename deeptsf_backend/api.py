@@ -98,6 +98,23 @@ metrics = [
     {"metric_name": "nrmse_max", "search_term": "nrmse_max"},
     {"metric_name": "nrmse_mean", "search_term": "nrmse_mean"}]
 
+# Very simple mapping for now – extend as needed
+EMAIL_TENANT_MAP: Dict[str, str] = {
+    "tpountridis@epu.ntua.gr": "iccs",
+}
+
+DEFAULT_TENANT = "default"
+
+
+def email_to_tenant(email: str) -> str:
+    """
+    Map a user email to a tenant string.
+    Falls back to DEFAULT_TENANT if not found.
+    """
+    if not email:
+        return DEFAULT_TENANT
+    return EMAIL_TENANT_MAP.get(email.lower(), DEFAULT_TENANT)
+
 class DateLimits(int, Enum):
     """This function will read the uploaded csv before running the pipeline and will decide which are the allowed values
     for: validation_start_date < test_start_date < test_end_date """
@@ -1108,7 +1125,7 @@ def mlflow_run(params: dict, experiment_name: str, uc: str = "2"):
             )
 
 @scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
-async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks):
+async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks, request: Request):
     if parameters["evaluate_all_ts"] == None:
         parameters["evaluate_all_ts"] = False
     for key, value in parameters.items():
@@ -1138,6 +1155,20 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
         parameters["series_csv"] = parameters["series_csv"].split("/")[-1]
     except:
         pass
+
+    try:
+        # If you already have middleware populating request.state.user:
+        # user = request.state.user
+        # Or, if you use the helper you showed earlier:
+        user = get_current_user(request)  # <- uses session_token cookie / JWT
+
+        user_email = user.get("email")
+    except Exception:
+        user = {}
+        user_email = None
+
+    tenant = email_to_tenant(user_email)
+
 
     run_config = {
         "resources": {
@@ -1173,6 +1204,7 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
                     "series_uri": "None",
                     "shap_data_size": 100,
                     "shap_input_length": -1,
+                    "tenant": tenant,
                     "std_dev": 4.5,
                     "stride": -1,
                     "time_covs": False,

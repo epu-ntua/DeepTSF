@@ -105,6 +105,11 @@ def train(context, start_pipeline_run, etl_out):
     experiment_name = config.experiment_name
     parent_run_name = config.parent_run_name if none_checker(config.parent_run_name) != None else darts_model + '_pipeline'
 
+    tenant = context.config.tenant
+    mlflow_uri = f"http://{tenant}-mlflow:5000"
+    mlflow.set_tracking_uri(mlflow_uri)
+
+
     parameters_dict = {
         "past_covs_uri": past_covs_uri,
         "future_covs_uri": future_covs_uri,

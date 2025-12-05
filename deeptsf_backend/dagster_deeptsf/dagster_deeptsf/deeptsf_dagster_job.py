@@ -58,6 +58,7 @@ class DeepTSFConfig(ConfigurableResource):
     num_workers: int = 4
     eval_method: str = "ts_ID"
     imputation_method: str = "linear"
+    tenant: str = "default"
     order: int = 1
     rmv_outliers: bool = True
     loss_function: str = "mape"
@@ -99,6 +100,7 @@ class DeepTSFConfig(ConfigurableResource):
             "scale": self.scale,
             "scale_covs": self.scale_covs,
             "country": self.country,
+            "tenant" : self.tenant,
             "std_dev": self.std_dev,
             "max_thr": self.max_thr,
             "a": self.a,
