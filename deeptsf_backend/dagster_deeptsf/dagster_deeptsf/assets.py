@@ -152,13 +152,13 @@ def start_pipeline_run(context):
             )
 
     if none_checker(series_csv):
-        download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name=tenant)
+        download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
 
     if none_checker(future_covs_csv):
-        download_online_file(client, f'dataset-storage/{future_covs_csv}', dst_dir='dataset-storage', bucket_name=tenant)
+        download_online_file(client, f'dataset-storage/{future_covs_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
 
     if none_checker(past_covs_csv):
-        download_online_file(client, f'dataset-storage/{past_covs_csv}', dst_dir='dataset-storage', bucket_name=tenant)
+        download_online_file(client, f'dataset-storage/{past_covs_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
 
 
     mlflow.set_experiment(experiment_name)
