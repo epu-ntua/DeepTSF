@@ -630,30 +630,30 @@ if USE_AUTH == "jwt":
             await websocket.close(code=4003)
             raise WebSocketDisconnect(code=4003)
 
-    # # Add error handlers for common cases
-    # @app.exception_handler(HTTPException)
-    # async def http_exception_handler(request: Request, exc: HTTPException):
-    #     origin = _get_cors_origin(request)
-    #     return JSONResponse(
-    #         status_code=exc.status_code,
-    #         content={"detail": exc.detail},
-    #         headers={
-    #             "Access-Control-Allow-Origin": request.headers.get("Origin", origin),
-    #             "Access-Control-Allow-Credentials": "false"
-    #         }
-    #     )
+    # Add error handlers for common cases
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        origin = _get_cors_origin(request)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("Origin", origin),
+                "Access-Control-Allow-Credentials": "false"
+            }
+        )
 
-    # @app.exception_handler(Exception)
-    # async def general_exception_handler(request: Request, exc: Exception):
-    #     origin = _get_cors_origin(request)
-    #     return JSONResponse(
-    #         status_code=500,
-    #         content={"detail": "Internal server error"},
-    #         headers={
-    #             "Access-Control-Allow-Origin": request.headers.get("Origin", origin),
-    #             "Access-Control-Allow-Credentials": "false"
-    #         }
-    #     )
+    @app.exception_handler(Exception)
+    async def general_exception_handler(request: Request, exc: Exception):
+        origin = _get_cors_origin(request)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("Origin", origin),
+                "Access-Control-Allow-Credentials": "false"
+            }
+        )
 
     # Utility function to get the current user from the session token
     def get_current_user(request: Request):
@@ -1318,36 +1318,56 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     return {"message": "Experimentation pipeline initiated. Proceed to MLflow for details..."}
 
 
+import traceback
+
 @engineer_router.get('/results/get_list_of_experiments', tags=['MLflow Info', 'Model Evaluation'])
 async def get_list_of_mlflow_experiments(request: Request):
     """
     Get list of MLflow experiments via REST API.
     """
     url = f"{MLFLOW_API_BASE}/mlflow/experiments/list"
+    print(f"[DEBUG] Calling MLflow list experiments at: {url}")
 
-    # try:
-    #     resp = requests.get(url, headers=_mlflow_headers(request), timeout=10)
-    #     resp.raise_for_status()
-    # except requests.RequestException as e:
-    #     raise HTTPException(
-    #         status_code=502,
-    #         detail=f"Failed to contact MLflow tracking server: {e}"
-    #     )
-    resp = requests.get(url, headers=_mlflow_headers(request), timeout=10)
-    # resp.raise_for_status()
+    try:
+        # Inner try: only the HTTP call to MLflow
+        try:
+            resp = requests.get(url, headers=_mlflow_headers(request), timeout=10)
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            print("[ERROR] Failed to contact MLflow tracking server:")
+            print(e)  # plain error
+            traceback.print_exc()  # full stacktrace
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to contact MLflow tracking server: {e}"
+            )
 
+        # Normal path
+        data = resp.json()
+        experiments = data.get("experiments", []) or []
 
-    data = resp.json()
-    experiments = data.get("experiments", []) or []
+        experiments_response = [
+            {
+                "experiment_name": exp.get("name"),
+                "experiment_id": exp.get("experiment_id"),
+            }
+            for exp in experiments
+        ]
+        print(f"[DEBUG] Retrieved {len(experiments_response)} experiments from MLflow")
+        return experiments_response
 
-    experiments_response = [
-        {
-            "experiment_name": exp.get("name"),
-            "experiment_id": exp.get("experiment_id"),
-        }
-        for exp in experiments
-    ]
-    return experiments_response
+    except HTTPException:
+        # Re-raise HTTPExceptions so FastAPI handles them as-is
+        raise
+    except Exception as e:
+        # Outer catch-all: anything else that blows up in this handler
+        print("[ERROR] Unexpected error in get_list_of_mlflow_experiments:")
+        print(e)
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error in get_list_of_mlflow_experiments"
+        )
 
 
 @engineer_router.get(
@@ -1422,7 +1442,6 @@ async def get_metric_list(run_id: str, request: Request):
     Return list of metrics for a given run via MLflow REST API.
     """
     url = f"{MLFLOW_API_BASE}/mlflow/runs/get"
-    print(url)
 
     try:
         resp = requests.get(
