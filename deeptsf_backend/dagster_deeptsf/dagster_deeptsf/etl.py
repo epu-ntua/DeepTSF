@@ -1177,9 +1177,9 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
             
         completed_run = mlflow.tracking.MlflowClient().get_run(curr_run_id)
 
-        series_uri =  completed_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
-        past_covs_uri =  completed_run.data.tags["past_covs_uri"].replace("s3:/", S3_ENDPOINT_URL)
-        future_covs_uri =  completed_run.data.tags["future_covs_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        series_uri =  completed_run.data.tags["series_uri"].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
+        past_covs_uri =  completed_run.data.tags["past_covs_uri"].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
+        future_covs_uri =  completed_run.data.tags["future_covs_uri"].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
 
         return Output({"series_uri": series_uri,
                        "past_covs_uri": past_covs_uri,

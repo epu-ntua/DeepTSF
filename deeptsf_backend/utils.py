@@ -280,8 +280,8 @@ def download_mlflow_file(client, url, dst_dir=None, bucket_name='def'):
         dst_dir = tempfile.mkdtemp()
     else:
         os.makedirs(dst_dir, exist_ok=True)
-    if url.startswith('s3://' + bucket_name + '/'):
-        url = url.replace("s3:/", S3_ENDPOINT_URL)
+    if url.startswith('mlflow-artifacts:'):
+        url = url.replace("mlflow-artifacts:", S3_ENDPOINT_URL  + '/' + bucket_name)
         local_path = download_online_file(
             client, url, dst_dir=dst_dir, bucket_name=bucket_name)
     elif url.startswith('runs:/'):
@@ -1363,7 +1363,7 @@ def parse_uri_prediction_input(client,
 
     batch_size =model_input["batch_size"]
 
-    if type(series) == str and ('runs:/' in series or 's3://' + bucket_name + '/' in series or series.startswith('http://')):
+    if type(series) == str and ('runs:/' in series or 'mlflow-artifacts:/' in series or series.startswith('http://')):
         print('\nDownloading remote file of recent time series history...')
         series = download_mlflow_file(client, series, bucket_name=bucket_name)
 

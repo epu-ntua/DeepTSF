@@ -220,15 +220,15 @@ def training_and_hyperparameter_tuning_asset(context, start_pipeline_run, etl_ou
                     "test_end_date": None,
                 })
 
-        model_uri = completed_run.data.tags["model_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        model_uri = completed_run.data.tags["model_uri"].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
         model_type = completed_run.data.tags["model_type"]
-        series_uri = completed_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
-        future_covariates_uri = completed_run.data.tags["future_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
-        past_covariates_uri = completed_run.data.tags["past_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
-        scaler_uri = completed_run.data.tags["scaler_uri"].replace("s3:/", S3_ENDPOINT_URL)
-        setup_uri = completed_run.data.tags["setup_uri"].replace("s3:/", S3_ENDPOINT_URL)
-        scaler_past_covariates_uri = completed_run.data.tags["scaler_past_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
-        scaler_future_covariates_uri = completed_run.data.tags["scaler_future_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        series_uri = completed_run.data.tags["series_uri"].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
+        future_covariates_uri = completed_run.data.tags["future_covariates_uri"].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
+        past_covariates_uri = completed_run.data.tags["past_covariates_uri"].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
+        scaler_uri = completed_run.data.tags["scaler_uri"].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
+        setup_uri = completed_run.data.tags["setup_uri"].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
+        scaler_past_covariates_uri = completed_run.data.tags["scaler_past_covariates_uri"].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
+        scaler_future_covariates_uri = completed_run.data.tags["scaler_future_covariates_uri"].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
 
         setup_file = download_online_file(
             client, setup_uri, "setup.yml", bucket_name=tenant)

@@ -639,13 +639,13 @@ def load_raw_data_asset(context, start_pipeline_run):
             
         completed_run = mlflow.tracking.MlflowClient().get_run(curr_run_id)
 
-        load_data_series_uri = completed_run.data.tags['dataset_uri'].replace("s3:/", S3_ENDPOINT_URL)
+        load_data_series_uri = completed_run.data.tags['dataset_uri'].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
         infered_resolution_series = completed_run.data.tags['infered_resolution_series']
 
-        load_data_past_covs_uri = completed_run.data.tags['past_covs_uri'].replace("s3:/", S3_ENDPOINT_URL)
+        load_data_past_covs_uri = completed_run.data.tags['past_covs_uri'].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
         infered_resolution_past = completed_run.data.tags['infered_resolution_past']
 
-        load_data_future_covs_uri = completed_run.data.tags['future_covs_uri'].replace("s3:/", S3_ENDPOINT_URL)
+        load_data_future_covs_uri = completed_run.data.tags['future_covs_uri'].replace("mlflow-artifacts:", S3_ENDPOINT_URL + "/" + tenant)
         infered_resolution_future = completed_run.data.tags['infered_resolution_future']
 
         return Output({"infered_resolution_series": infered_resolution_series,
