@@ -169,13 +169,13 @@ def train(context, start_pipeline_run, etl_out):
 
     # redirect to local location of downloaded remote file
     if series_uri is not None:
-        download_file_path = download_online_file(client, series_uri, dst_filename="load.csv")
+        download_file_path = download_online_file(client, series_uri, dst_filename="load.csv", bucket_name=tenant)
         series_csv = download_file_path
     if  future_covs_uri is not None:
-        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future.csv")
+        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future.csv", bucket_name=tenant)
         future_covs_csv = download_file_path
     if  past_covs_uri is not None:
-        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past.csv")
+        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past.csv", bucket_name=tenant)
         past_covs_csv = download_file_path
 
     series_csv = series_csv.replace('/', os.path.sep).replace("'", "")

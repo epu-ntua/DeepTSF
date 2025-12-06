@@ -783,7 +783,7 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
 
     ## load series from MLflow
     series_path = download_online_file(
-        client, series_uri, "series.csv") if mode == 'remote' else series_uri
+        client, series_uri, "series.csv", bucket_name=tenant) if mode == 'remote' else series_uri
     series, id_l, ts_id_l = load_local_csv_or_df_as_darts_timeseries(
         local_path_or_df=series_path,
         last_date=test_end_date,
@@ -825,7 +825,7 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
 
     if future_covariates_uri is not None:
         future_covs_path = download_online_file(
-            client, future_covariates_uri, "future_covariates.csv") if mode == 'remote' else future_covariates_uri
+            client, future_covariates_uri, "future_covariates.csv", bucket_name=tenant) if mode == 'remote' else future_covariates_uri
         future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_or_df_as_darts_timeseries(
             local_path_or_df=future_covs_path,
             last_date=test_end_date,
@@ -837,7 +837,7 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
 
     if past_covariates_uri is not None:
         past_covs_path = download_online_file(
-            client, past_covariates_uri, "past_covariates.csv") if mode == 'remote' else past_covariates_uri
+            client, past_covariates_uri, "past_covariates.csv", bucket_name=tenant) if mode == 'remote' else past_covariates_uri
         past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_or_df_as_darts_timeseries(
             local_path_or_df=past_covs_path,
             last_date=test_end_date,
@@ -849,7 +849,7 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
 
     # TODO: Also implement for local files -> Done?
     ## load model from MLflow
-    model = load_model(client, model_uri, mode)
+    model = load_model(client, model_uri, mode, bucket_name=tenant)
     scaler = load_scaler(scaler_uri=none_checker(scaler_uri), mode=mode)
     scaler_future_covariates = load_scaler(scaler_uri=none_checker(scaler_future_covariates_uri), mode=mode)
     scaler_past_covariates = load_scaler(scaler_uri=none_checker(scaler_past_covariates_uri), mode=mode)

@@ -85,7 +85,7 @@ class _MLflowPLDartsModelWrapper:
             batched = False
 
         # Parse
-        model_input_parsed = parse_uri_prediction_input(client, model_input, self.model, self.ts_id_l)
+        model_input_parsed = parse_uri_prediction_input(client, model_input, self.model, self.ts_id_l, bucket_name='mlflow-bucket')
         # print("SERIES", model_input_parsed['series'])
         # Transform
         if self.transformer is not None:
@@ -156,7 +156,7 @@ def _load_pyfunc(model_folder):
     print(model_folder)
     # Different behaviours for pl and pkl models are defined in load_model
 
-    model = load_model(client, model_root_dir=model_folder, mode="local")
+    model = load_model(client, model_root_dir=model_folder, mode="local", bucket_name='mlflow_bucket')
     model_info = load_local_model_info(model_root_dir=model_folder)
     #Loading scalers
     if bool(model_info["scale"]):

@@ -824,6 +824,7 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
     future_covs_uri = load_raw_data_out["future_covs_uri"]
     series_uri = load_raw_data_out["series_uri"]
     config = context.resources.config
+
     tenant = config.tenant
     mlflow_uri = f"http://{tenant}-mlflow:5000"
     mlflow.set_tracking_uri(mlflow_uri)
@@ -859,7 +860,7 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
 
     # If series_uri is given, series_csv will be downloaded from there
     if none_checker(series_uri) != None:
-        download_file_path = download_online_file(client, series_uri, dst_filename="load.csv")
+        download_file_path = download_online_file(client, series_uri, dst_filename="load.csv", bucket_name=tenant)
         series_csv = download_file_path
 
     past_covs_csv = none_checker(past_covs_csv)
@@ -869,11 +870,11 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
 
     # If uri is given, covariates will be downloaded from there
     if past_covs_uri != None:
-        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past_covs.csv")
+        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past_covs.csv", bucket_name=tenant)
         past_covs_csv = download_file_path
 
     if future_covs_uri != None:
-        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future_covs.csv")
+        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future_covs.csv", bucket_name=tenant)
         future_covs_csv = download_file_path
 
     ## Process parameters from click and MLProject

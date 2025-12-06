@@ -152,13 +152,13 @@ def start_pipeline_run(context):
             )
 
     if none_checker(series_csv):
-        download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
+        download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name=tenant)
 
     if none_checker(future_covs_csv):
-        download_online_file(client, f'dataset-storage/{future_covs_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
+        download_online_file(client, f'dataset-storage/{future_covs_csv}', dst_dir='dataset-storage', bucket_name=tenant)
 
     if none_checker(past_covs_csv):
-        download_online_file(client, f'dataset-storage/{past_covs_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
+        download_online_file(client, f'dataset-storage/{past_covs_csv}', dst_dir='dataset-storage', bucket_name=tenant)
 
 
     mlflow.set_experiment(experiment_name)
@@ -231,7 +231,7 @@ def training_and_hyperparameter_tuning_asset(context, start_pipeline_run, etl_ou
         scaler_future_covariates_uri = completed_run.data.tags["scaler_future_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
 
         setup_file = download_online_file(
-            client, setup_uri, "setup.yml")
+            client, setup_uri, "setup.yml", bucket_name=tenant)
         setup = load_yaml_as_dict(setup_file)
         print(f"\nSplit info: {setup} \n")
     

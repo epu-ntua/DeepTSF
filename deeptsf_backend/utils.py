@@ -273,30 +273,30 @@ def load_local_pkl_as_object(local_path):
     pkl_object = pickle.load(open(local_path, "rb"))
     return pkl_object
 
-def download_mlflow_file(client, url, dst_dir=None):
+def download_mlflow_file(client, url, dst_dir=None, bucket_name='def'):
     S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 
     if dst_dir is None:
         dst_dir = tempfile.mkdtemp()
     else:
         os.makedirs(dst_dir, exist_ok=True)
-    if url.startswith('s3://mlflow-bucket/'):
+    if url.startswith('s3://' + bucket_name + '/'):
         url = url.replace("s3:/", S3_ENDPOINT_URL)
         local_path = download_online_file(
-            client, url, dst_dir=dst_dir)
+            client, url, dst_dir=dst_dir, bucket_name=bucket_name)
     elif url.startswith('runs:/'):
         mlflow_client = mlflow.tracking.MlflowClient()
         run_id = url.split('/')[1]
         mlflow_path = '/'.join(url.split('/')[3:])
         local_path = mlflow_client.download_artifacts(run_id, mlflow_path, dst_dir)
     elif url.startswith('http://') or url.startswith('https://'):
-        local_path = download_online_file(client, url, dst_dir=dst_dir)
+        local_path = download_online_file(client, url, dst_dir=dst_dir, bucket_name=bucket_name)
     print("\nLocal path:", local_path)
     return local_path
 
-def load_pkl_model_from_server(client, model_uri):
+def load_pkl_model_from_server(client, model_uri, bucket_name='def'):
     print("\nLoading remote PKL model...")
-    model_path = download_mlflow_file(client, f'{model_uri}/_model.pkl')
+    model_path = download_mlflow_file(client, f'{model_uri}/_model.pkl', bucket_name=bucket_name)
     print(model_path)
     best_model = load_local_pkl_as_object(model_path)
     return best_model
@@ -349,7 +349,7 @@ def load_local_model_info(model_root_dir):
 
 
 
-def load_model(client, model_root_dir, mode="remote"):
+def load_model(client, model_root_dir, mode="remote", bucket_name='def'):
 
     # Get model type as tag of model's run
     import mlflow
@@ -371,7 +371,7 @@ def load_model(client, model_root_dir, mode="remote"):
         model = load_pl_model_from_server(model_root_dir=model_root_dir)
     #TODO Check if working with pl models
     elif mode == "remote" and model_type == "pkl":
-        model = load_pkl_model_from_server(client, model_root_dir)
+        model = load_pkl_model_from_server(client, model_root_dir, bucket_name=bucket_name)
     elif mode == "local" and model_type == 'pl':
         model = load_local_pl_model(model_root_dir=model_root_dir)
     else:
@@ -1301,7 +1301,8 @@ def load_csv_or_df_to_ts_inference(local_path_or_df,
 def parse_uri_prediction_input(client, 
                                model_input: dict, 
                                model, 
-                               ts_id_l) -> dict:
+                               ts_id_l,
+                               bucket_name) -> dict:
 
     """
     {"timesteps_ahead": int, 
@@ -1362,9 +1363,9 @@ def parse_uri_prediction_input(client,
 
     batch_size =model_input["batch_size"]
 
-    if type(series) == str and ('runs:/' in series or 's3://mlflow-bucket/' in series or series.startswith('http://')):
+    if type(series) == str and ('runs:/' in series or 's3://' + bucket_name + '/' in series or series.startswith('http://')):
         print('\nDownloading remote file of recent time series history...')
-        series = download_mlflow_file(client, series)
+        series = download_mlflow_file(client, series, bucket_name=bucket_name)
 
     # If model was trained on multiple series, find index (idx_in_train_dataset) of series that the user wishes to apply inference on
     if ts_id_l != [[]]:

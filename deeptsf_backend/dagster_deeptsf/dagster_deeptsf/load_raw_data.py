@@ -531,15 +531,15 @@ def load_raw_data_asset(context, start_pipeline_run):
         series_csv = f'{tmpdir}/load.csv'
 
     elif series_uri != None:
-        download_file_path = download_online_file(client, series_uri, dst_filename="series.csv")
+        download_file_path = download_online_file(client, series_uri, dst_filename="series.csv", bucket_name=tenant)
         series_csv = download_file_path
 
     if past_covs_uri != None:
-        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past_covs.csv")
+        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past_covs.csv", bucket_name=tenant)
         past_covs_csv = download_file_path
 
     if future_covs_uri != None:
-        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future_covs.csv")
+        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future_covs.csv", bucket_name=tenant)
         future_covs_csv = download_file_path
 
     series_csv = series_csv.replace('/', os.path.sep)

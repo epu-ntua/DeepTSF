@@ -314,7 +314,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
              cut_date_test, device, forecast_horizon, m_mase, stride, retrain, scale, 
              scale_covs, multiple, eval_series, mlrun, trial, study, opt_tmpdir, 
              num_workers, eval_method, loss_function, opt_all_results,
-             evaluate_all_ts, num_samples, pv_ensemble, format):
+             evaluate_all_ts, num_samples, pv_ensemble, format, tenant):
 
                 # hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
                 hyperparameters = hyperparams_entrypoint
@@ -368,6 +368,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                       trial=trial,
                       pv_ensemble=pv_ensemble,
                       format=format,
+                      tenant=tenant,
                       )
                 try:
                     trial.set_user_attr("epochs_trained", model.epochs_trained)
@@ -397,6 +398,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                     num_samples=num_samples,
                     pv_ensemble=pv_ensemble,
                     format=format,
+                    tenant=tenant,
                     )
                 trial.set_user_attr("mape", float(metrics["mape"]))
                 trial.set_user_attr("smape", float(metrics["smape"]))
@@ -417,7 +419,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
 def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
           hyperparams_entrypoint, trial_name, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          training_dict, mlrun, num_workers, resolution, trial, pv_ensemble, format):
+          training_dict, mlrun, num_workers, resolution, trial, pv_ensemble, format, tenant):
 
 
     # Argument preprocessing
@@ -458,19 +460,19 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     # redirect to local location of downloaded remote file
     if series_uri is not None:
-        download_file_path = download_online_file(client, series_uri, dst_filename="load.csv")
+        download_file_path = download_online_file(client, series_uri, dst_filename="load.csv", bucket_name=tenant)
         series_csv = download_file_path.replace('/', os.path.sep).replace("'", "")
     else:
         series_csv = None
 
     if  future_covs_uri is not None:
-        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future.csv")
+        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future.csv", bucket_name=tenant)
         future_covs_csv = download_file_path.replace('/', os.path.sep).replace("'", "")
     else:
         future_covs_csv = None
 
     if  past_covs_uri is not None:
-        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past.csv")
+        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past.csv", bucket_name=tenant)
         past_covs_csv = download_file_path.replace('/', os.path.sep).replace("'", "")
     else:
         past_covs_csv = None
@@ -974,7 +976,7 @@ def backtester(model,
 
 def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_test, test_end_date,
              model, forecast_horizon, m_mase, stride, retrain, multiple, eval_series, cut_date_val, mlrun, 
-             resolution, eval_method, opt_all_results, evaluate_all_ts, study, num_samples, pv_ensemble, format, mode='remote'):
+             resolution, eval_method, opt_all_results, evaluate_all_ts, study, num_samples, pv_ensemble, format, mode='remote', tenant='def'):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -992,7 +994,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 
     ## load series from MLflow
     series_path = download_online_file(
-        client, series_uri, "series.csv") if mode == 'remote' else series_uri
+        client, series_uri, "series.csv", bucket_name=tenant) if mode == 'remote' else series_uri
     series, id_l, ts_id_l = load_local_csv_or_df_as_darts_timeseries(
         local_path_or_df=series_path,
         last_date=test_end_date,
@@ -1262,7 +1264,7 @@ def optuna_search(context, start_pipeline_run, etl_out):
                         darts_model, hyperparams_entrypoint, trial_name, cut_date_val, test_end_date, cut_date_test, device,
                         forecast_horizon, m_mase, stride, retrain, scale, scale_covs,
                         multiple, eval_series, mlrun, trial, study, opt_tmpdir, num_workers, eval_method, 
-                        loss_function, opt_all_results, evaluate_all_ts, num_samples, pv_ensemble, format),
+                        loss_function, opt_all_results, evaluate_all_ts, num_samples, pv_ensemble, format, tenant),
                         n_trials=n_trials, n_jobs = 1)
 
             log_optuna(study, opt_tmpdir, hyperparams_entrypoint, trial_name, mlrun, opt_all_results=opt_all_results, evaluate_all_ts=evaluate_all_ts, scale_covs=scale_covs)
