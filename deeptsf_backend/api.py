@@ -630,30 +630,30 @@ if USE_AUTH == "jwt":
             await websocket.close(code=4003)
             raise WebSocketDisconnect(code=4003)
 
-    # Add error handlers for common cases
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException):
-        origin = _get_cors_origin(request)
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": exc.detail},
-            headers={
-                "Access-Control-Allow-Origin": request.headers.get("Origin", origin),
-                "Access-Control-Allow-Credentials": "false"
-            }
-        )
+    # # Add error handlers for common cases
+    # @app.exception_handler(HTTPException)
+    # async def http_exception_handler(request: Request, exc: HTTPException):
+    #     origin = _get_cors_origin(request)
+    #     return JSONResponse(
+    #         status_code=exc.status_code,
+    #         content={"detail": exc.detail},
+    #         headers={
+    #             "Access-Control-Allow-Origin": request.headers.get("Origin", origin),
+    #             "Access-Control-Allow-Credentials": "false"
+    #         }
+    #     )
 
-    @app.exception_handler(Exception)
-    async def general_exception_handler(request: Request, exc: Exception):
-        origin = _get_cors_origin(request)
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"},
-            headers={
-                "Access-Control-Allow-Origin": request.headers.get("Origin", origin),
-                "Access-Control-Allow-Credentials": "false"
-            }
-        )
+    # @app.exception_handler(Exception)
+    # async def general_exception_handler(request: Request, exc: Exception):
+    #     origin = _get_cors_origin(request)
+    #     return JSONResponse(
+    #         status_code=500,
+    #         content={"detail": "Internal server error"},
+    #         headers={
+    #             "Access-Control-Allow-Origin": request.headers.get("Origin", origin),
+    #             "Access-Control-Allow-Credentials": "false"
+    #         }
+    #     )
 
     # Utility function to get the current user from the session token
     def get_current_user(request: Request):
