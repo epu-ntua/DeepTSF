@@ -1334,7 +1334,7 @@ async def get_list_of_mlflow_experiments(request: Request):
     #         detail=f"Failed to contact MLflow tracking server: {e}"
     #     )
     resp = requests.get(url, headers=_mlflow_headers(request), timeout=10)
-    resp.raise_for_status()
+    # resp.raise_for_status()
 
 
     data = resp.json()
