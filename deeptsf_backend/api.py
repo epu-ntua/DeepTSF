@@ -1325,14 +1325,17 @@ async def get_list_of_mlflow_experiments(request: Request):
     """
     url = f"{MLFLOW_API_BASE}/mlflow/experiments/list"
 
-    try:
-        resp = requests.get(url, headers=_mlflow_headers(request), timeout=10)
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Failed to contact MLflow tracking server: {e}"
-        )
+    # try:
+    #     resp = requests.get(url, headers=_mlflow_headers(request), timeout=10)
+    #     resp.raise_for_status()
+    # except requests.RequestException as e:
+    #     raise HTTPException(
+    #         status_code=502,
+    #         detail=f"Failed to contact MLflow tracking server: {e}"
+    #     )
+    resp = requests.get(url, headers=_mlflow_headers(request), timeout=10)
+    resp.raise_for_status()
+
 
     data = resp.json()
     experiments = data.get("experiments", []) or []
