@@ -1343,7 +1343,7 @@ async def get_list_of_mlflow_experiments(request: Request):
             )
 
         # Normal path
-        print(data)
+        print(resp)
         data = resp.json()
         experiments = data.get("experiments", []) or []
 
