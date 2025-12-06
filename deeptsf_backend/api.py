@@ -115,6 +115,34 @@ def email_to_tenant(email: str) -> str:
         return DEFAULT_TENANT
     return EMAIL_TENANT_MAP.get(email.lower(), DEFAULT_TENANT)
 
+
+MLFLOW_API_BASE = MLFLOW_TRACKING_URI.rstrip("/") + "/api/2.0"
+
+
+def _mlflow_headers(request: Optional[Request] = None) -> Dict[str, str]:
+    """
+    Build headers for MLflow REST calls.
+
+    - If the incoming FastAPI request has an Authorization: Bearer ... header,
+      forward it to MLflow.
+    - Otherwise, fall back to a static service token in MLFLOW_SERVICE_TOKEN (optional).
+    """
+    headers = {"Content-Type": "application/json"}
+    token = None
+
+    if request is not None:
+        auth = request.headers.get("Authorization")
+        if auth and auth.lower().startswith("bearer "):
+            # "Bearer <token>"
+            parts = auth.split()
+            if len(parts) == 2:
+                token = parts[1]
+
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    return headers
+
 class DateLimits(int, Enum):
     """This function will read the uploaded csv before running the pipeline and will decide which are the allowed values
     for: validation_start_date < test_start_date < test_end_date """
@@ -1110,19 +1138,19 @@ async def get_experimentation_pipeline_hparam_entrypoints():
 
 @admin_router.get('/get_mlflow_tracking_uri', tags=['MLflow Info'])
 async def get_mlflow_tracking_uri():
-    return mlflow.tracking.get_tracking_uri()
+    return MLFLOW_TRACKING_URI
 
-def mlflow_run(params: dict, experiment_name: str, uc: str = "2"):
-    # TODO: generalize to all use cases
-    # TODO: run through dagster for orchestration and error inspection. enershare?
-    # will need GraphQL client for Dagster as it is in another container...
-    pipeline_run = mlflow.projects.run(
-            uri=f"./uc{uc}/",
-            experiment_name=experiment_name,
-            entry_point="exp_pipeline",
-            parameters=params,
-            env_manager="local"
-            )
+# def mlflow_run(params: dict, experiment_name: str, uc: str = "2"):
+#     # TODO: generalize to all use cases
+#     # TODO: run through dagster for orchestration and error inspection. enershare?
+#     # will need GraphQL client for Dagster as it is in another container...
+#     pipeline_run = mlflow.projects.run(
+#             uri=f"./uc{uc}/",
+#             experiment_name=experiment_name,
+#             entry_point="exp_pipeline",
+#             parameters=params,
+#             env_manager="local"
+#             )
 
 @scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
 async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks, request: Request):
@@ -1291,30 +1319,78 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
 
 
 @engineer_router.get('/results/get_list_of_experiments', tags=['MLflow Info', 'Model Evaluation'])
-async def get_list_of_mlflow_experiments():
-    client = MlflowClient()
-    experiments = client.search_experiments()
-    experiment_names = [client.search_experiments()[i].name
-                        for i in range(len(experiments))]
-    experiment_ids = [client.search_experiments()[i].experiment_id
-                      for i in range(len(experiments))]
-    experiments = dict(zip(experiment_names, experiment_ids))
+async def get_list_of_mlflow_experiments(request: Request):
+    """
+    Get list of MLflow experiments via REST API.
+    """
+    url = f"{MLFLOW_API_BASE}/mlflow/experiments/list"
+
+    try:
+        resp = requests.get(url, headers=_mlflow_headers(request), timeout=10)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to contact MLflow tracking server: {e}"
+        )
+
+    data = resp.json()
+    experiments = data.get("experiments", []) or []
+
     experiments_response = [
-        {"experiment_name": key, "experiment_id": experiments[key]}
-        for key in experiments.keys()
+        {
+            "experiment_name": exp.get("name"),
+            "experiment_id": exp.get("experiment_id"),
+        }
+        for exp in experiments
     ]
     return experiments_response
 
 
-@engineer_router.get('/results/get_best_run_id_by_mlflow_experiment/{experiment_id}/{metric}',
-                     tags=['MLflow Info', 'Model Evaluation'])
-async def get_best_run_id_by_mlflow_experiment(experiment_id: str, metric: str = 'mape'):
-    df = mlflow.search_runs([experiment_id], order_by=[f"metrics.{metric} ASC"])
-    if df.empty:
+@engineer_router.get(
+    '/results/get_best_run_id_by_mlflow_experiment/{experiment_id}/{metric}',
+    tags=['MLflow Info', 'Model Evaluation']
+)
+async def get_best_run_id_by_mlflow_experiment(
+    experiment_id: str,
+    metric: str = 'mape',
+    request: Request = None,
+):
+    """
+    Return the run_id of the best run in an experiment, ordered by the given metric (ascending).
+    """
+    url = f"{MLFLOW_API_BASE}/mlflow/runs/search"
+    payload = {
+        "experiment_ids": [experiment_id],
+        "order_by": [f"metrics.{metric} ASC"],
+        "max_results": 1,
+    }
+
+    try:
+        resp = requests.post(
+            url,
+            headers=_mlflow_headers(request),
+            json=payload,
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to contact MLflow tracking server: {e}"
+        )
+
+    data = resp.json()
+    runs = data.get("runs", []) or []
+    if not runs:
         raise HTTPException(status_code=404, detail="No run has any metrics")
-    else:
-       best_run_id = df.loc[0, 'run_id']
-       return best_run_id
+
+    best_run = runs[0]
+    best_run_id = best_run.get("info", {}).get("run_id")
+    if not best_run_id:
+        raise HTTPException(status_code=500, detail="Unexpected MLflow response: missing run_id")
+
+    return best_run_id
 
 
 @engineer_router.get('/results/get_forecast_vs_actual/{run_id}/n_samples/{n}', tags=['MLflow Info', 'Model Evaluation'])
@@ -1338,10 +1414,39 @@ async def get_forecast_vs_actual(run_id: str, n: int):
 
 
 @engineer_router.get('/results/get_metric_list/{run_id}', tags=['MLflow Info', 'Model Evaluation'])
-async def get_metric_list(run_id: str):
-    client = MlflowClient()
-    metrix = client.get_run(run_id).data.metrics
-    metrix_response = {"labels":[i for i in metrix.keys()], "data": [i for i in metrix.values()]}
+async def get_metric_list(run_id: str, request: Request):
+    """
+    Return list of metrics for a given run via MLflow REST API.
+    """
+    url = f"{MLFLOW_API_BASE}/mlflow/runs/get"
+
+    try:
+        resp = requests.get(
+            url,
+            headers=_mlflow_headers(request),
+            params={"run_id": run_id},
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to contact MLflow tracking server: {e}"
+        )
+
+    data = resp.json()
+    run = data.get("run")
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    metrics_list = run.get("data", {}).get("metrics", []) or []
+    # metrics_list is a list of {"key": ..., "value": ..., "timestamp": ..., "step": ...}
+    metrix = {m.get("key"): m.get("value") for m in metrics_list if "key" in m}
+
+    metrix_response = {
+        "labels": list(metrix.keys()),
+        "data": list(metrix.values()),
+    }
     return metrix_response
 
 class ForecastRequest(BaseModel):
