@@ -1419,6 +1419,7 @@ async def get_metric_list(run_id: str, request: Request):
     Return list of metrics for a given run via MLflow REST API.
     """
     url = f"{MLFLOW_API_BASE}/mlflow/runs/get"
+    print(url)
 
     try:
         resp = requests.get(
