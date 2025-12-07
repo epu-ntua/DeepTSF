@@ -608,32 +608,17 @@ if USE_AUTH == "jwt":
                 return response
 
             except jwt.ExpiredSignatureError:
-                response = JSONResponse(
-                    status_code=e.status_code,
-                    content={"detail": str(e.detail)},
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Token has expired"},
                     headers=_cors_headers(request),
                 )
-                # make sure these match how you originally set the cookie
-                response.delete_cookie(
-                    "session_token",
-                    domain=host,    # same domain as in set_cookie
-                    path="/",
-                )
-                return response
-
             except jwt.InvalidTokenError:
-                response = JSONResponse(
-                    status_code=e.status_code,
-                    content={"detail": str(e.detail)},
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid token"},
                     headers=_cors_headers(request),
                 )
-                # make sure these match how you originally set the cookie
-                response.delete_cookie(
-                    "session_token",
-                    domain=host,    # same domain as in set_cookie
-                    path="/",
-                )
-                return response
 
         except HTTPException as e:
             return JSONResponse(
