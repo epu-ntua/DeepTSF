@@ -20,7 +20,7 @@ from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils_backend import load_artifacts, to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio, none_checker
+from utils_backend import to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio, none_checker
 import psutil, nvsmi
 import os
 import requests
@@ -1430,23 +1430,138 @@ async def get_best_run_id_by_mlflow_experiment(
     return best_run_id
 
 
-@engineer_router.get('/results/get_forecast_vs_actual/{run_id}/n_samples/{n}', tags=['MLflow Info', 'Model Evaluation'])
-async def get_forecast_vs_actual(run_id: str, n: int):
-    forecast = load_artifacts(
-        run_id=run_id, src_path="eval_results/predictions.csv")
-    forecast_df = pd.read_csv(forecast, index_col=0).iloc[-n:]
-    actual = load_artifacts(
-        run_id=run_id, src_path="eval_results/original_series.csv")
-    actual_df = pd.read_csv(actual, index_col=0)[-n:]
+def load_artifacts(
+    run_id: str,
+    src_path: str,
+    request: Optional[Request] = None,
+    dst_path: Optional[str] = None,
+) -> str:
+    """
+    Download an artifact from MLflow using the REST API (no MlflowClient).
+
+    - run_id: MLflow run ID
+    - src_path: path inside the MLflow run's artifact store
+                (e.g. 'eval_results/predictions.csv')
+    - request: FastAPI Request, used to forward the Authorization header
+    - dst_path: local directory to store the file; if None, uses a temp dir
+
+    Returns:
+        Local filesystem path to the downloaded file.
+    """
+    # Decide where to store file locally
+    if dst_path is None:
+        dst_dir = tempfile.mkdtemp()
+    else:
+        dst_dir = dst_path
+        os.makedirs(dst_dir, exist_ok=True)
+
+    filename = os.path.basename(src_path)
+    local_path = os.path.join(dst_dir, filename)
+
+    # Build REST URL
+    url = f"{MLFLOW_API_BASE}/mlflow/artifacts/download"
+    params = {
+        "run_id": run_id,
+        "path": src_path,
+    }
+
+    # Forward Authorization header if present, so mitmproxy/JWKS can validate
+    headers = {}
+    if request is not None:
+        auth = request.headers.get("Authorization")
+        if auth:
+            headers["Authorization"] = auth
+
+    try:
+        resp = requests.get(
+            url,
+            headers=headers,
+            params=params,
+            stream=True,
+            timeout=60,
+        )
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to contact MLflow tracking server: {e}",
+        )
+
+    # If your mitmproxy router sends a redirect on invalid/expired token,
+    # treat that as an auth error instead of trying to parse HTML.
+    if resp.is_redirect or resp.status_code in (301, 302, 303, 307, 308):
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated with MLflow (redirected by gateway)",
+        )
+
+    if resp.status_code != 200:
+        content_type = resp.headers.get("Content-Type", "")
+        # MLflow usually returns JSON error; your proxy might return HTML
+        if "application/json" in content_type:
+            try:
+                err = resp.json()
+                msg = err.get("message") or str(err)
+            except ValueError:
+                msg = resp.text[:200]
+        else:
+            msg = resp.text[:200]
+
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail=f"MLflow artifacts download failed: {msg}",
+        )
+
+    # Guard against being served HTML (e.g. redirect page) even with 200
+    ct = resp.headers.get("Content-Type", "")
+    if "text/html" in ct:
+        raise HTTPException(
+            status_code=401,
+            detail="Received HTML instead of artifact file (likely auth issue)",
+        )
+
+    # Stream to disk
+    with open(local_path, "wb") as f:
+        for chunk in resp.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
+
+    return local_path
+
+
+from fastapi import Request
+
+@engineer_router.get(
+    '/results/get_forecast_vs_actual/{run_id}/n_samples/{n}',
+    tags=['MLflow Info', 'Model Evaluation']
+)
+async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
+    # Use REST-based artifact loader
+    forecast_path = load_artifacts(
+        run_id=run_id,
+        src_path="eval_results/predictions.csv",
+        request=request,
+    )
+    actual_path = load_artifacts(
+        run_id=run_id,
+        src_path="eval_results/original_series.csv",
+        request=request,
+    )
+
+    forecast_df = pd.read_csv(forecast_path, index_col=0).iloc[-n:]
+    actual_df = pd.read_csv(actual_path, index_col=0)[-n:]
+
     forecast_response = forecast_df.to_dict('split')
     actual_response = actual_df.to_dict('split')
-    # unlist
-    actual_response["data"] = [i[0] for i in actual_response["data"]]
-    forecast_response["data"] = [i[0] for i in forecast_response["data"]]
-    response = {"forecast": forecast_response,
-                "actual":  actual_response}
 
-    print(response)
+    # Unlist since each row is [value]
+    actual_response["data"] = [row[0] for row in actual_response["data"]]
+    forecast_response["data"] = [row[0] for row in forecast_response["data"]]
+
+    response = {
+        "forecast": forecast_response,
+        "actual": actual_response,
+    }
+
     return response
 
 

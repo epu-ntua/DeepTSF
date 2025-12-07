@@ -439,25 +439,6 @@ def none_checker(argument):
         return argument
 
 
-def load_artifacts(run_id, src_path, dst_path=None):
-    import tempfile
-    import os
-    import mlflow
-    mlflow_client = mlflow.tracking.MlflowClient()
-    if dst_path is None:
-        dst_dir = tempfile.mkdtemp()
-    else:
-        dst_dir = os.path.sep.join(dst_path.split("/")[-1])
-        os.makedirs(dst_dir, exist_ok=True)
-    fname = src_path.split("/")[-1]
-    print(src_path, dst_dir)
-
-    return mlflow_client.download_artifacts(
-            run_id=run_id,
-            path=src_path,
-            dst_path=dst_dir
-        )
-
     # return mlflow.artifacts.download_artifacts(artifact_path=src_path, dst_path="/".join([dst_dir, fname]), run_id=run_id)
 
 
