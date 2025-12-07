@@ -1502,37 +1502,41 @@ async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
     except Exception:
         user = {}
         user_email = None
+    try:
+        tenant = email_to_tenant(user_email)
 
-    tenant = email_to_tenant(user_email)
+        # Use REST-based artifact loader
+        forecast_path = load_artifacts(
+            run_id=run_id,
+            src_path="eval_results/predictions.csv",
+            tenant=tenant,
+            request=request,
+        )
+        actual_path = load_artifacts(
+            run_id=run_id,
+            src_path="eval_results/original_series.csv",
+            tenant=tenant,
+            request=request,
+        )
 
-    # Use REST-based artifact loader
-    forecast_path = load_artifacts(
-        run_id=run_id,
-        src_path="eval_results/predictions.csv",
-        tenant=tenant,
-        request=request,
-    )
-    actual_path = load_artifacts(
-        run_id=run_id,
-        src_path="eval_results/original_series.csv",
-        tenant=tenant,
-        request=request,
-    )
+        forecast_df = pd.read_csv(forecast_path, index_col=0).iloc[-n:]
+        actual_df = pd.read_csv(actual_path, index_col=0)[-n:]
 
-    forecast_df = pd.read_csv(forecast_path, index_col=0).iloc[-n:]
-    actual_df = pd.read_csv(actual_path, index_col=0)[-n:]
+        forecast_response = forecast_df.to_dict('split')
+        actual_response = actual_df.to_dict('split')
 
-    forecast_response = forecast_df.to_dict('split')
-    actual_response = actual_df.to_dict('split')
+        # Unlist since each row is [value]
+        actual_response["data"] = [row[0] for row in actual_response["data"]]
+        forecast_response["data"] = [row[0] for row in forecast_response["data"]]
 
-    # Unlist since each row is [value]
-    actual_response["data"] = [row[0] for row in actual_response["data"]]
-    forecast_response["data"] = [row[0] for row in forecast_response["data"]]
-
-    response = {
-        "forecast": forecast_response,
-        "actual": actual_response,
-    }
+        response = {
+            "forecast": forecast_response,
+            "actual": actual_response,
+        }
+    except Exception as e:
+        traceback.print_exc()
+        print(f"There was an error {e}")
+        raise HTTPException(status_code=415, detail=f"There was an error {e}")
 
     return response
 
