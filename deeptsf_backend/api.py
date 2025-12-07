@@ -1478,7 +1478,7 @@ def load_artifacts(run_id, src_path, tenant, request, dst_path=None):
     #        you can remove that branch from download_mlflow_file().
     local_path = download_mlflow_file(
         client=client,
-        url=artifact_uri,
+        url=artifact_uri + "/" + src_path,
         dst_dir=dst_dir,
         bucket_name=tenant,
     )

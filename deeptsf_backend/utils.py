@@ -187,7 +187,7 @@ def download_online_file(client, url, dst_filename=None, dst_dir=None, bucket_na
     if dst_filename is None:
         dst_filename = url.split('/')[-1]
     filepath = os.path.join(dst_dir, dst_filename)
-    url = url.split(bucket_name + "/")[-1]
+    url = url.split(bucket_name)[-1]
     client.fget_object(bucket_name, url, filepath)
     # print(req)
     # if req.status_code != 200:
