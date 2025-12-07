@@ -1466,9 +1466,9 @@ def load_artifacts(run_id, src_path, tenant, request, dst_path=None):
         # Not JSON (e.g. HTML error page)
         raise RuntimeError(f"MLflow /artifacts/list did not return JSON. Body: {resp.text[:500]}")
 
-    artifact_uri = data.get("artifact_uri")
+    artifact_uri = data.get("root_uri")
     if not artifact_uri:
-        raise RuntimeError(f"MLflow /artifacts/list response missing artifact_uri. Got: {data}")
+        raise RuntimeError(f"MLflow /artifacts/list response missing root_uri. Got: {data}")
 
     # 2) Actually download the artifact using our existing S3/MinIO aware helper
     #    download_mlflow_file() already handles:
