@@ -1430,120 +1430,92 @@ async def get_best_run_id_by_mlflow_experiment(
     return best_run_id
 
 
-def load_artifacts(
-    run_id: str,
-    src_path: str,
-    request: Optional[Request] = None,
-    dst_path: Optional[str] = None,
-) -> str:
+def load_artifacts(run_id, src_path, tenant, dst_path=None, bucket_name="def", minio_client=None):
     """
-    Download an artifact from MLflow using the REST API (no MlflowClient).
-
-    - run_id: MLflow run ID
-    - src_path: path inside the MLflow run's artifact store
-                (e.g. 'eval_results/predictions.csv')
-    - request: FastAPI Request, used to forward the Authorization header
-    - dst_path: local directory to store the file; if None, uses a temp dir
-
-    Returns:
-        Local filesystem path to the downloaded file.
+    Download an artifact for a given run and path using only the MLflow REST API
+    and then MinIO/S3, without using MlflowClient.
+    - Uses /api/2.0/mlflow/artifacts/get to resolve artifact_uri
+    - Then uses download_mlflow_file() to actually download the file.
     """
-    # Decide where to store file locally
+    from utils import download_mlflow_file  # adjust import to where it actually lives
+
     if dst_path is None:
         dst_dir = tempfile.mkdtemp()
     else:
         dst_dir = dst_path
         os.makedirs(dst_dir, exist_ok=True)
 
-    filename = os.path.basename(src_path)
-    local_path = os.path.join(dst_dir, filename)
-
-    # Build REST URL
-    url = f"{MLFLOW_API_BASE}/mlflow/artifacts/download"
+    # 1) Ask MLflow for the artifact_uri
     params = {
         "run_id": run_id,
         "path": src_path,
     }
 
-    # Forward Authorization header if present, so mitmproxy/JWKS can validate
-    headers = {}
-    if request is not None:
-        auth = request.headers.get("Authorization")
-        if auth:
-            headers["Authorization"] = auth
+    # If MLflow is behind auth/mitm, you may need headers with JWT, etc.
+    # For now keep it simple:
+    url = f"{MLFLOW_API_BASE}/mlflow/artifacts/get"
+    resp = requests.get(url, params=params, timeout=15)
+    try:
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        raise RuntimeError(f"Failed to resolve artifact via MLflow REST API: {e} (url={resp.url})")
 
     try:
-        resp = requests.get(
-            url,
-            headers=headers,
-            params=params,
-            stream=True,
-            timeout=60,
-        )
-    except requests.RequestException as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Failed to contact MLflow tracking server: {e}",
-        )
+        data = resp.json()
+    except ValueError as e:
+        # Not JSON (e.g. HTML error page)
+        raise RuntimeError(f"MLflow /artifacts/get did not return JSON. Body: {resp.text[:500]}")
 
-    # If your mitmproxy router sends a redirect on invalid/expired token,
-    # treat that as an auth error instead of trying to parse HTML.
-    if resp.is_redirect or resp.status_code in (301, 302, 303, 307, 308):
-        raise HTTPException(
-            status_code=401,
-            detail="Not authenticated with MLflow (redirected by gateway)",
-        )
+    artifact_uri = data.get("artifact_uri")
+    if not artifact_uri:
+        raise RuntimeError(f"MLflow /artifacts/get response missing artifact_uri. Got: {data}")
 
-    if resp.status_code != 200:
-        content_type = resp.headers.get("Content-Type", "")
-        # MLflow usually returns JSON error; your proxy might return HTML
-        if "application/json" in content_type:
-            try:
-                err = resp.json()
-                msg = err.get("message") or str(err)
-            except ValueError:
-                msg = resp.text[:200]
-        else:
-            msg = resp.text[:200]
-
-        raise HTTPException(
-            status_code=resp.status_code,
-            detail=f"MLflow artifacts download failed: {msg}",
-        )
-
-    # Guard against being served HTML (e.g. redirect page) even with 200
-    ct = resp.headers.get("Content-Type", "")
-    if "text/html" in ct:
-        raise HTTPException(
-            status_code=401,
-            detail="Received HTML instead of artifact file (likely auth issue)",
-        )
-
-    # Stream to disk
-    with open(local_path, "wb") as f:
-        for chunk in resp.iter_content(chunk_size=8192):
-            if chunk:
-                f.write(chunk)
+    # 2) Actually download the artifact using our existing S3/MinIO aware helper
+    #    download_mlflow_file() already handles:
+    #      - mlflow-artifacts: URIs
+    #      - http(s) URIs
+    #      - runs:/ URIs (via MlflowClient) – if you want to drop MlflowClient entirely,
+    #        you can remove that branch from download_mlflow_file().
+    local_path = download_mlflow_file(
+        client=minio_client,
+        url=artifact_uri,
+        dst_dir=dst_dir,
+        bucket_name=tenant,
+    )
 
     return local_path
 
-
-from fastapi import Request
 
 @engineer_router.get(
     '/results/get_forecast_vs_actual/{run_id}/n_samples/{n}',
     tags=['MLflow Info', 'Model Evaluation']
 )
 async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
+
+    try:
+        # If you already have middleware populating request.state.user:
+        # user = request.state.user
+        # Or, if you use the helper you showed earlier:
+        user = get_current_user(request)  # <- uses session_token cookie / JWT
+
+        user_email = user.get("email")
+    except Exception:
+        user = {}
+        user_email = None
+
+    tenant = email_to_tenant(user_email)
+
     # Use REST-based artifact loader
     forecast_path = load_artifacts(
         run_id=run_id,
         src_path="eval_results/predictions.csv",
+        tenant=tenant,
         request=request,
     )
     actual_path = load_artifacts(
         run_id=run_id,
         src_path="eval_results/original_series.csv",
+        tenant=tenant,
         request=request,
     )
 
