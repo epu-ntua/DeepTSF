@@ -1430,7 +1430,7 @@ async def get_best_run_id_by_mlflow_experiment(
     return best_run_id
 
 
-def load_artifacts(run_id, src_path, tenant, dst_path=None, bucket_name="def", minio_client=None):
+def load_artifacts(run_id, src_path, tenant, dst_path=None):
     """
     Download an artifact for a given run and path using only the MLflow REST API
     and then MinIO/S3, without using MlflowClient.
@@ -1477,7 +1477,7 @@ def load_artifacts(run_id, src_path, tenant, dst_path=None, bucket_name="def", m
     #      - runs:/ URIs (via MlflowClient) – if you want to drop MlflowClient entirely,
     #        you can remove that branch from download_mlflow_file().
     local_path = download_mlflow_file(
-        client=minio_client,
+        client=client,
         url=artifact_uri,
         dst_dir=dst_dir,
         bucket_name=tenant,
@@ -1510,13 +1510,11 @@ async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
             run_id=run_id,
             src_path="eval_results/predictions.csv",
             tenant=tenant,
-            request=request,
         )
         actual_path = load_artifacts(
             run_id=run_id,
             src_path="eval_results/original_series.csv",
             tenant=tenant,
-            request=request,
         )
 
         forecast_df = pd.read_csv(forecast_path, index_col=0).iloc[-n:]
