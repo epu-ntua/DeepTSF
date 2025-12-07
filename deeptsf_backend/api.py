@@ -580,8 +580,11 @@ if USE_AUTH == "jwt":
 
             try:
                 # Verify token
-                # Note: Add your secret key and proper verification for production
-                payload = jwt.decode(token, options={"verify_signature": False})
+                public_key = fetch_public_key()
+        
+                payload = jwt.decode(
+                    token, public_key, algorithms=["RS256"], audience="resource_server"
+                )
                 
                 # Add user info to request state for use in routes
                 request.state.user = payload
@@ -620,7 +623,11 @@ if USE_AUTH == "jwt":
             raise WebSocketDisconnect(code=1008)
 
         try:
-            payload = jwt.decode(token, options={"verify_signature": False})
+            public_key = fetch_public_key()
+        
+            payload = jwt.decode(
+                    token, public_key, algorithms=["RS256"], audience="resource_server")
+            
             websocket.state.user = payload
             return payload
         except jwt.ExpiredSignatureError:
@@ -661,7 +668,11 @@ if USE_AUTH == "jwt":
         if not session_token:
             raise HTTPException(status_code=401, detail="Not authenticated")
         try:
-            payload = jwt.decode(session_token, options={"verify_signature": False})
+            public_key = fetch_public_key()
+        
+            payload = jwt.decode(
+                    session_token, public_key, algorithms=["RS256"], audience="resource_server"
+                )            
             return payload
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Session has expired")
