@@ -1434,7 +1434,7 @@ def load_artifacts(run_id, src_path, tenant, request, dst_path=None):
     """
     Download an artifact for a given run and path using only the MLflow REST API
     and then MinIO/S3, without using MlflowClient.
-    - Uses /api/2.0/mlflow/artifacts/get to resolve artifact_uri
+    - Uses /api/2.0/mlflow/artifacts/list to resolve artifact_uri
     - Then uses download_mlflow_file() to actually download the file.
     """
     from utils import download_mlflow_file  # adjust import to where it actually lives
@@ -1453,7 +1453,7 @@ def load_artifacts(run_id, src_path, tenant, request, dst_path=None):
 
     # If MLflow is behind auth/mitm, you may need headers with JWT, etc.
     # For now keep it simple:
-    url = f"{MLFLOW_API_BASE}/mlflow/artifacts/get"
+    url = f"{MLFLOW_API_BASE}/mlflow/artifacts/list"
     resp = requests.get(url, params=params, headers=_mlflow_headers(request),timeout=15)
     try:
         resp.raise_for_status()
@@ -1464,11 +1464,11 @@ def load_artifacts(run_id, src_path, tenant, request, dst_path=None):
         data = resp.json()
     except ValueError as e:
         # Not JSON (e.g. HTML error page)
-        raise RuntimeError(f"MLflow /artifacts/get did not return JSON. Body: {resp.text[:500]}")
+        raise RuntimeError(f"MLflow /artifacts/list did not return JSON. Body: {resp.text[:500]}")
 
     artifact_uri = data.get("artifact_uri")
     if not artifact_uri:
-        raise RuntimeError(f"MLflow /artifacts/get response missing artifact_uri. Got: {data}")
+        raise RuntimeError(f"MLflow /artifacts/list response missing artifact_uri. Got: {data}")
 
     # 2) Actually download the artifact using our existing S3/MinIO aware helper
     #    download_mlflow_file() already handles:
