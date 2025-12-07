@@ -1430,7 +1430,7 @@ async def get_best_run_id_by_mlflow_experiment(
     return best_run_id
 
 
-def load_artifacts(run_id, src_path, tenant, dst_path=None):
+def load_artifacts(run_id, src_path, tenant, request, dst_path=None):
     """
     Download an artifact for a given run and path using only the MLflow REST API
     and then MinIO/S3, without using MlflowClient.
@@ -1454,7 +1454,7 @@ def load_artifacts(run_id, src_path, tenant, dst_path=None):
     # If MLflow is behind auth/mitm, you may need headers with JWT, etc.
     # For now keep it simple:
     url = f"{MLFLOW_API_BASE}/mlflow/artifacts/get"
-    resp = requests.get(url, params=params, timeout=15)
+    resp = requests.get(url, params=params, headers=_mlflow_headers(request),timeout=15)
     try:
         resp.raise_for_status()
     except requests.RequestException as e:
@@ -1510,11 +1510,13 @@ async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
             run_id=run_id,
             src_path="eval_results/predictions.csv",
             tenant=tenant,
+            request=request,
         )
         actual_path = load_artifacts(
             run_id=run_id,
             src_path="eval_results/original_series.csv",
             tenant=tenant,
+            request=request,
         )
 
         forecast_df = pd.read_csv(forecast_path, index_col=0).iloc[-n:]
