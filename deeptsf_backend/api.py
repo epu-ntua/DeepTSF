@@ -1318,57 +1318,55 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     return {"message": "Experimentation pipeline initiated. Proceed to MLflow for details..."}
 
 
-import traceback
-
 @engineer_router.get('/results/get_list_of_experiments', tags=['MLflow Info', 'Model Evaluation'])
 async def get_list_of_mlflow_experiments(request: Request):
     """
-    Get list of MLflow experiments via REST API.
+    Get list of MLflow experiments via REST API (MLflow 2.11.3 /mlflow/experiments/search).
     """
-    url = f"{MLFLOW_API_BASE}/mlflow/experiments/list"
-    print(f"[DEBUG] Calling MLflow list experiments at: {url}")
+    url = f"{MLFLOW_API_BASE}/mlflow/experiments/search"
+    logger.debug(f"Calling MLflow search experiments at: {url}")
+
+    # Minimal payload. You can add filter, order_by, max_results, page_token later if needed.
+    payload = {
+        "max_results": 1000
+    }
 
     try:
-        # Inner try: only the HTTP call to MLflow
-        try:
-            resp = requests.get(url, headers=_mlflow_headers(request), timeout=10)
-            resp.raise_for_status()
-        except requests.RequestException as e:
-            print("[ERROR] Failed to contact MLflow tracking server:")
-            print(e)  # plain error
-            traceback.print_exc()  # full stacktrace
-            raise HTTPException(
-                status_code=502,
-                detail=f"Failed to contact MLflow tracking server: {e}"
-            )
-
-        # Normal path
-        print(resp)
-        data = resp.json()
-        experiments = data.get("experiments", []) or []
-
-        experiments_response = [
-            {
-                "experiment_name": exp.get("name"),
-                "experiment_id": exp.get("experiment_id"),
-            }
-            for exp in experiments
-        ]
-        print(f"[DEBUG] Retrieved {len(experiments_response)} experiments from MLflow")
-        return experiments_response
-
-    except HTTPException:
-        # Re-raise HTTPExceptions so FastAPI handles them as-is
-        raise
-    except Exception as e:
-        # Outer catch-all: anything else that blows up in this handler
-        print("[ERROR] Unexpected error in get_list_of_mlflow_experiments:")
-        print(e)
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error in get_list_of_mlflow_experiments"
+        resp = requests.post(
+            url,
+            headers=_mlflow_headers(request),
+            json=payload,
+            timeout=10,
         )
+        logger.debug(f"MLflow response status: {resp.status_code}")
+        logger.debug(f"MLflow raw response text: {resp.text[:500]}")  # first 500 chars
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error(f"Error calling MLflow search experiments: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to contact MLflow tracking server: {e}"
+        )
+
+    try:
+        data = resp.json()
+    except Exception as e:
+        logger.error("Failed to decode MLflow JSON in search experiments", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Invalid JSON from MLflow search experiments: {e}"
+        )
+
+    experiments = data.get("experiments", []) or []
+
+    experiments_response = [
+        {
+            "experiment_name": exp.get("name"),
+            "experiment_id": exp.get("experiment_id"),
+        }
+        for exp in experiments
+    ]
+    return experiments_response
 
 
 @engineer_router.get(
@@ -1381,9 +1379,12 @@ async def get_best_run_id_by_mlflow_experiment(
     request: Request = None,
 ):
     """
-    Return the run_id of the best run in an experiment, ordered by the given metric (ascending).
+    Return the run_id of the best run in an experiment, ordered by the given metric (ascending),
+    using MLflow 2.11.3 /mlflow/runs/search.
     """
     url = f"{MLFLOW_API_BASE}/mlflow/runs/search"
+    logger.debug(f"Calling MLflow search runs at: {url} for experiment {experiment_id}")
+
     payload = {
         "experiment_ids": [experiment_id],
         "order_by": [f"metrics.{metric} ASC"],
@@ -1397,14 +1398,25 @@ async def get_best_run_id_by_mlflow_experiment(
             json=payload,
             timeout=15,
         )
+        logger.debug(f"MLflow runs.search status: {resp.status_code}")
+        logger.debug(f"MLflow runs.search raw response text: {resp.text[:500]}")
         resp.raise_for_status()
     except requests.RequestException as e:
+        logger.error(f"Error calling MLflow runs.search: {e}")
         raise HTTPException(
             status_code=502,
             detail=f"Failed to contact MLflow tracking server: {e}"
         )
 
-    data = resp.json()
+    try:
+        data = resp.json()
+    except Exception as e:
+        logger.error("Failed to decode MLflow JSON in runs.search", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Invalid JSON from MLflow runs.search: {e}"
+        )
+
     runs = data.get("runs", []) or []
     if not runs:
         raise HTTPException(status_code=404, detail="No run has any metrics")
@@ -1412,6 +1424,7 @@ async def get_best_run_id_by_mlflow_experiment(
     best_run = runs[0]
     best_run_id = best_run.get("info", {}).get("run_id")
     if not best_run_id:
+        logger.error(f"MLflow runs.search response missing run_id: {data}")
         raise HTTPException(status_code=500, detail="Unexpected MLflow response: missing run_id")
 
     return best_run_id
@@ -1440,9 +1453,10 @@ async def get_forecast_vs_actual(run_id: str, n: int):
 @engineer_router.get('/results/get_metric_list/{run_id}', tags=['MLflow Info', 'Model Evaluation'])
 async def get_metric_list(run_id: str, request: Request):
     """
-    Return list of metrics for a given run via MLflow REST API.
+    Return list of metrics for a given run via MLflow 2.11.3 /mlflow/runs/get.
     """
     url = f"{MLFLOW_API_BASE}/mlflow/runs/get"
+    logger.debug(f"Calling MLflow runs.get at: {url} for run_id={run_id}")
 
     try:
         resp = requests.get(
@@ -1451,20 +1465,30 @@ async def get_metric_list(run_id: str, request: Request):
             params={"run_id": run_id},
             timeout=10,
         )
+        logger.debug(f"MLflow runs.get status: {resp.status_code}")
+        logger.debug(f"MLflow runs.get raw response text: {resp.text[:500]}")
         resp.raise_for_status()
     except requests.RequestException as e:
+        logger.error(f"Error calling MLflow runs.get: {e}")
         raise HTTPException(
             status_code=502,
             detail=f"Failed to contact MLflow tracking server: {e}"
         )
 
-    data = resp.json()
+    try:
+        data = resp.json()
+    except Exception as e:
+        logger.error("Failed to decode MLflow JSON in runs.get", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Invalid JSON from MLflow runs.get: {e}"
+        )
+
     run = data.get("run")
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
 
     metrics_list = run.get("data", {}).get("metrics", []) or []
-    # metrics_list is a list of {"key": ..., "value": ..., "timestamp": ..., "step": ...}
     metrix = {m.get("key"): m.get("value") for m in metrics_list if "key" in m}
 
     metrix_response = {
