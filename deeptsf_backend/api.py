@@ -161,6 +161,16 @@ app = FastAPI(
     },
 )
 
+ORIGINS = [
+            "https://deeptsf-backend.aiodp.ai",
+            "https://deeptsf.aiodp.ai", 
+            "https://deeptsf-dagster.stage.aiodp.ai",
+            "https://deeptsf-dagster.aiodp.ai",
+            "https://deeptsf.stage.aiodp.ai",
+            "https://deeptsf.dev.aiodp.ai",
+            "https://marketplace.aiodp.ai",
+            "https://platform.aiodp.ai"
+        ]
 
 if USE_AUTH == "keycloak":
     app.add_middleware(
@@ -199,16 +209,6 @@ if USE_AUTH == "keycloak":
     )
 
 elif USE_AUTH == "jwt":
-    ORIGINS = [
-            "https://deeptsf-backend.aiodp.ai",
-            "https://deeptsf.aiodp.ai", 
-            "https://deeptsf-dagster.stage.aiodp.ai",
-            "https://deeptsf-dagster.aiodp.ai",
-            "https://deeptsf.stage.aiodp.ai",
-            "https://deeptsf.dev.aiodp.ai",
-            "https://marketplace.aiodp.ai",
-            "https://platform.aiodp.ai"
-        ]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=ORIGINS,
@@ -257,6 +257,18 @@ else:
 # def login(request: Request):
 #     token = ''
 #     return {"access_token": token, "token_type": "bearer"}
+
+def _cors_headers(request: Request) -> dict:
+        origin = request.headers.get("Origin")
+        if origin in ORIGINS:
+            return {
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+            }
+        # Fallback – you can also return {} if you want to be strict
+        return {}
+
+
 @scientist_router.get("/")
 async def root():
     return {"message": "Congratulations! Your API is working as expected. Now head over to http://localhost:8080/docs"}
@@ -567,52 +579,59 @@ if USE_AUTH == "jwt":
             return response
 
         try:
-            # Get authorization header
             auth_header: Optional[str] = request.headers.get("Authorization")
-            
-            if not auth_header:
-                raise HTTPException(status_code=401, detail="No authorization header")
 
-            # Extract token from Bearer header
+            if not auth_header:
+                # No Authorization header
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "No authorization header"},
+                    headers=_cors_headers(request),
+                )
+
             token_type, token = auth_header.split()
             if token_type.lower() != "bearer":
-                raise HTTPException(status_code=401, detail="Invalid token type")
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid token type"},
+                    headers=_cors_headers(request),
+                )
 
             try:
-                # Verify token
                 public_key = fetch_public_key()
-        
                 payload = jwt.decode(
                     token, public_key, algorithms=["RS256"], audience="resource_server"
                 )
-                
-                # Add user info to request state for use in routes
                 request.state.user = payload
-                
-                # Continue with the request
                 response = await call_next(request)
+                # Optionally also add CORS here, but CORSMiddleware should already do that.
                 return response
 
             except jwt.ExpiredSignatureError:
                 return JSONResponse(
                     status_code=401,
-                    content={"detail": "Token has expired"}
+                    content={"detail": "Token has expired"},
+                    headers=_cors_headers(request),
                 )
             except jwt.InvalidTokenError:
                 return JSONResponse(
                     status_code=401,
-                    content={"detail": "Invalid token"}
+                    content={"detail": "Invalid token"},
+                    headers=_cors_headers(request),
                 )
 
         except HTTPException as e:
             return JSONResponse(
                 status_code=e.status_code,
-                content={"detail": str(e.detail)}
+                content={"detail": str(e.detail)},
+                headers=_cors_headers(request),
             )
         except Exception as e:
+            logging.exception("Unexpected error in auth_middleware")
             return JSONResponse(
                 status_code=500,
-                content={"detail": "Internal server error"}
+                content={"detail": "Internal server error"},
+                headers=_cors_headers(request),
             )
         
     # WebSocket authentication helper
