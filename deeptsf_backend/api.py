@@ -474,6 +474,7 @@ if USE_AUTH == "jwt":
         if response_api.status_code == 200:            
             response.set_cookie(
                 key="session_token",
+                options={"verify_signature": False},
                 value=response_api.json().get("access_token"),
                 httponly=True,
                 domain=host,   # or ".dev.aiodp.ai" if you want to scope to that env
@@ -508,6 +509,7 @@ if USE_AUTH == "jwt":
         url = "https://platform.aiodp.ai/connect/token"
         response.set_cookie(
                 key="session_token",
+                options={"verify_signature": False},
                 value=request.jwt,
                 httponly=True,
                 domain=host,   # or ".dev.aiodp.ai" if you want to scope to that env
@@ -731,6 +733,7 @@ if USE_AUTH == "jwt":
             response.set_cookie(
                 key="session_token",
                 value=session_token,
+                options={"verify_signature": False},
                 httponly=True,
                 domain=host,   # or ".dev.aiodp.ai" if you want to scope to that env
                 path="/",
