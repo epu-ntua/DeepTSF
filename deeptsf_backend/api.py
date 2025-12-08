@@ -474,7 +474,6 @@ if USE_AUTH == "jwt":
         if response_api.status_code == 200:            
             response.set_cookie(
                 key="session_token",
-                options={"verify_signature": False},
                 value=response_api.json().get("access_token"),
                 httponly=True,
                 domain=host,   # or ".dev.aiodp.ai" if you want to scope to that env
@@ -509,7 +508,6 @@ if USE_AUTH == "jwt":
         url = "https://platform.aiodp.ai/connect/token"
         response.set_cookie(
                 key="session_token",
-                options={"verify_signature": False},
                 value=request.jwt,
                 httponly=True,
                 domain=host,   # or ".dev.aiodp.ai" if you want to scope to that env
@@ -602,7 +600,7 @@ if USE_AUTH == "jwt":
             try:
                 public_key = fetch_public_key()
                 payload = jwt.decode(
-                    token, public_key, algorithms=["RS256"], audience="resource_server"
+                    token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False}
                 )
                 request.state.user = payload
                 response = await call_next(request)
@@ -647,7 +645,7 @@ if USE_AUTH == "jwt":
             public_key = fetch_public_key()
         
             payload = jwt.decode(
-                    token, public_key, algorithms=["RS256"], audience="resource_server")
+                    token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False})
             
             websocket.state.user = payload
             return payload
@@ -692,7 +690,7 @@ if USE_AUTH == "jwt":
             public_key = fetch_public_key()
         
             payload = jwt.decode(
-                    session_token, public_key, algorithms=["RS256"], audience="resource_server"
+                    session_token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False}
                 )            
             return payload
         except jwt.ExpiredSignatureError:
@@ -710,7 +708,7 @@ if USE_AUTH == "jwt":
             # Decode and validate the JWT
             logger.info(f"Decoding JWT: {request.jwt}")
             payload = jwt.decode(
-                request.jwt, public_key, algorithms=["RS256"], audience="resource_server"
+                request.jwt, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False}
             )
             logger.info(f"Decoded JWT payload: {payload}")
     
@@ -733,7 +731,6 @@ if USE_AUTH == "jwt":
             response.set_cookie(
                 key="session_token",
                 value=session_token,
-                options={"verify_signature": False},
                 httponly=True,
                 domain=host,   # or ".dev.aiodp.ai" if you want to scope to that env
                 path="/",
