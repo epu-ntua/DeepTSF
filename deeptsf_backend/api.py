@@ -600,7 +600,7 @@ if USE_AUTH == "jwt":
             try:
                 public_key = fetch_public_key()
                 payload = jwt.decode(
-                    token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False}
+                    token, public_key, algorithms=["RS256"], audience="resource_server"
                 )
                 request.state.user = payload
                 response = await call_next(request)
@@ -645,7 +645,7 @@ if USE_AUTH == "jwt":
             public_key = fetch_public_key()
         
             payload = jwt.decode(
-                    token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False})
+                    token, public_key, algorithms=["RS256"], audience="resource_server")
             
             websocket.state.user = payload
             return payload
@@ -690,7 +690,7 @@ if USE_AUTH == "jwt":
             public_key = fetch_public_key()
         
             payload = jwt.decode(
-                    session_token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False}
+                    session_token, public_key, algorithms=["RS256"], audience="resource_server"
                 )            
             return payload
         except jwt.ExpiredSignatureError:
@@ -708,7 +708,7 @@ if USE_AUTH == "jwt":
             # Decode and validate the JWT
             logger.info(f"Decoding JWT: {request.jwt}")
             payload = jwt.decode(
-                request.jwt, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False}
+                request.jwt, public_key, algorithms=["RS256"], audience="resource_server"
             )
             logger.info(f"Decoded JWT payload: {payload}")
     
