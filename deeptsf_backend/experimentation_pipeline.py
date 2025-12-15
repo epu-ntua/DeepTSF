@@ -170,7 +170,8 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
                    'LightGBM',
                    'RandomForest',
                    'Naive',
-                   'AutoARIMA']),
+                   'AutoARIMA',
+                   'MLP']),
               multiple=False,
               default='None',
               help="The base architecture of the model to be trained"

@@ -3,6 +3,7 @@ from .preprocessing import scale_covariates, split_dataset, split_nans
 
 # the following are used through eval(darts_model + 'Model')
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
+from darts_mlp.models import MLPModel
 # from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.lgbm import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
@@ -409,7 +410,7 @@ def train(context, start_pipeline_run, etl_out):
                     split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
             
             ## choose architecture
-            if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
+            if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer', 'MLP']:
                 darts_model = darts_model+"Model"
                 
                 print(f'\nTrained Model: {darts_model}')

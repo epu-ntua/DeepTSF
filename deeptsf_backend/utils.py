@@ -307,6 +307,7 @@ def load_local_pl_model(model_root_dir):
     from darts.models.forecasting.lgbm import LightGBMModel
     from darts.models.forecasting.random_forest import RandomForest
     from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
+    from darts_mlp.models import MLPModel
     print("\nLoading local PL model...")
     model_info_dict = load_yaml_as_dict(
         os.path.join(model_root_dir, 'model_info.yml'))
