@@ -1,381 +1,187 @@
-# launch_deeptsf.py
-import yaml
-from dagster_graphql import DagsterGraphQLClient, DagsterGraphQLClientError
+import os
+import time
+import uuid
+import runpy
+from typing import Dict, List, Tuple, Any
 
-HOST = "localhost"          # or the container’s DNS name in Docker Compose
-PORT = 8006                 # bind-port from step 1
+import pytest
+from dagster_graphql import DagsterGraphQLClient
+from dagster_graphql.client import DagsterGraphQLClientError
 
-JOB_NAME = "deeptsf_dagster_job"
 
-# -------------------------------------------------------------------
-#  1) baseline single-series – LightGBM, no SHAP, no covariates
-# -------------------------------------------------------------------
-cfg1 = {
-    "a": 0.3,
-    "analyze_with_shap": False,
-    "convert_to_local_tz": True,
-    "country": "PT",
-    "cut_date_test": "20210101",
-    "cut_date_val": "20200101",
-    "darts_model": "LightGBM",
-    "database_name": "rdn_load_data",
-    "device": "gpu",
-    "eval_method": "ts_ID",
-    "eval_series": "eval_series",
-    "evaluate_all_ts": True,
-    "experiment_name": "dagster_test",
-    "forecast_horizon": 24,
-    "format": "long",
-    "from_database": False,
-    "future_covs_csv": "None",
-    "future_covs_uri": "None",
-    "grid_search": False,
-    "hyperparams_entrypoint": {"lags": [-1, -2, -14]},
-    "ignore_previous_runs": True,
-    "imputation_method": "linear",
-    "loss_function": "mape",
-    "m_mase": 1,
-    "max_thr": -1,
-    "min_non_nan_interval": 24,
-    "multiple": False,
-    "n_trials": 100,
-    "num_samples": 1,
-    "num_workers": 4,
-    "opt_test": False,
-    "order": 1,
-    "parent_run_name": "dagster_test",
-    "past_covs_csv": "None",
-    "past_covs_uri": "None",
-    "pv_ensemble": False,
-    "resampling_agg_method": "averaging",
-    "resolution": "1h",
-    "retrain": False,
-    "rmv_outliers": True,
-    "scale": True,
-    "scale_covs": True,
-    "series_csv": "dataset-storage/Italy.csv",
-    "series_uri": "None",
-    "shap_data_size": 100,
-    "shap_input_length": -1,
-    "std_dev": 4.5,
-    "stride": -1,
-    "test_end_date": "None",
-    "time_covs": False,
-    "ts_used_id": "None",
-    "wncutoff": 0.000694,
-    "ycutoff": 3,
-    "ydcutoff": 30,
-    "year_range": "None",
-}
+# -------------------- Defaults (override via env) --------------------
+DEFAULT_LAUNCH_FILE = os.getenv("DEEPTSF_LAUNCH_FILE", "launch_deeptsf.py")
 
-# -------------------------------------------------------------------
-#  2) multi-series with SHAP, LightGBM
-# -------------------------------------------------------------------
-cfg2 = {
-    "a": 0.3,
-    "analyze_with_shap": True,
-    "convert_to_local_tz": True,
-    "country": "PT",
-    "cut_date_test": "20150429",
-    "cut_date_val": "20150419",
-    "darts_model": "LightGBM",
-    "database_name": "rdn_load_data",
-    "device": "gpu",
-    "eval_method": "ts_ID",
-    "eval_series": "1",
-    "evaluate_all_ts": False,
-    "experiment_name": "dagster_test",
-    "forecast_horizon": 24,
-    "format": "long",
-    "from_database": False,
-    "future_covs_csv": "None",
-    "future_covs_uri": "None",
-    "grid_search": False,
-    "hyperparams_entrypoint": {"lags": [-1, -2, -14]},
-    "ignore_previous_runs": True,
-    "imputation_method": "linear",
-    "loss_function": "mape",
-    "m_mase": 1,
-    "max_thr": -1,
-    "min_non_nan_interval": 24,
-    "multiple": True,
-    "n_trials": 100,
-    "num_samples": 1,
-    "num_workers": 4,
-    "opt_test": False,
-    "order": 1,
-    "parent_run_name": "dagster_test",
-    "past_covs_csv": "None",
-    "past_covs_uri": "None",
-    "pv_ensemble": False,
-    "resampling_agg_method": "averaging",
-    "resolution": "1h",
-    "retrain": False,
-    "rmv_outliers": True,
-    "scale": True,
-    "scale_covs": True,
-    "series_csv": "dataset-storage/multiple_and_multivariate_sample_series_long.csv",
-    "series_uri": "None",
-    "shap_data_size": 4,
-    "shap_input_length": 24,
-    "std_dev": 4.5,
-    "stride": -1,
-    "test_end_date": "None",
-    "time_covs": False,
-    "ts_used_id": "None",
-    "wncutoff": 0.000694,
-    "ycutoff": 3,
-    "ydcutoff": 30,
-    "year_range": "None",
-}
+DAGSTER_HOST = os.getenv("DAGSTER_HOST", "deeptsf-dagster.stage.aiodp.ai").strip()
+DAGSTER_PORT = int(os.getenv("DAGSTER_PORT", "443"))  # if TLS terminates at ingress, 443 is typical
+DAGSTER_JOB_NAME = os.getenv("DAGSTER_JOB_NAME", "deeptsf_dagster_job").strip()
 
-# -------------------------------------------------------------------
-#  3) multi-series, past+future covariates, no SHAP
-# -------------------------------------------------------------------
-cfg3 = {
-    **cfg2,  # inherit cfg2 then override what differs
-    "analyze_with_shap": False,
-    "evaluate_all_ts": True,
-    "future_covs_csv": "dataset-storage/future_covs_multiple_long.csv",
-    "past_covs_csv": "dataset-storage/future_covs_multiple_long.csv",
-    "hyperparams_entrypoint": {
-        "lags": [-1, -2, -14],
-        "lags_past_covariates": [-1, -5],
-        "lags_future_covariates": [-1, -5],
-    },
-    "shap_data_size": 100,
-    "shap_input_length": -1,
-}
+RUN_TIMEOUT_SECONDS = int(os.getenv("DAGSTER_RUN_TIMEOUT_SECONDS", "3600"))
+POLL_SECONDS = int(os.getenv("DAGSTER_POLL_SECONDS", "2"))
 
-# -------------------------------------------------------------------
-#  4) grid-search on multi-series with covariates + SHAP
-# -------------------------------------------------------------------
-cfg4 = {
-    **cfg3,
-    "analyze_with_shap": True,
-    "grid_search": True,
-    "shap_data_size": 3,
-    "opt_test": True,
-}
+BEARER_TOKEN = os.getenv("DAGSTER_BEARER_TOKEN", "").strip()
+PRESERVE_NAMES = os.getenv("DAGSTER_PRESERVE_NAMES", "0").strip().lower() in ("1", "true", "yes", "on")
 
-# -------------------------------------------------------------------
-#  5) single-series, country IT, SHAP + grid-search
-# -------------------------------------------------------------------
-cfg5 = {
-    **cfg1,
-    "analyze_with_shap": True,
-    "country": "IT",
-    "grid_search": True,
-    "shap_data_size": 2,
-    "opt_test": True,
-    "hyperparams_entrypoint": {"lags": ["list", 1, 2, 14]},
-    "trial_name": "Default",
-}
+HEADERS = {}
+if BEARER_TOKEN:
+    HEADERS["Authorization"] = f"Bearer {BEARER_TOKEN}"
 
-# -------------------------------------------------------------------
-#  6) multi-series, datasets & covariates on S3 URIs
-# -------------------------------------------------------------------
-cfg6 = {
-    **cfg2,
-    "future_covs_uri": "s3://mlflow-bucket/12/8d84031093e74243a2ec26e344ac4ee4/artifacts/features/past_covariates_transformed.csv",
-    "past_covs_uri": "s3://mlflow-bucket/12/8d84031093e74243a2ec26e344ac4ee4/artifacts/features/past_covariates_transformed.csv",
-    "series_csv": "None",
-    "series_uri": "s3://mlflow-bucket/12/8d84031093e74243a2ec26e344ac4ee4/artifacts/features/series.csv",
-}
 
-# -------------------------------------------------------------------
-#  7) multi-series SHAP + covariates again but smaller SHAP sample
-# -------------------------------------------------------------------
-cfg7 = {
-    **cfg4,
-    "shap_data_size": 4,
-}
+# -------------------- Helpers --------------------
+def _normalize_hostname(host: str) -> str:
+    host = host.strip().replace("https://", "").replace("http://", "").rstrip("/")
+    return host
 
-# -------------------------------------------------------------------
-#  8) multi-series, SHAP, *time_covs* enabled
-# -------------------------------------------------------------------
-cfg8 = {
-    **cfg4,
-    "time_covs": True,
-    "shap_data_size": 2,
-}
 
-# -------------------------------------------------------------------
-#  9) single-series NBEATS (generic arch) – SHAP
-# -------------------------------------------------------------------
-cfg9 = {
-    **cfg1,
-    "darts_model": "NBEATS",
-    "hyperparams_entrypoint": {
-        "input_chunk_length": 384,
-        "output_chunk_length": 96,
-        "num_stacks": 25,
-        "num_blocks": 1,
-        "num_layers": 4,
-        "generic_architecture": True,
-        "layer_widths": 128,
-        "expansion_coefficient_dim": 5,
-        "n_epochs": 3,
-        "random_state": 0,
-        "nr_epochs_val_period": 2,
-        "batch_size": 1024,
-    },
-    "time_covs": True,
-    "shap_input_length": -1,
-    "shap_data_size": 2,
-}
+def _load_launch_globals(launch_file: str) -> dict:
+    if not os.path.exists(launch_file):
+        raise FileNotFoundError(
+            f"Could not find launch file at '{launch_file}'. "
+            f"Set DEEPTSF_LAUNCH_FILE to the correct path."
+        )
+    return runpy.run_path(launch_file)
 
-# -------------------------------------------------------------------
-# 10) multi-series NBEATS, grid-search, small epochs
-# -------------------------------------------------------------------
-cfg10 = {
-    **cfg2,
-    "darts_model": "NBEATS",
-    "forecast_horizon": 12,
-    "grid_search": True,
-    "opt_test": True,
-    "time_covs": True,
-    "hyperparams_entrypoint": {
-        "input_chunk_length": 200,
-        "output_chunk_length": 12,
-        "num_stacks": 25,
-        "num_blocks": 1,
-        "num_layers": 4,
-        "generic_architecture": True,
-        "layer_widths": 128,
-        "expansion_coefficient_dim": 5,
-        "n_epochs": 2,
-        "random_state": 0,
-        "nr_epochs_val_period": 2,
-        "batch_size": 1024,
-    },
-}
 
-# -------------------------------------------------------------------
-# 11) multi-series RNN (LSTM) grid-search, Gaussian likelihood
-# -------------------------------------------------------------------
-cfg11 = {
-    **cfg2,
-    "darts_model": "RNN",
-    "forecast_horizon": 12,
-    "grid_search": True,
-    "opt_test": True,
-    "loss_function": "mase",
-    "trial_name": "test22",
-    "hyperparams_entrypoint": {
-        "model": "LSTM",
-        "n_rnn_layers": 1,
-        "input_chunk_length": 24,
-        "output_chunk_length": 24,
-        "hidden_dim": ["range", 24, 72, 24],
-        "n_epochs": 2,
-        "random_state": 0,
-        "nr_epochs_val_period": 2,
-        "dropout": 0,
-        "learning_rate": 0.001,
-        "batch_size": 1024,
-        "likelihood": "Gaussian",
-        "training_length": 24,
-    },
-}
+def _discover_all_top_level_dicts(globs: dict) -> List[Tuple[str, Dict[str, Any]]]:
+    """
+    Collect every top-level dict defined in the launch file (excluding dunder/private names).
+    This will pick up cfg1..cfgN and also run_config (and any other dict you define).
+    """
+    out: List[Tuple[str, Dict[str, Any]]] = []
+    for name, val in globs.items():
+        if not isinstance(val, dict):
+            continue
+        if name.startswith("__") or name.startswith("_"):
+            continue
+        # skip pytest internals or other accidental dicts if any
+        if name in ("pytest",):
+            continue
+        out.append((name, val))
 
-# -------------------------------------------------------------------
-# 12) single-series LightGBM, shap_input_length=None (str) example
-# -------------------------------------------------------------------
-cfg12 = {
-    **cfg1,
-    "forecast_horizon": "24",          # kept as str to match original
-    "shap_input_length": "None",       # string literal “None”
-}
+    # deterministic order
+    out.sort(key=lambda x: x[0])
+    return out
 
-# -------------------------------------------------------------------
-# 13) single-series LightGBM with explicit lags & output_chunk_length
-# -------------------------------------------------------------------
-cfg13 = {
-    **cfg1,
-    "hyperparams_entrypoint": {
-        "lags": 168,
-        "output_chunk_length": 24,
-        "random_state": 42,
-    },
-}
 
-run_config = {
-    "resources": {
-        "config": {
-            "config": {
-                "a": 0.3,
-                "analyze_with_shap": False,
-                "convert_to_local_tz": True,
-                "country": "PT",
-                "cut_date_test": "20210101",
-                "cut_date_val": "20200101",
-                "darts_model": "LightGBM",
-                "database_name": "rdn_load_data",
-                "device": "gpu",
-                "eval_method": "ts_ID",
-                "eval_series": "eval_series",
-                "evaluate_all_ts": True,
-                "experiment_name": "dagster_test",
-                "forecast_horizon": 24,
-                "format": "long",
-                "from_database": False,
-                "future_covs_csv": "None",
-                "future_covs_uri": "None",
-                "grid_search": False,
-                "hyperparams_entrypoint": {
-                    "lags": [-1, -2, -14],
-                },
-                "ignore_previous_runs": True,
-                "imputation_method": "linear",
-                "loss_function": "mape",
-                "m_mase": 1,
-                "max_thr": -1,
-                "min_non_nan_interval": 24,
-                "multiple": False,
-                "n_trials": 100,
-                "num_samples": 1,
-                "num_workers": 4,
-                "opt_test": False,
-                "order": 1,
-                "parent_run_name": "dagster_test",
-                "past_covs_csv": "None",
-                "past_covs_uri": "None",
-                "pv_ensemble": False,
-                "resampling_agg_method": "averaging",
-                "resolution": "1h",
-                "retrain": False,
-                "rmv_outliers": True,
-                "scale": True,
-                "scale_covs": True,
-                "series_csv": "dataset-storage/Italy.csv",
-                "series_uri": "None",
-                "shap_data_size": 100,
-                "shap_input_length": -1,
-                "std_dev": 4.5,
-                "stride": -1,
-                "test_end_date": "None",
-                "time_covs": False,
-                "ts_used_id": "None",
-                "wncutoff": 0.000694,
-                "ycutoff": 3,
-                "ydcutoff": 30,
-                "year_range": "None",
-            }
-        }
-    }
-}
+def _is_dagster_run_config(d: Dict[str, Any]) -> bool:
+    # minimal check: run_config has "resources" at top level
+    return isinstance(d, dict) and "resources" in d
 
-# 2  connect to Dagster’s GraphQL endpoint
-client = DagsterGraphQLClient(HOST, port_number=PORT)
 
-# 3  submit an asynchronous run
-try:
-    run_id = client.submit_job_execution(
-        JOB_NAME,
-        run_config=run_config,
+def _wrap_as_run_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    # Your job expects config under resources.config.config
+    return {"resources": {"config": {"config": cfg}}}
+
+
+def _make_client(host: str, port: int) -> DagsterGraphQLClient:
+    # Support both arg names across versions
+    try:
+        return DagsterGraphQLClient(
+            hostname=host,
+            port_number=port,
+            use_ssl=True,
+            headers=HEADERS or None,
+        )
+    except TypeError:
+        return DagsterGraphQLClient(
+            hostname=host,
+            port_number=port,
+            use_https=True,
+            headers=HEADERS or None,
+        )
+
+
+def _get_run_status(client: DagsterGraphQLClient, run_id: str) -> str:
+    try:
+        st = client.get_run_status(run_id)
+    except DagsterGraphQLClientError as e:
+        raise RuntimeError(f"DagsterGraphQLClientError while fetching status for {run_id}: {e}") from e
+
+    # depending on dagster version, this might be an Enum
+    return getattr(st, "value", str(st))
+
+
+TERMINAL_SUCCESS = {"SUCCESS"}
+TERMINAL_FAIL = {"FAILURE", "CANCELED", "CANCELING"}
+
+
+# -------------------- pytest plumbing --------------------
+def pytest_generate_tests(metafunc):
+    if "cfg_case" not in metafunc.fixturenames:
+        return
+
+    globs = _load_launch_globals(DEFAULT_LAUNCH_FILE)
+    cases = _discover_all_top_level_dicts(globs)
+    if not cases:
+        raise RuntimeError(
+            f"No top-level dicts found in {DEFAULT_LAUNCH_FILE}. "
+            "Define your configs as top-level Python dict variables."
+        )
+
+    metafunc.parametrize("cfg_case", cases, ids=[name for name, _ in cases])
+
+
+@pytest.fixture(scope="session")
+def dagster_target():
+    globs = _load_launch_globals(DEFAULT_LAUNCH_FILE)
+
+    host = _normalize_hostname(str(globs.get("HOST", DAGSTER_HOST)).strip())
+    port = int(str(globs.get("PORT", DAGSTER_PORT)).strip())
+    job_name = str(globs.get("JOB_NAME", DAGSTER_JOB_NAME)).strip()
+
+    if not host or not port or not job_name:
+        raise RuntimeError(
+            "Could not determine host/port/job. "
+            "Set DAGSTER_HOST/DAGSTER_PORT/DAGSTER_JOB_NAME or define HOST/PORT/JOB_NAME in launch_deeptsf.py"
+        )
+
+    return {"host": host, "port": port, "job_name": job_name}
+
+
+@pytest.mark.integration
+def test_dagster_all_dicts(dagster_target, cfg_case):
+    cfg_name, cfg = cfg_case
+
+    host = dagster_target["host"]
+    port = dagster_target["port"]
+    job_name = dagster_target["job_name"]
+
+    client = _make_client(host, port)
+
+    # Build run_config depending on dict type
+    if _is_dagster_run_config(cfg):
+        run_config = cfg
+    else:
+        cfg_to_use = dict(cfg)
+
+        # Make names unique to avoid collisions (optional)
+        if not PRESERVE_NAMES:
+            suffix = f"{cfg_name}-{uuid.uuid4().hex[:8]}"
+            for k in ("experiment_name", "parent_run_name", "trial_name"):
+                if k in cfg_to_use and isinstance(cfg_to_use[k], str) and cfg_to_use[k]:
+                    cfg_to_use[k] = f"{cfg_to_use[k]}_{suffix}"
+
+        run_config = _wrap_as_run_config(cfg_to_use)
+
+    # 1) launch
+    run_id = client.submit_job_execution(job_name, run_config=run_config)
+    assert run_id, f"{cfg_name}: expected non-empty run_id"
+
+    # 2) poll
+    deadline = time.time() + RUN_TIMEOUT_SECONDS
+    last_status = None
+
+    while time.time() < deadline:
+        last_status = _get_run_status(client, run_id)
+
+        if last_status in TERMINAL_SUCCESS:
+            return
+        if last_status in TERMINAL_FAIL:
+            pytest.fail(f"{cfg_name}: run {run_id} ended with status={last_status}")
+
+        time.sleep(POLL_SECONDS)
+
+    pytest.fail(
+        f"{cfg_name}: timed out after {RUN_TIMEOUT_SECONDS}s waiting for run {run_id}. "
+        f"Last status={last_status}"
     )
-    print(f"Launched Dagster run {run_id}")
-except DagsterGraphQLClientError as exc:          # handy for surfacing schema errors
-    print(f"Dagster rejected the launch: {exc}")
-    raise
