@@ -70,14 +70,14 @@ disable_warnings(InsecureRequestWarning)
 
 # stop training when validation loss does not decrease more than 0.05 (`min_delta`) over
 # a period of 5 epochs (`patience`)
-my_stopper = EarlyStopping(
+
+def train(context, start_pipeline_run, etl_out):
+
+    my_stopper = EarlyStopping(
     monitor="val_loss",
     patience=10,
     min_delta=1e-6,
-    mode='min',
-)
-
-def train(context, start_pipeline_run, etl_out):
+    mode='min')
     
     past_covs_uri = etl_out["past_covs_uri"]
     future_covs_uri = etl_out["future_covs_uri"]
@@ -470,6 +470,11 @@ def train(context, start_pipeline_run, etl_out):
                         hyperparameters.pop("future_covs_as_tuple")
                 except:
                     pass
+                
+                if "input_chunk_length" in hyperparameters:
+                    hyperparameters["lags_past_covariates"] = hyperparameters["input_chunk_length"]
+                    hyperparameters["lags"] = hyperparameters["input_chunk_length"]
+                    del hyperparameters["input_chunk_length"]
 
                 if future_covariates is None:
                     hyperparameters["lags_future_covariates"] = None

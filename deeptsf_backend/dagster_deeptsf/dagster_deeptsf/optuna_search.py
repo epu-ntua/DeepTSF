@@ -210,8 +210,8 @@ def log_optuna(study,
 
         mlflow.set_tag("darts_forecasting_model",
             model.__class__.__name__)
-            
-        if "input_chunk_length" in hyperparams_entrypoint:
+
+        if "input_chunk_length" in hyperparams_entrypoint and model.__class__.__name__ not in ['LightGBMModel', 'RandomForest']:
             mlflow.set_tag('input_chunk_length', hyperparams_entrypoint["input_chunk_length"])
 
         # model_uri
@@ -747,17 +747,23 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         except:
             pass
 
+        if "input_chunk_length" in hyperparameters:
+            hyperparameters["lags_past_covariates"] = hyperparameters["input_chunk_length"]
+            hyperparameters["lags"] = hyperparameters["input_chunk_length"]
+            del hyperparameters["input_chunk_length"]
+
         if future_covariates is None:
             hyperparameters["lags_future_covariates"] = None
         if past_covariates is None:
             hyperparameters["lags_past_covariates"] = None
-
+    
         hparams_to_log = hyperparameters
 
         if darts_model == 'RandomForest':
             model = RandomForest(**hyperparameters)
         elif darts_model == 'LightGBM':
             model = LightGBMModel(**hyperparameters)
+
 
         print(f'\nTraining {darts_model}...')
         logging.info(f'\nTraining {darts_model}...')

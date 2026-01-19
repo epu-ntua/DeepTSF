@@ -16,7 +16,7 @@ from minio import Minio
 import logging
 import sys
 sys.path.append('..')
-from utils import none_checker, check_mandatory, truth_checker, download_online_file, load_yaml_as_dict
+from utils import none_checker, check_mandatory, truth_checker, download_online_file, load_yaml_as_dict, download_series_csv_from_minio
 
 import re
 from datetime import datetime
@@ -148,15 +148,9 @@ def start_pipeline_run(context):
                 "are not supported currently."
             )
 
-    if none_checker(series_csv):
-        download_online_file(client, f'dataset-storage/{series_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
-
-    if none_checker(future_covs_csv):
-        download_online_file(client, f'dataset-storage/{future_covs_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
-
-    if none_checker(past_covs_csv):
-        download_online_file(client, f'dataset-storage/{past_covs_csv}', dst_dir='dataset-storage', bucket_name='dataset-storage')
-
+    download_series_csv_from_minio(series_csv, client)
+    download_series_csv_from_minio(future_covs_csv, client)
+    download_series_csv_from_minio(past_covs_csv, client)
 
     mlflow.set_experiment(experiment_name)
     with mlflow.start_run(tags={"mlflow.runName": parent_run_name}) as active_run:
