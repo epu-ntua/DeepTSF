@@ -28,6 +28,11 @@ RUN conda update conda
 RUN conda env create -f conda.yaml
 
 RUN conda init bash
+
+# Install darts_mlp package
+COPY ./darts_mlp ./darts_mlp
+SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
+RUN pip install -e ./darts_mlp
 #############################BACKEND#######################################
 
 FROM base AS backend

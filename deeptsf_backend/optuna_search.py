@@ -708,6 +708,11 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         except:
             pass
 
+        if "input_chunk_length" in hyperparameters:
+            hyperparameters["lags_future_covariates"] = hyperparameters["input_chunk_length"
+            hyperparameters["lags_past_covariates"] = hyperparameters["input_chunk_length"
+            hyperparameters["lags"] = hyperparameters["input_chunk_length"]
+
         if future_covariates is None:
             hyperparameters["lags_future_covariates"] = None
         if past_covariates is None:

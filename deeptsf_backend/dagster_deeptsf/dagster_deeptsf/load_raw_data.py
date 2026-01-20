@@ -123,7 +123,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                             allow_empty_series=False,
                             format="long",
                             log_to_mlflow=True,
-                            task=None):
+                            task=None,
+                            skip_raw_series_validation=False):
     """
     Validates the input after read_csv is called and throws apropriate exception if it detects an error.
     
@@ -224,6 +225,34 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      header=0,
                      index_col=0,
                      engine='python')
+
+    if skip_raw_series_validation:
+        if not multiple:
+            ts.index = pd.to_datetime(ts.index)
+            print("Infering resolution for single timeseries...")
+            #Infering resolution for single timeseries
+            resolution = to_standard_form(pd.to_timedelta(np.diff(ts.index).min()))
+        if multiple:
+            if format == "long":
+                date_col = "Datetime"
+                des_columns = ['Datetime', 'ID', 'Timeseries ID', 'Value']
+                rest_cols = [col for col in list(ts.columns) if col not in des_columns]
+                intended_col_types = ['datetime64[ns]', str, str, float]
+            else:
+                date_col = "Date"
+                des_columns = ['Date', 'ID', 'Timeseries ID']
+                rest_cols = [col for col in list(ts.columns) if col not in des_columns]
+                try:
+                    intended_col_types = ['datetime64[ns]', str, str] + [float for _ in range(len(ts.columns) - 3)]
+                except:
+                    pass
+            ts[date_col] = pd.to_datetime(ts[date_col])
+            print("Infering resolution for multiple ts and checking if all ts have the same one...")
+            ts_l, id_l, ts_id_l, resolution = multiple_ts_file_to_dfs(series_csv, None, format=format)
+        if log_to_mlflow:
+            mlflow.set_tag(f'infered_resolution_{covariates}', resolution)
+        return ts, resolution
+
 
     ######## NON MULTIPLE ########
     if not multiple:
@@ -515,6 +544,7 @@ def load_raw_data_asset(context, start_pipeline_run):
     format=config.format
     experiment_name = config.experiment_name
     darts_model = config.darts_model
+    skip_raw_series_validation = config.skip_raw_series_validation
     parent_run_name = config.parent_run_name if none_checker(config.parent_run_name) != None else darts_model + '_pipeline'
     
     tmpdir = tempfile.mkdtemp()
@@ -550,7 +580,7 @@ def load_raw_data_asset(context, start_pipeline_run):
     with mlflow.start_run(tags={"mlflow.runName": parent_run_name}, run_id=start_pipeline_run) as parent_run:
         with mlflow.start_run(tags={"mlflow.runName": "load_data"}, nested=True) as mlrun:
 
-            ts, _ = read_and_validate_input(series_csv, multiple=multiple, from_database=from_database, format=format)
+            ts, _ = read_and_validate_input(series_csv, multiple=multiple, from_database=from_database, format=format, skip_raw_series_validation=skip_raw_series_validation)
 
             print(f'Validating timeseries on local file: {series_csv}')
             logging.info(f'Validating timeseries on local file: {series_csv}')
@@ -575,7 +605,8 @@ def load_raw_data_asset(context, start_pipeline_run):
                                                                 multiple=True,
                                                                 from_database=from_database,
                                                                 covariates="past",
-                                                                format=format)
+                                                                format=format,
+                                                                skip_raw_series_validation=skip_raw_series_validation)
                 local_path_past_covs = local_path_past_covs.replace("'", "") if "'" in local_path_past_covs else local_path_past_covs
                 past_covs_filename = os.path.join(*local_path_past_covs, past_covs_fname)
 
@@ -600,7 +631,8 @@ def load_raw_data_asset(context, start_pipeline_run):
                                                                 multiple=True,
                                                                 from_database=from_database,
                                                                 covariates="future",
-                                                                format=format)
+                                                                format=format,
+                                                                skip_raw_series_validation=skip_raw_series_validation)
                                         
                 local_path_future_covs = local_path_future_covs.replace("'", "") if "'" in local_path_future_covs else local_path_future_covs
                 future_covs_filename = os.path.join(*local_path_future_covs, future_covs_fname)

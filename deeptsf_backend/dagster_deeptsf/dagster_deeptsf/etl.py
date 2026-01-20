@@ -214,9 +214,9 @@ def get_time_covariates(series, country_code='PT', id_name='0'):
 
     return ts_list_covariates, id_l_covariates, ts_id_l_covariates
 
-def cut_extra_samples(ts_list):
-    print("\nMaking all components of each ts start and end on the same timestep...")
-    logging.info("\nnMaking all components of each ts start and end on the same timestep...")
+def cut_extra_samples(ts_list, series):
+    print("f\nMaking all components of each ts of {series} start and end on the same timestep...")
+    logging.info("f\nnMaking all components of each ts of {series} start and end on the same timestep...")
     ts_list_cut = []
 
     for i, ts in enumerate(ts_list):
@@ -1122,12 +1122,14 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
 
                     res_[-1].append(comp_res)
             if multiple:
-                res_ = cut_extra_samples(res_)
+                res_ = cut_extra_samples(res_, "target series")
 
             check_dataset_after_cut_date_val(res_, id_l, ts_id_l, cut_date_val, "Target")
             if past_covs_csv != None:
+                res_past = cut_extra_samples(res_past, "past covariates")
                 check_dataset_after_cut_date_val(res_past, id_l_past_covs, ts_id_l_past_covs, cut_date_val, "Past covariates")
             if future_covs_csv != None:
+                res_future = cut_extra_samples(res_future, "future covariates")
                 check_dataset_after_cut_date_val(res_future, id_l_future_covs, ts_id_l_future_covs, cut_date_val, "Future covariates")
 
             print("\nCreating local folder to store the datasets as csv...")

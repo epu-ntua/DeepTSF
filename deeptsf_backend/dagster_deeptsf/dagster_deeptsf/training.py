@@ -3,6 +3,7 @@ from .preprocessing import scale_covariates, split_dataset, split_nans
 
 # the following are used through eval(darts_model + 'Model')
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
+from darts_mlp.models import MLPModel
 # from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.lgbm import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
@@ -69,14 +70,14 @@ disable_warnings(InsecureRequestWarning)
 
 # stop training when validation loss does not decrease more than 0.05 (`min_delta`) over
 # a period of 5 epochs (`patience`)
-my_stopper = EarlyStopping(
+
+def train(context, start_pipeline_run, etl_out):
+
+    my_stopper = EarlyStopping(
     monitor="val_loss",
     patience=10,
     min_delta=1e-6,
-    mode='min',
-)
-
-def train(context, start_pipeline_run, etl_out):
+    mode='min')
     
     past_covs_uri = etl_out["past_covs_uri"]
     future_covs_uri = etl_out["future_covs_uri"]
@@ -414,7 +415,7 @@ def train(context, start_pipeline_run, etl_out):
                     split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
             
             ## choose architecture
-            if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
+            if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer', 'MLP']:
                 darts_model = darts_model+"Model"
                 
                 print(f'\nTrained Model: {darts_model}')
@@ -474,6 +475,11 @@ def train(context, start_pipeline_run, etl_out):
                         hyperparameters.pop("future_covs_as_tuple")
                 except:
                     pass
+                
+                if "input_chunk_length" in hyperparameters:
+                    hyperparameters["lags_past_covariates"] = hyperparameters["input_chunk_length"]
+                    hyperparameters["lags"] = hyperparameters["input_chunk_length"]
+                    del hyperparameters["input_chunk_length"]
 
                 if future_covariates is None:
                     hyperparameters["lags_future_covariates"] = None

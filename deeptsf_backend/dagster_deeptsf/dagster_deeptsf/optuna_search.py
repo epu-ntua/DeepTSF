@@ -13,6 +13,7 @@ from darts.models import (
 )
 # the following are used through eval(darts_model + 'Model')
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
+from darts_mlp.models import MLPModel
 from darts.models.forecasting.arima import ARIMA
 # from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.lgbm import LightGBMModel
@@ -46,7 +47,7 @@ from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
 import sys
 sys.path.append('..')
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_or_df_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds, upload_file_to_minio
 from exceptions import EvalSeriesNotFound
 
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
@@ -107,7 +108,7 @@ def log_optuna(study,
         mlflow.log_artifacts(opt_all_results, "optuna_val_results_all_timeseries")
     
     if log_model and (len(study.trials_dataframe()[study.trials_dataframe()["state"] == "COMPLETE"]) < 1 or study.best_trial.values[0] >= curr_loss):
-        if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
+        if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer', 'MLP']:
             logs_path = f"./darts_logs/{mlrun.info.run_id}"
             model_type = "pl"
         elif darts_model in ['LightGBM', 'RandomForest', 'ARIMA']:
@@ -209,8 +210,8 @@ def log_optuna(study,
 
         mlflow.set_tag("darts_forecasting_model",
             model.__class__.__name__)
-            
-        if "input_chunk_length" in hyperparams_entrypoint:
+
+        if "input_chunk_length" in hyperparams_entrypoint and model.__class__.__name__ not in ['LightGBMModel', 'RandomForest']:
             mlflow.set_tag('input_chunk_length', hyperparams_entrypoint["input_chunk_length"])
 
         # model_uri
@@ -239,6 +240,8 @@ def log_optuna(study,
         else:
             mlflow.set_tag('past_covariates_uri',
                 'None')
+
+        upload_file_to_minio("dagster-storage", "memory.db", f'dagster-data/memory.db', client)
 
         print("\nArtifacts uploaded.")
         logging.info("\nArtifacts uploaded.")
@@ -479,7 +482,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     ## model
     # TODO: Take care of future covariates (RNN, ...) / past covariates (BlockRNN, NBEATS, ...)
-    if darts_model in ["NBEATS", "BlockRNN", "TCN", "NHiTS", "Transformer"]:
+    if darts_model in ["NBEATS", "BlockRNN", "TCN", "NHiTS", "Transformer", "MLP"]:
         """They do not accept future covariates as they predict blocks all together.
         They won't use initial forecasted values to predict the rest of the block
         So they won't need to additionally feed future covariates during the recurrent process.
@@ -711,7 +714,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     
 
     ## choose architecture
-    if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'NHiTS', 'Transformer']:
+    if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'NHiTS', 'Transformer', 'MLP']:
         hparams_to_log = hyperparameters
         if 'learning_rate' in hyperparameters:
             hyperparameters['optimizer_kwargs'] = {'lr': hyperparameters['learning_rate']}
@@ -746,17 +749,23 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         except:
             pass
 
+        if "input_chunk_length" in hyperparameters:
+            hyperparameters["lags_past_covariates"] = hyperparameters["input_chunk_length"]
+            hyperparameters["lags"] = hyperparameters["input_chunk_length"]
+            del hyperparameters["input_chunk_length"]
+
         if future_covariates is None:
             hyperparameters["lags_future_covariates"] = None
         if past_covariates is None:
             hyperparameters["lags_past_covariates"] = None
-
+    
         hparams_to_log = hyperparameters
 
         if darts_model == 'RandomForest':
             model = RandomForest(**hyperparameters)
         elif darts_model == 'LightGBM':
             model = LightGBMModel(**hyperparameters)
+
 
         print(f'\nTraining {darts_model}...')
         logging.info(f'\nTraining {darts_model}...')
@@ -1237,6 +1246,16 @@ def optuna_search(context, start_pipeline_run, etl_out):
     mlflow.set_experiment(experiment_name)
     with mlflow.start_run(tags={"mlflow.runName": parent_run_name}, run_id=start_pipeline_run) as parent_run:
         with mlflow.start_run(tags={"mlflow.runName": f'optuna_test_{darts_model}'}, nested=True) as mlrun:
+            local_db = "memory.db"
+
+            if not os.path.exists(local_db):
+                try:
+                    if not os.path.exists(os.path.dirname(local_db)):
+                        download_online_file(client, f'dagster-storage/dagster-data/memory.db', dst_dir='.', bucket_name='dagster-storage')
+                        print(f"[optuna] Downloaded memory.db")
+                except Exception as e:
+                    print(f"[optuna] Error downloading from S3: {e}. Starting fresh.")
+                    
             if grid_search:
                 # hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
                 hyperparameters = hyperparams_entrypoint

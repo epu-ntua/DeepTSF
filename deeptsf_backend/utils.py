@@ -173,6 +173,22 @@ def upload_file_to_minio(bucket_name, file_path, csv_name, client):
     except S3Error as e:
         print(f"Error uploading file: {e}")
 
+def download_series_csv_from_minio(series_csv, client):
+    if not none_checker(series_csv):
+        return None
+
+    if "/" not in series_csv:
+        raise ValueError("series_csv must contain bucket name in the beginning of file path.")
+    series_bucket = series_csv.split("/", 1)[0]
+    series_path_in_bucket = series_csv.split("/", 1)[1]
+    series_output_directory = series_csv.rsplit("/", 1)[0]
+
+    os.makedirs(series_output_directory, exist_ok=True)
+
+    client.fget_object(series_bucket, series_path_in_bucket, series_csv)
+
+    return series_output_directory
+
 
 def download_online_file(client, url, dst_filename=None, dst_dir=None, bucket_name='mlflow-bucket'):
     import sys
@@ -307,6 +323,7 @@ def load_local_pl_model(model_root_dir):
     from darts.models.forecasting.lgbm import LightGBMModel
     from darts.models.forecasting.random_forest import RandomForest
     from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
+    from darts_mlp.models import MLPModel
     print("\nLoading local PL model...")
     model_info_dict = load_yaml_as_dict(
         os.path.join(model_root_dir, 'model_info.yml'))

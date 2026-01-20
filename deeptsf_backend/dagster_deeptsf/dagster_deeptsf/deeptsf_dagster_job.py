@@ -49,6 +49,7 @@ class DeepTSFConfig(ConfigurableResource):
     shap_data_size: int = 100
     analyze_with_shap: bool = False
     multiple: bool = False
+    skip_raw_series_validation:  bool = False
     eval_series: str = "eval_series"
     n_trials: int = 100
     opt_test: bool = False
@@ -104,6 +105,7 @@ class DeepTSFConfig(ConfigurableResource):
             "std_dev": self.std_dev,
             "max_thr": self.max_thr,
             "a": self.a,
+            "skip_raw_series_validation": self.skip_raw_series_validation,
             "wncutoff": self.wncutoff,
             "ycutoff": self.ycutoff,
             "ydcutoff": self.ydcutoff,
