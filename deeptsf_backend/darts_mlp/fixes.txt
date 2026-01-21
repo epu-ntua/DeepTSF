@@ -1,0 +1,283 @@
+UPGRADING TO PLForecastingModule
+=================================
+Date: 2025-11-15
+
+MIGRATION FROM PLPastCovariatesModule TO PLForecastingModule
+------------------------------------------------------------
+
+The MLP model was upgraded from using PLPastCovariatesModule to the more general 
+PLForecastingModule. This provides better integration with the Darts framework and 
+more flexibility while maintaining the same functionality.
+
+torch.nn.Module
+    └── pytorch_lightning.LightningModule
+            └── PLForecastingModule (Darts base class)
+                    └── _MLPModule (Our implementation)
+
+TorchForecastingModel (Darts)
+    └── PastCovariatesTorchModel (Darts)
+            └── MLPModel (Our implementation)
+
+KEY CHANGES:
+------------
+
+1. Module Inheritance (_MLPModule)
+   Changed from: PLPastCovariatesModule
+   Changed to: PLForecastingModule
+   
+   Import changed:
+     from darts.models.forecasting.pl_forecasting_module import PLPastCovariatesModule
+   To:
+     from darts.models.forecasting.pl_forecasting_module import PLForecastingModule
+   
+   PLForecastingModule is the base class and provides:
+   - Loss computation
+   - Training/validation loops
+   - Metric tracking
+   - Model checkpointing
+
+2. Tuple Unpacking - train_sample Structure
+   Location: MLPModel._create_model()
+   
+   The train_sample tuple contains 6 elements (vs 4 in PLPastCovariatesModule):
+   (past_target, past_covariates, static_covariates, future_covariates, 
+    future_past_covariates, future_target)
+   
+   Changed from:
+     past_target, past_covariates, _, _ = train_sample
+   
+   To:
+     past_target, past_covariates, _, _, _, _ = train_sample
+
+3. Tuple Unpacking - forward() Input Structure  
+   Location: _MLPModule.forward()
+   
+   The x_in tuple contains 3 elements (vs 2 in PLPastCovariatesModule):
+   (past_target, past_covariates, static_covariates)
+   
+   Changed from:
+     past_target, past_covariates = x_in
+   
+   To:
+     past_target, past_covariates, _ = x_in
+
+4. Test Cases Updated
+   Location: tests/test_mlp_model.py
+   
+   All forward() method tests updated to pass 3-element tuples:
+   
+   Changed from:
+     module.forward((target, covariates))
+   
+   To:
+     module.forward((target, covariates, None))
+
+5. Static Covariates Support
+   Location: MLPModel._supports_static_covariates()
+   
+   Must be a regular method (not @property) returning bool as per 
+   Darts framework requirements.
+
+
+TEST RESULTS:
+-------------
+All 16 tests passing successfully:
+✓ TestMLPModelInit (3 tests)
+✓ TestMLPModuleArchitecture (2 tests)
+✓ TestMLPModuleForward (4 tests)
+✓ TestMLPModelIntegration (4 tests)
+✓ TestMLPModelEdgeCases (2 tests)
+✓ TestMLPModelPerformance (1 test)
+
+16 passed, 8 warnings in 229.24s (0:03:49)
+
+
+KEY LEARNINGS:
+--------------
+1. PLForecastingModule (base class) uses longer tuples than PLPastCovariatesModule:
+   - train_sample: 6 elements instead of 4
+   - forward input: 3 elements instead of 2
+
+2. The extra elements accommodate future covariates and static covariates which 
+   may not be used by all model types but must be handled in unpacking
+
+3. Parent class method signatures must match exactly (method vs property)
+
+4. All tests must be updated to match the new tuple structure when migrating 
+   between module types
+
+
+DOWNGRADING TO PLPastCovariatesModule FOR u8darts v0.28.0 COMPATIBILITY
+=======================================================================
+Date: 2025-11-26
+
+MIGRATION FROM PLForecastingModule TO PLPastCovariatesModule
+------------------------------------------------------------
+
+The MLP model needs to be downgraded from PLForecastingModule to PLPastCovariatesModule
+for compatibility with u8darts v0.28.0, which doesn't support the newer PLForecastingModule.
+
+torch.nn.Module
+      └── pytorch_lightning.LightningModule
+            └── PLForecastingModule 
+                  └── PLPastCovariatesModule (Darts base class)
+                        └── _MLPModule (Our implementation)
+
+TorchForecastingModel (Darts)
+      └── PastCovariatesTorchModel (Darts)
+            └── MLPModel (Our implementation)
+
+KEY CHANGES:
+------------
+
+1. Module Inheritance (_MLPModule)
+   Changed from: PLForecastingModule
+   Changed to: PLPastCovariatesModule
+   
+   Import changed:
+     from darts.models.forecasting.pl_forecasting_module import PLForecastingModule
+   To:
+     from darts.models.forecasting.pl_forecasting_module import PLPastCovariatesModule
+   
+   PLPastCovariatesModule provides:
+   - Loss computation
+   - Training/validation loops
+   - Metric tracking
+   - Model checkpointing
+   - Support for past covariates only (no future covariates or static covariates)
+
+2. Tuple Unpacking - train_sample Structure
+   Location: MLPModel._create_model()
+   
+   The train_sample tuple contains 4 elements (vs 6 in PLForecastingModule):
+   (past_target, past_covariates, historic_future_cov, future_cov)
+   
+   Changed from:
+     past_target, past_covariates, _, _, _, _ = train_sample
+   
+   To:
+     past_target, past_covariates, _, _ = train_sample
+
+3. Tuple Unpacking - forward() Input Structure  
+   Location: _MLPModule.forward()
+   
+   The x_in tuple contains 2 elements (vs 3 in PLForecastingModule):
+   (past_target, past_covariates)
+   
+   Changed from:
+     past_target, past_covariates, _ = x_in
+   
+   To:
+     past_target, past_covariates = x_in
+
+4. Test Cases Updated
+   Location: tests/test_mlp_model.py
+   
+   All forward() method tests updated to pass 2-element tuples:
+   
+   Changed from:
+     module.forward((target, covariates, None))
+   
+   To:
+     module.forward((target, covariates))
+   
+   Affected test methods:
+   - test_forward_shape_univariate()
+   - test_forward_shape_multivariate()
+   - test_forward_with_covariates()
+   - test_forward_different_batch_sizes()
+
+5. Static Covariates Support
+   Location: MLPModel._supports_static_covariates()
+   
+   Must remain as a regular method (not @property) returning False.
+   
+   Implementation:
+     def _supports_static_covariates(self) -> bool:
+         """MLPModel does not support static covariates."""
+         return False
+
+6. Test Configuration - PyTorch Lightning Parameters
+   Location: tests/test_mlp_model.py
+   
+   Removed: random_state parameter (not supported in PyTorch Lightning models)
+   
+   Added: pl_trainer_kwargs for PyTorch Lightning configuration
+   
+   Example:
+     model = MLPModel(
+         input_chunk_length=20,
+         output_chunk_length=5,
+         n_epochs=2,
+         pl_trainer_kwargs={
+             "accelerator": "cpu",
+             "enable_progress_bar": False,
+             "enable_model_summary": False,
+         }
+     )
+
+
+IMPLEMENTATION CHECKLIST:
+-------------------------
+□ Update import in mlp_model.py from PLForecastingModule to PLPastCovariatesModule
+□ Change _MLPModule class to inherit from PLPastCovariatesModule
+□ Update _create_model() to unpack 4 elements: past_target, past_covariates, _, _
+□ Update _MLPModule.forward() to unpack 2 elements: past_target, past_covariates
+□ Update all test forward() calls to pass 2-element tuples: (target, covariates)
+□ Remove random_state parameters from all test MLPModel instantiations
+□ Add pl_trainer_kwargs to all test MLPModel instantiations
+□ Run: pip install -e .
+□ Run: pytest tests/test_mlp_model.py -v
+
+
+KEY DIFFERENCES: PLPastCovariatesModule vs PLForecastingModule
+--------------------------------------------------------------
+
+Aspect                    | PLPastCovariatesModule (v0.28.0) | PLForecastingModule (newer)
+--------------------------|----------------------------------|----------------------------
+train_sample tuple length | 4 elements                       | 6 elements
+forward() input tuple     | 2 elements                       | 3 elements
+Static covariates support | Not directly supported           | Supported via tuple element
+Future covariates support | Limited                          | Full support
+Version compatibility     | u8darts v0.28.0                  | u8darts > v0.28.0
+Base class level         | Specific (past covariates only)  | General (all covariate types)
+
+
+TEST RESULTS:
+-------------
+All 16 tests should pass successfully:
+✓ TestMLPModelInit (3 tests)
+✓ TestMLPModuleArchitecture (2 tests)
+✓ TestMLPModuleForward (4 tests)
+✓ TestMLPModelIntegration (4 tests)
+✓ TestMLPModelEdgeCases (2 tests)
+✓ TestMLPModelPerformance (1 test)
+
+Expected: 16 passed
+
+
+KEY LEARNINGS:
+--------------
+1. PLPastCovariatesModule (specialized class) uses shorter tuples than PLForecastingModule:
+   - train_sample: 4 elements instead of 6
+   - forward input: 2 elements instead of 3
+
+2. The shorter tuples reflect the specialized nature of PLPastCovariatesModule,
+   which only handles past covariates (no static or future covariates)
+
+3. u8darts v0.28.0 does not include PLForecastingModule as a base class option
+
+4. PyTorch Lightning configuration must be done via pl_trainer_kwargs, not random_state
+
+5. This downgrade maintains all core MLP functionality while ensuring v0.28.0 compatibility
+
+6. The migration is essentially a reversal of the upgrade documented above, with the
+   addition of proper PyTorch Lightning configuration via pl_trainer_kwargs
+
+
+COMPATIBILITY NOTES:
+-------------------
+- This configuration is specific to u8darts v0.28.0
+- Future versions of u8darts may reintroduce PLForecastingModule
+- Always check the installed u8darts version: pip show u8darts
+- For newer versions (>v0.28.0), refer to the "UPGRADING TO PLForecastingModule" section above
