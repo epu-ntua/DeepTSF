@@ -13,6 +13,8 @@ RUN wget \
     && bash Miniconda3-latest-Linux-x86_64.sh -b \
     && rm -f Miniconda3-latest-Linux-x86_64.sh 
 
+ENV PIP_DEFAULT_TIMEOUT=600
+
 RUN conda --version
 
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
@@ -30,9 +32,9 @@ RUN conda env create -f conda.yaml
 RUN conda init bash
 
 # Install darts_mlp package
-COPY ./darts_mlp ./darts_mlp
+COPY deeptsf_backend/darts_mlp deeptsf_backend/darts_mlp
 SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
-RUN pip install -e ./darts_mlp
+RUN pip install -e deeptsf_backend/darts_mlp
 #############################BACKEND#######################################
 
 FROM base AS backend

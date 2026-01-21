@@ -1,3 +1,0 @@
-[submodule "deeptsf_backend/darts_mlp"]
-	path = deeptsf_backend/darts_mlp
-	url = https://github.com/nickbrakis/darts-mlp.git
