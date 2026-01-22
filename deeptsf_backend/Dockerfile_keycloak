@@ -17,8 +17,6 @@ ENV PIP_DEFAULT_TIMEOUT=600
 
 RUN conda --version
 
-RUN conda update -n base -y conda
-
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
 
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
