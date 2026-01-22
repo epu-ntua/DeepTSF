@@ -110,7 +110,7 @@ deploy-dev:
       --set env.POSTGRES_HOST=${POSTGRES_HOST} \
       --set commitHash=${CI_COMMIT_SHA}
   only:
-    - master
+    - none
   tags:
     - shared
   environment:
