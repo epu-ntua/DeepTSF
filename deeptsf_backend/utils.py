@@ -296,6 +296,7 @@ def download_mlflow_file(client, url, dst_dir=None, bucket_name='def'):
         dst_dir = tempfile.mkdtemp()
     else:
         os.makedirs(dst_dir, exist_ok=True)
+    print(url)
     if url.startswith('mlflow-artifacts:'):
         url = url.replace("mlflow-artifacts:", S3_ENDPOINT_URL  + '/' + bucket_name)
         local_path = download_online_file(

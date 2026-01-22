@@ -826,8 +826,11 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
     config = context.resources.config
 
     tenant = config.tenant
-    mlflow_uri = f"http://{tenant}-mlflow:5000"
-    mlflow.set_tracking_uri(mlflow_uri)
+    if none_checker(tenant) is not None:
+        mlflow_uri = f"http://{tenant}-mlflow:5000"
+        mlflow.set_tracking_uri(mlflow_uri)
+    else:
+        tenant = "mlflow-bucket"
     series_csv = config.series_csv
     year_range = config.year_range
     resolution = config.resolution
