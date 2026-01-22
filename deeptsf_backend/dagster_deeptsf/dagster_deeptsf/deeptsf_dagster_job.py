@@ -59,7 +59,7 @@ class DeepTSFConfig(ConfigurableResource):
     num_workers: int = 4
     eval_method: str = "ts_ID"
     imputation_method: str = "linear"
-    tenant: str = "default"
+    tenant: str = "None"
     order: int = 1
     rmv_outliers: bool = True
     loss_function: str = "mape"

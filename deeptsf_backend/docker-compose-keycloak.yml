@@ -21,12 +21,12 @@ services:
     depends_on:
       - redis
     # Uses all .env parameters
-    deploy: # activate this if you want gpu usage
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
+    # deploy: # activate this if you want gpu usage
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
     networks:
        - keycloak_net
   
@@ -40,7 +40,7 @@ services:
       - .env
     depends_on:
       - redis
-    runtime: nvidia
+    # runtime: nvidia
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
@@ -65,7 +65,7 @@ services:
       dockerfile:  Dockerfile_keycloak
     depends_on:
       - redis
-    runtime: nvidia
+    # runtime: nvidia
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility

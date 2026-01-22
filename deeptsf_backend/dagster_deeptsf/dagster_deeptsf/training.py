@@ -107,8 +107,11 @@ def train(context, start_pipeline_run, etl_out):
     parent_run_name = config.parent_run_name if none_checker(config.parent_run_name) != None else darts_model + '_pipeline'
 
     tenant = config.tenant
-    mlflow_uri = f"http://{tenant}-mlflow:5000"
-    mlflow.set_tracking_uri(mlflow_uri)
+    if none_checker(tenant) is not None:
+        mlflow_uri = f"http://{tenant}-mlflow:5000"
+        mlflow.set_tracking_uri(mlflow_uri)
+    else:
+        tenant = "mlflow-bucket"
 
 
     parameters_dict = {

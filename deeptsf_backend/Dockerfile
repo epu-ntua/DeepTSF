@@ -13,6 +13,8 @@ RUN wget \
     && bash Miniconda3-latest-Linux-x86_64.sh -b \
     && rm -f Miniconda3-latest-Linux-x86_64.sh 
 
+ENV PIP_DEFAULT_TIMEOUT=600
+
 RUN conda --version
 
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main

@@ -727,8 +727,11 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
 
     config = context.resources.config
     tenant = config.tenant
-    mlflow_uri = f"http://{tenant}-mlflow:5000"
-    mlflow.set_tracking_uri(mlflow_uri)
+    if none_checker(tenant) is not None:
+        mlflow_uri = f"http://{tenant}-mlflow:5000"
+        mlflow.set_tracking_uri(mlflow_uri)
+    else:
+        tenant = "mlflow-bucket"
 
     #TODO Maybe remove mode?
     mode = 'remote'

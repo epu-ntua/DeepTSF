@@ -112,7 +112,7 @@ def email_to_tenant(email: str) -> str:
     Falls back to DEFAULT_TENANT if not found.
     """
     if not email:
-        return DEFAULT_TENANT
+        return "None"
     return EMAIL_TENANT_MAP.get(email.lower(), DEFAULT_TENANT)
 
 
@@ -129,7 +129,6 @@ def _mlflow_headers(request: Optional[Request] = None) -> Dict[str, str]:
     """
     headers = {"Content-Type": "application/json"}
     token = None
-
     if request is not None:
         auth = request.headers.get("Authorization")
         if auth and auth.lower().startswith("bearer "):
@@ -1322,9 +1321,14 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     #    params["time_covs"] = "PT"
     print(run_config)
 
-    if USE_AUTH == "jwt" or USE_AUTH == "keycloak":
+    if USE_AUTH == "jwt":
         KUBE_HOST = os.environ.get('host')
         DAGSTER_HOST = "deeptsf-dagster" + KUBE_HOST
+        print(DAGSTER_HOST)
+        client = DagsterGraphQLClient(DAGSTER_HOST, use_https=True)
+    elif USE_AUTH == "keycloak":
+        KUBE_HOST = os.environ.get('host')
+        DAGSTER_HOST = DAGSTER_ENDPOINT_URL
         print(DAGSTER_HOST)
         client = DagsterGraphQLClient(DAGSTER_HOST, use_https=True)
     else: 
@@ -1534,6 +1538,7 @@ async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
         user_email = None
     try:
         tenant = email_to_tenant(user_email)
+        tenant = "mlflow-bucket" if none_checker(tenant) is None else tenant
 
         # Use REST-based artifact loader
         forecast_path = load_artifacts(
