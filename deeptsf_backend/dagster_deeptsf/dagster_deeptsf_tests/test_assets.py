@@ -12,7 +12,7 @@ from dagster_graphql.client import DagsterGraphQLClientError
 # -------------------- Defaults (override via env) --------------------
 DEFAULT_LAUNCH_FILE = os.getenv("DEEPTSF_LAUNCH_FILE", "launch_deeptsf.py")
 
-DAGSTER_HOST = os.getenv("DAGSTER_HOST", "deeptsf-dagster.stage.aiodp.ai").strip()
+DAGSTER_HOST = os.getenv("DAGSTER_HOST", "dagster.deeptsf.toolbox.epu.ntua.gr").strip()
 DAGSTER_PORT = int(os.getenv("DAGSTER_PORT", "443"))  # if TLS terminates at ingress, 443 is typical
 DAGSTER_JOB_NAME = os.getenv("DAGSTER_JOB_NAME", "deeptsf_dagster_job").strip()
 
