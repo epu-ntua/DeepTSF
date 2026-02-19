@@ -27,8 +27,9 @@ services:
     #       devices:
     #         - driver: nvidia
     #           capabilities: [gpu]
+    mem_limit: 500m
     networks:
-       - keycloak_net
+       - appnet
   
   worker:
     build:
@@ -44,15 +45,15 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    mem_limit: 26g
+    mem_limit: 3g
     networks:
-       - keycloak_net
+       - appnet
 
   redis:
     image: redis:7-alpine
     restart: always
     networks:
-       - keycloak_net
+       - appnet
 
   dagster:
     container_name: DeepTSF--dagster-orchestrator
@@ -80,8 +81,9 @@ services:
       # MLFLOW_S3_ENDPOINT_URL
       # AWS_ACCESS_KEY_ID
       # AWS_SECRET_ACCESS_KEY
+    mem_limit: 1.5g
     networks:
-       - keycloak_net
+       - appnet
 
   # frontend:
   #   container_name: load-forecasting-dashboard
@@ -104,5 +106,6 @@ services:
   #     - load-forecasting-net
 
 networks:
-  keycloak_net:
+  appnet:
+    name: ${COMPOSE_NETWORK}
     external: true

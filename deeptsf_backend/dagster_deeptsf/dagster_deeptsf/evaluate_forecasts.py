@@ -40,6 +40,7 @@ sys.path.append('..')
 from utils import truth_checker, load_yaml_as_dict
 from utils import none_checker, truth_checker, download_online_file, load_local_csv_or_df_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
 from exceptions import EvalSeriesNotFound
+from dagster_deeptsf.auth_runtime import get_user_token_for_run, exchange_for_mlflow, patch_mlflow_bearer
 
 # get environment variables
 from dotenv import load_dotenv
@@ -732,6 +733,11 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
         mlflow.set_tracking_uri(mlflow_uri)
     else:
         tenant = "mlflow-bucket"
+    
+    user_tok = get_user_token_for_run(context.run_id)
+    mlflow_tok = exchange_for_mlflow(user_tok)
+    patch_mlflow_bearer(mlflow_tok)
+
 
     #TODO Maybe remove mode?
     mode = 'remote'

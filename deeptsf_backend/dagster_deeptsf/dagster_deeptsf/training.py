@@ -9,6 +9,7 @@ from darts.models.forecasting.lgbm import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
 from darts.models.forecasting.arima import ARIMA
 from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
+from dagster_deeptsf.auth_runtime import get_user_token_for_run, exchange_for_mlflow, patch_mlflow_bearer
 
 import yaml
 import mlflow
@@ -112,6 +113,11 @@ def train(context, start_pipeline_run, etl_out):
         mlflow.set_tracking_uri(mlflow_uri)
     else:
         tenant = "mlflow-bucket"
+    
+    user_tok = get_user_token_for_run(context.run_id)
+    mlflow_tok = exchange_for_mlflow(user_tok)
+    patch_mlflow_bearer(mlflow_tok)
+
 
 
     parameters_dict = {

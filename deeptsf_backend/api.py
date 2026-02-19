@@ -142,6 +142,98 @@ def _mlflow_headers(request: Optional[Request] = None) -> Dict[str, str]:
 
     return headers
 
+def _dagster_headers(request: Request) -> Dict[str, str]:
+    """
+    Forward the same bearer token that authenticated this API to oauth2-proxy/Dagster.
+    """
+    headers = {"Content-Type": "application/json"}
+    auth = request.headers.get("Authorization")
+    if auth:
+        headers["Authorization"] = auth  # "Bearer <token>"
+    return headers
+
+def dagster_launch_job(
+    dagster_base_url: str,
+    location_name: str,
+    repository_name: str,
+    job_name: str,
+    run_config: dict,
+    request: Request,
+) -> str:
+    graphql_url = dagster_base_url.rstrip("/") + "/graphql"
+
+    query = """
+    mutation LaunchJob($executionParams: ExecutionParams!) {
+      launchPipelineExecution(executionParams: $executionParams) {
+        __typename
+        ... on LaunchPipelineRunSuccess {
+          run {
+            runId
+          }
+        }
+        ... on PipelineNotFoundError {
+          message
+        }
+        ... on InvalidStepError {
+          invalidStepKey
+        }
+        ... on RunConfigValidationInvalid {
+          errors {
+            message
+            path
+            reason
+          }
+        }
+        ... on PythonError {
+          message
+          stack
+        }
+      }
+    }
+    """
+
+    variables = {
+        "executionParams": {
+            "selector": {
+                "repositoryLocationName": location_name,
+                "repositoryName": repository_name,
+                "pipelineName": job_name,
+            },
+            "runConfigData": run_config,
+        }
+    }
+
+    resp = requests.post(
+        graphql_url,
+        headers=_dagster_headers(request),
+        json={"query": query, "variables": variables, "operationName": "LaunchJob"},
+        timeout=30,
+    )
+    print("Dagster URL:", resp.url)
+    print("Dagster status:", resp.status_code)
+    print("Dagster headers:", dict(resp.headers))
+    print("Dagster body:", resp.text[:4000])
+
+
+    # Helpful debug until stable
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"Dagster HTTP {resp.status_code}: {resp.text[:800]}")
+    data = resp.json()
+
+    if data.get("errors"):
+        raise HTTPException(status_code=502, detail=f"Dagster GraphQL errors: {data['errors']}")
+
+    result = (data.get("data") or {}).get("launchPipelineExecution")
+    if not result:
+        raise HTTPException(status_code=502, detail=f"Unexpected Dagster response: {data}")
+
+    if result.get("__typename") == "LaunchPipelineRunSuccess":
+        return result["run"]["runId"]
+
+    # Anything else -> bubble up details
+    raise HTTPException(status_code=502, detail=f"Dagster launch failed: {result}")
+
+
 class DateLimits(int, Enum):
     """This function will read the uploaded csv before running the pipeline and will decide which are the allowed values
     for: validation_start_date < test_start_date < test_end_date """
@@ -166,6 +258,7 @@ ORIGINS = [
             "https://deeptsf-dagster.stage.aiodp.ai",
             "https://deeptsf-dagster.aiodp.ai",
             "https://deeptsf.stage.aiodp.ai",
+            "https://deeptsf.energy-guard.eu",
             "https://deeptsf.dev.aiodp.ai",
             "https://marketplace.aiodp.ai",
             "https://platform.aiodp.ai"
@@ -181,6 +274,7 @@ if USE_AUTH == "keycloak":
                     "https://deeptsf.toolbox.epu.ntua.gr",
                     "https://dagster.deeptsf.toolbox.epu.ntua.gr",
                     "https://keycloak.toolbox.epu.ntua.gr",
+                    "https://deeptsf.energy-guard.eu",
                     "http://localhost:3000",
                     "http://localhost:8086"],
         allow_credentials=True,
@@ -1339,15 +1433,20 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
 
     # 3  submit an asynchronous run
     try:
-        print("SUBMIT")
-        run_id = client.submit_job_execution(
-            "deeptsf_dagster_job",
+        run_id = dagster_launch_job(
+            dagster_base_url="https://deeptsf-dagster.energy-guard.eu/", #TODO Change!
+            location_name="dagster_deeptsf",
+            repository_name="__repository__",   # see note below
+            job_name="deeptsf_dagster_job",
             run_config=run_config,
+            request=request,
         )
         print(f"Launched Dagster run {run_id}")
-    except DagsterGraphQLClientError as exc:          # handy for surfacing schema errors
-        print(f"Dagster rejected the launch: {exc}")
-        raise HTTPException(status_code=404, detail="Could not initiate run. Check system logs")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Dagster launch failed")
+        raise HTTPException(status_code=502, detail=f"Could not initiate run via Dagster: {e}")
     
     return {"message": "Experimentation pipeline initiated. Proceed to MLflow for details..."}
 

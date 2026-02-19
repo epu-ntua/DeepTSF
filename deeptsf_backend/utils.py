@@ -45,6 +45,77 @@ from datetime import datetime
 from typing import Union, List, Tuple
 from minio import S3Error
 from minio.commonconfig import CopySource
+from minio import Minio
+from urllib.parse import urlparse
+
+def _current_mlflow_bearer() -> str | None:
+    """
+    Best-effort access to the current run-scoped MLflow bearer token.
+    Falls back to None outside Dagster runtime.
+    """
+    try:
+        from dagster_deeptsf.auth_runtime import get_current_mlflow_token
+        return get_current_mlflow_token()
+    except Exception:
+        return None
+
+def _download_http_artifact_with_bearer(url: str, dst_dir: str, fallback_name: str = "artifact.bin") -> str:
+    os.makedirs(dst_dir, exist_ok=True)
+    filename = url.rstrip("/").split("/")[-1] or fallback_name
+    local_path = os.path.join(dst_dir, filename)
+
+    headers = {}
+    tok = _current_mlflow_bearer()
+    if tok:
+        headers["Authorization"] = f"Bearer {tok}"
+
+    resp = requests.get(url, headers=headers, timeout=120)
+    resp.raise_for_status()
+    with open(local_path, "wb") as f:
+        f.write(resp.content)
+    return local_path
+
+def _download_artifact_url(url: str, dst_dir: str, fallback_name: str = "artifact.bin") -> str:
+    """
+    Download artifact URL using the right auth mechanism:
+    - MinIO object URLs via MinIO credentials (fget_object)
+    - Other HTTP(S) URLs via bearer token
+    """
+    parsed = urlparse(url)
+    mlflow_s3_endpoint = os.environ.get("MLFLOW_S3_ENDPOINT_URL", "").rstrip("/")
+
+    is_minio_object_url = False
+    if mlflow_s3_endpoint:
+        is_minio_object_url = url.startswith(mlflow_s3_endpoint + "/")
+
+    if is_minio_object_url:
+        path_parts = parsed.path.lstrip("/").split("/", 1)
+        if len(path_parts) != 2:
+            raise ValueError(f"Invalid MinIO artifact URL path: {url}")
+        bucket_name, object_path = path_parts
+
+        minio_endpoint = os.environ.get("MINIO_CLIENT_URL")
+        minio_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+        minio_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+        minio_ssl = str(os.environ.get("MINIO_SSL", "false")).lower() in {"1", "true", "yes", "on"}
+
+        if not minio_endpoint or not minio_access_key or not minio_secret_key:
+            raise RuntimeError("Missing MINIO/AWS credentials for MinIO artifact download.")
+
+        os.makedirs(dst_dir, exist_ok=True)
+        filename = object_path.split("/")[-1] or fallback_name
+        local_path = os.path.join(dst_dir, filename)
+
+        minio_client = Minio(
+            minio_endpoint,
+            access_key=minio_access_key,
+            secret_key=minio_secret_key,
+            secure=minio_ssl,
+        )
+        minio_client.fget_object(bucket_name, object_path, local_path)
+        return local_path
+
+    return _download_http_artifact_with_bearer(url, dst_dir, fallback_name=fallback_name)
 
 def move_object(minio_client, source_bucket, source_object, dest_bucket, dest_object):
     try:
@@ -417,6 +488,11 @@ def load_scaler(scaler_uri=None, mode="remote"):
         return None
 
     if mode == "remote":
+        if scaler_uri.startswith("http://") or scaler_uri.startswith("https://"):
+            local_dir = tempfile.mkdtemp()
+            scaler_path = _download_artifact_url(scaler_uri, local_dir, "scaler.pkl")
+            return load_local_pkl_as_object(scaler_path)
+
         run_id = scaler_uri.split("/")[-2]
         mlflow_filepath = scaler_uri.split("/artifacts/")[1]
 
@@ -446,6 +522,11 @@ def load_ts_id(load_ts_id_uri=None, mode="remote"):
         return None
 
     if mode == "remote":
+        if load_ts_id_uri.startswith("http://") or load_ts_id_uri.startswith("https://"):
+            local_dir = tempfile.mkdtemp()
+            tsid_path = _download_artifact_url(load_ts_id_uri, local_dir, "ts_id_l.pkl")
+            return load_local_pkl_as_object(tsid_path)
+
         run_id = load_ts_id_uri.split("/")[-2]
         mlflow_filepath = load_ts_id_uri.split("/artifacts/")[1]
 
