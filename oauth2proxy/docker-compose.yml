@@ -1,0 +1,74 @@
+version: "3.8"
+
+networks:
+  proxy:
+    external: true
+    name: nginxproxy_energyguard_net
+
+services:
+  oauth2_proxy_dagster:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.11.0
+    container_name: oauth2_proxy_dagster
+    networks: [proxy]
+    restart: unless-stopped
+    command:
+
+      - --http-address=0.0.0.0:4180
+      - --provider=keycloak-oidc
+      - --oidc-issuer-url=${KC_ISSUER_URL}
+      - --client-id=${KC_CLIENT_ID}
+      - --client-secret=${KC_CLIENT_SECRET}
+      - --cookie-secret=${OAUTH2_COOKIE_SECRET}
+      - --redirect-url=https://deeptsf-dagster.energy-guard.eu/oauth2/callback
+      - --upstream=http://dagster_gateway:8090/
+      - --reverse-proxy=true
+      - --email-domain=*
+      - --cookie-secure=true
+      - --cookie-samesite=none #change this
+      - --whitelist-domain=.energy-guard.eu
+      - --session-store-type=redis
+      - --redis-connection-url=redis://redis:6379/0
+      - --cookie-domain=.energy-guard.eu
+      # - --session-cookie-minimal=true
+      # optional, if you want identity headers forwarded upstream:
+      - --set-xauthrequest=true
+      - --skip-provider-button=true
+      - --show-debug-on-error=true
+      - --skip-jwt-bearer-tokens=true
+      - --cookie-name=_oauth2_proxy_dagster
+      - --backend-logout-url=https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/logout?id_token_hint={id_token}&post_logout_redirect_uri=https%3A%2F%2Fdeeptsf-dagster.energy-guard.eu%2F
+      - --oidc-extra-audience=jupyterhub
+      - --oidc-extra-audience=account
+      # - --cookie-csrf-per-request=true
+      # - --cookie-csrf-per-request-limit=10
+
+      - --pass-access-token=true 
+      - --set-authorization-header=true
+      - --pass-authorization-header=true
+      - --pass-user-headers=true
+      - --skip-auth-route=^/favicon\.ico$
+      - --skip-auth-route=^/robots\.txt$
+      - --skip-auth-route=^/_next/.*
+      - --skip-auth-route=^/static/.*
+
+
+  dagster_gateway:
+    image: python:3.12-slim
+    container_name: dagster_gateway
+    restart: unless-stopped
+    networks: [proxy]
+    environment:
+      DAGSTER_UPSTREAM: "http://DeepTSF--dagster-orchestrator:8006"
+      REDIS_URL: "redis://redis:6379/0"
+      RUN_TOKEN_TTL_SECONDS: "21600"
+      OAUTH2_PROXY_INTERNAL_URL: "http://oauth2_proxy_dagster:4180"
+    volumes:
+      - ./dagster_gateway.py:/app/dagster_gateway.py:ro
+    working_dir: /app
+    command: >
+      /bin/sh -lc "
+        pip install --no-cache-dir fastapi uvicorn[standard] httpx redis websockets &&
+        uvicorn dagster_gateway:app --host 0.0.0.0 --port 8090
+      "
+
+#       - --redirect-url=https://deeptsf-dagster.energy-guard.eu/oauth2/callback
