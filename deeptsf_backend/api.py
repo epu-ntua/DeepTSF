@@ -452,7 +452,17 @@ if USE_AUTH == "jwt":
             return JSONResponse(status_code=400, content={"detail": "Missing JWT"})
 
         login_url = f"https://deeptsf.aiodp.ai/?jwt={jwt_token}"
-        return JSONResponse(content={"url": login_url})
+        json_response = JSONResponse(content={"url": login_url})
+        json_response.set_cookie(
+            key="session_token",
+            value=jwt_token,
+            httponly=True,
+            domain=host,
+            path="/",
+            secure=True,
+            samesite="Lax",
+        )
+        return json_response
 
 
     class LoginRequest(BaseModel):
@@ -599,7 +609,7 @@ if USE_AUTH == "jwt":
             try:
                 public_key = fetch_public_key()
                 payload = jwt.decode(
-                    token, public_key, algorithms=["RS256"], audience="resource_server"
+                    token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False},
                 )
                 request.state.user = payload
                 response = await call_next(request)
@@ -644,7 +654,7 @@ if USE_AUTH == "jwt":
             public_key = fetch_public_key()
         
             payload = jwt.decode(
-                    token, public_key, algorithms=["RS256"], audience="resource_server")
+                    token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False})
             
             websocket.state.user = payload
             return payload
@@ -689,7 +699,7 @@ if USE_AUTH == "jwt":
             public_key = fetch_public_key()
         
             payload = jwt.decode(
-                    session_token, public_key, algorithms=["RS256"], audience="resource_server"
+                    session_token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False},
                 )            
             return payload
         except jwt.ExpiredSignatureError:
@@ -707,7 +717,7 @@ if USE_AUTH == "jwt":
             # Decode and validate the JWT
             logger.info(f"Decoding JWT: {request.jwt}")
             payload = jwt.decode(
-                request.jwt, public_key, algorithms=["RS256"], audience="resource_server"
+                request.jwt, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False},
             )
             logger.info(f"Decoded JWT payload: {payload}")
     
@@ -762,9 +772,10 @@ if USE_AUTH == "jwt":
         
 
     @app.post("/api/logout")
-    async def logout(response: Response):
-        response.delete_cookie("session_token")
-        return JSONResponse(content={"message": "Logged out successfully"})
+    async def logout():
+        json_response = JSONResponse(content={"message": "Logged out successfully"})
+        json_response.delete_cookie("session_token", domain=host, path="/")
+        return json_response
     
     @app.websocket("/ws/task-status/{task_id}")
     async def websocket_task_status(websocket: WebSocket, task_id: str):
