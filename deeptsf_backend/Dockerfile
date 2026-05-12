@@ -23,7 +23,11 @@ RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkg
 
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 
-WORKDIR /app 
+WORKDIR /app
+
+# Force boto3 to use path-style addressing for S3 (required for MinIO behind ingress).
+COPY ./aws-config /root/.aws/config
+ENV AWS_CONFIG_FILE=/root/.aws/config
 
 COPY ./conda.yaml ./conda.yaml
 
