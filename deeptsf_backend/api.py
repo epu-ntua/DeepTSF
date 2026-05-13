@@ -442,12 +442,10 @@ if USE_AUTH == "jwt":
         # fallback: pick first allowed origin or omit header
         return ORIGINS[0]
 
-    # This is used from VC.
-    # Per the VC SSO contract, cookies set on the response of this POST do NOT
-    # survive the subsequent top-level navigation (it's a cross-origin XHR from
-    # the marketplace). We validate the JWT and return a URL to /sso-callback,
-    # which sets the session cookie during a top-level GET so the browser
-    # persists it (and sibling subdomains like mlflow.<host> can read it).
+    # This is used from VC. Returns the dashboard URL with the JWT as a query
+    # parameter; the dashboard reads it and POSTs to /api/auth, which validates
+    # and sets the session_token cookie at Domain=<host> (visible to siblings
+    # like mlflow.<host>).
     @app.post("/login", dependencies=[])
     async def login(request: Request):
         request_data = await request.json()
@@ -456,47 +454,8 @@ if USE_AUTH == "jwt":
         if not jwt_token:
             return JSONResponse(status_code=400, content={"detail": "Missing JWT"})
 
-        try:
-            public_key = fetch_public_key()
-            jwt.decode(
-                jwt_token,
-                public_key,
-                algorithms=["RS256"],
-                audience="resource_server",
-                options={"verify_signature": False},
-            )
-        except jwt.PyJWTError as e:
-            return JSONResponse(status_code=401, content={"detail": f"Invalid JWT: {e}"})
-
-        callback_url = f"https://deeptsf-backend{host}/sso-callback?token={jwt_token}"
-        return JSONResponse(content={"url": callback_url})
-
-
-    @app.get("/sso-callback")
-    async def sso_callback(token: str):
-        try:
-            public_key = fetch_public_key()
-            jwt.decode(
-                token,
-                public_key,
-                algorithms=["RS256"],
-                audience="resource_server",
-                options={"verify_signature": False},
-            )
-        except jwt.PyJWTError as e:
-            raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
-
-        response = RedirectResponse(url=f"https://deeptsf{host}/", status_code=303)
-        response.set_cookie(
-            key="session_token",
-            value=token,
-            httponly=True,
-            domain=host,
-            path="/",
-            secure=True,
-            samesite="Lax",
-        )
-        return response
+        login_url = f"https://deeptsf{host}/?jwt={jwt_token}"
+        return JSONResponse(content={"url": login_url})
 
 
     class LoginRequest(BaseModel):
@@ -602,7 +561,7 @@ if USE_AUTH == "jwt":
     #     response = await call_next(request)
     #     return response
 
-    PUBLIC_PATHS: List[str] = ["/login", "/sso-callback", "/api/auth", "/api/logout", "/api/login"]
+    PUBLIC_PATHS: List[str] = ["/login", "/api/auth", "/api/logout", "/api/login"]
 
             # if "/ws/" in request.url.path:
             #     auth_header: Optional[str] = request.query_params.get("token")
