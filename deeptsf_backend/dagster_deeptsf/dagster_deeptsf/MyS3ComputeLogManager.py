@@ -492,7 +492,7 @@ class MyS3ComputeLogManager(S3ComputeLogManager):
                 verify=verify_param,
                 endpoint_url=endpoint_url,
                 aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key, 
+                aws_secret_access_key=secret_key,
             ).meta.client
         else:
             self._s3_session = boto3.resource(
