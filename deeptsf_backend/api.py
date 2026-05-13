@@ -606,6 +606,23 @@ if USE_AUTH == "jwt":
                 )
                 request.state.user = payload
                 response = await call_next(request)
+
+                # Mirror the Bearer token to a session_token cookie scoped to the
+                # parent domain so sibling services (e.g. mlflow.<host>, whose
+                # mitmproxy reads `session_token`) can authenticate the user via
+                # the browser cookie store. Only write when missing/stale to
+                # avoid re-setting on every request.
+                if request.cookies.get("session_token") != token:
+                    response.set_cookie(
+                        key="session_token",
+                        value=token,
+                        httponly=True,
+                        domain=host,
+                        path="/",
+                        secure=True,
+                        samesite="Lax",
+                    )
+
                 # Optionally also add CORS here, but CORSMiddleware should already do that.
                 return response
 
