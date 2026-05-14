@@ -520,21 +520,34 @@ if USE_AUTH == "jwt":
         return {"message": "Login successful", "token": request.jwt}
 
 
+    # In-memory cache for the JWKS public key. JWKS rotation is infrequent;
+    # caching for an hour avoids a synchronous HTTPS round-trip to
+    # platform.aiodp.ai on every authenticated request (which was the source
+    # of the multi-second delay before the SSO cookie was issued).
+    _public_key_cache = {"key": None, "expires_at": 0.0}
+    _PUBLIC_KEY_TTL = 3600
+
     # Fetch the public key from the JWKS endpoint
     def fetch_public_key():
+        import time
+        now = time.time()
+        if _public_key_cache["key"] is not None and now < _public_key_cache["expires_at"]:
+            return _public_key_cache["key"]
+
         # jwks_url = "https://vc-platform.stage.aiodp.ai/.well-known/jwks"
         jwks_url = "https://platform.aiodp.ai/.well-known/jwks"
         try:
             logger.info(f"Fetching JWKS from {jwks_url}")
-            response = requests.get(jwks_url)
+            response = requests.get(jwks_url, timeout=5)
             response.raise_for_status()  # Raise an error for bad status codes
             jwks = response.json()
-            logger.info(f"JWKS: {jwks}")
 
             # Extract the key (assuming the key is in the first entry)
             key_data = jwks['keys'][0]
             public_key = RSAAlgorithm.from_jwk(key_data)
-            logger.info(f"Fetched public key: {public_key}")
+            _public_key_cache["key"] = public_key
+            _public_key_cache["expires_at"] = now + _PUBLIC_KEY_TTL
+            logger.info("Cached new JWKS public key")
             return public_key
         except requests.exceptions.RequestException as e:
             logger.error(f"HTTP request failed: {e}")
