@@ -759,26 +759,30 @@ if USE_AUTH == "jwt":
             # Create a session token (for simplicity, using the JWT itself as the session token)
             session_token = request.jwt
     
-            # Set the session token as a cookie
-            response.set_cookie(
-                key="session_token",
-                value=session_token,
-                httponly=True,
-                domain=host,   # or ".dev.aiodp.ai" if you want to scope to that env
-                path="/",
-                secure=True,          # you’re on HTTPS
-                samesite="Lax",       # or "None" if you ever need true cross-site usage
-            )
-    
-            # Respond with the login URL and user information
+            # Build the JSONResponse and set the cookie on it directly.
+            # NOTE: setting the cookie on the injected `response: Response`
+            # parameter has no effect when we explicitly return a new Response
+            # — FastAPI sends what we return, not the injected one. Setting it
+            # on the returned object is the only way the Set-Cookie header
+            # actually reaches the browser here.
             login_url = f"https://deeptsf.aiodp.ai/?jwt={session_token}"
-            return JSONResponse(
+            json_response = JSONResponse(
                 content={
                     "message": "Session created successfully",
                     "url": login_url,
                     "user": {"email": user_email, "username": username, "roles": roles},
                 }
             )
+            json_response.set_cookie(
+                key="session_token",
+                value=session_token,
+                httponly=True,
+                domain=host,
+                path="/",
+                secure=True,
+                samesite="Lax",
+            )
+            return json_response
     
         except jwt.ExpiredSignatureError:
             logger.error("Token has expired")
