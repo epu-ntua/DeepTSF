@@ -12,13 +12,20 @@ from dagster_deeptsf.assets import start_pipeline_run, training_and_hyperparamet
 from dagster_deeptsf.load_raw_data import load_raw_data_asset
 from dagster_deeptsf.etl import etl_asset
 from dagster_deeptsf.evaluate_forecasts import evaluation_asset
+from dagster_deeptsf.eval_only import start_eval_run, eval_model_input, evaluation_only_asset
 from typing import Optional
 from dagster import ConfigurableResource
 
 class DeepTSFConfig(ConfigurableResource):
-    resolution: str = "None"  
+    resolution: str = "None"
     experiment_name: str = "Default"
     parent_run_name: str = "None"
+    # --- standalone evaluation job (deeptsf_eval_job) only ---
+    # MLflow run id of the already-trained model to (re-)evaluate.
+    eval_model_run_id: str = "None"
+    # Optional existing MLflow run id to nest the eval under. If "None", the
+    # standalone eval is logged as its own separate run.
+    parent_run_id: str = "None"
     series_csv: str = "series_csv"
     series_uri: str = "None"
     past_covs_csv: str = "None"
@@ -78,6 +85,8 @@ class DeepTSFConfig(ConfigurableResource):
         return {
             "experiment_name": self.experiment_name,
             "parent_run_name": self.parent_run_name,
+            "eval_model_run_id": self.eval_model_run_id,
+            "parent_run_id": self.parent_run_id,
             "series_csv": self.series_csv,
             "series_uri": self.series_uri,
             "past_covs_csv": self.past_covs_csv,
@@ -167,6 +176,29 @@ def deepTSF_pipeline():
             'evaluation_out': evaluation_out}
 
 deeptsf_dagster_job = define_asset_job("deeptsf_dagster_job", selection=[deepTSF_pipeline])
+
+
+@graph_multi_asset(
+    name="deepTSF_eval_pipeline",
+    group_name='deepTSF_eval',
+    outs={
+        "start_eval_run": AssetOut(dagster_type=str),
+        "eval_model_input": AssetOut(dagster_type=dict),
+        "evaluation_only_out": AssetOut(dagster_type=dict)})
+def deepTSF_eval_pipeline():
+    # Standalone evaluation flow: re-run ONLY evaluation against an already-trained
+    # model, reconstructing the upstream training output from MLflow. Fully isolated
+    # from deepTSF_pipeline above.
+    parent_run_id = start_eval_run()
+    model_input = eval_model_input()
+    evaluation_only_out = evaluation_only_asset(parent_run_id, model_input)
+
+    return {'start_eval_run': parent_run_id,
+            'eval_model_input': model_input,
+            'evaluation_only_out': evaluation_only_out}
+
+
+deeptsf_eval_job = define_asset_job("deeptsf_eval_job", selection=[deepTSF_eval_pipeline])
 
 # basic_schedule = ScheduleDefinition(job=deeptsf_dagster_job, 
 #                                     cron_schedule="0 0 * * *",

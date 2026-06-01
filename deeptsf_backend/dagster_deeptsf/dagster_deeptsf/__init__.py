@@ -1,12 +1,12 @@
 from dagster import Definitions, load_assets_from_modules
 import os
 
-from dagster_deeptsf import assets, load_raw_data, etl, evaluate_forecasts
-from dagster_deeptsf.deeptsf_dagster_job import deeptsf_dagster_job, DeepTSFConfig
+from dagster_deeptsf import assets, load_raw_data, etl, evaluate_forecasts, eval_only
+from dagster_deeptsf.deeptsf_dagster_job import deeptsf_dagster_job, deeptsf_eval_job, DeepTSFConfig
 from dagster_celery import celery_executor
 from dagster_aws.s3 import s3_pickle_io_manager, s3_resource
 
-all_assets = load_assets_from_modules([load_raw_data, etl, assets, evaluate_forecasts])
+all_assets = load_assets_from_modules([load_raw_data, etl, assets, evaluate_forecasts, eval_only])
 
 # defs = Definitions(
 #     assets=all_assets,
@@ -28,7 +28,7 @@ all_assets = load_assets_from_modules([load_raw_data, etl, assets, evaluate_fore
 
 defs = Definitions(
     assets=all_assets,
-    jobs=[deeptsf_dagster_job],
+    jobs=[deeptsf_dagster_job, deeptsf_eval_job],
     # schedules=[basic_schedule],
     schedules=[],
     executor=celery_executor,

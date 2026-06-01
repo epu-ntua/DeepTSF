@@ -694,23 +694,23 @@ def call_shap(n_past_covs: int,
 
     mlflow.log_artifacts(interprtmpdir, "interpretation")
 
-@multi_asset(
-    name="evaluation_asset",
-    description="For evaluation of the results",
-    group_name='deepTSF_pipeline',
-    required_resource_keys={"config"},
-    ins={'start_pipeline_run': AssetIn(key='start_pipeline_run', dagster_type=str),
-         'training_and_hyperparameter_tuning_out': AssetIn(key='training_and_hyperparameter_tuning_out', dagster_type=dict)},
-    outs={"evaluation_out": AssetOut(dagster_type=dict)})
+def run_evaluation(context, start_pipeline_run, training_and_hyperparameter_tuning_out):
+    """Core evaluation logic shared by the pipeline ``evaluation_asset`` and the
+    standalone eval-only job (see ``eval_only.py``).
 
-def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tuning_out):
+    It returns a plain ``dict``; callers are responsible for wrapping it in a
+    Dagster ``Output``. ``start_pipeline_run`` is the MLflow run id that the eval
+    run is nested under, and ``training_and_hyperparameter_tuning_out`` carries
+    the model / series / scaler URIs (normally produced upstream by training, or
+    reconstructed from MLflow tags for a standalone eval).
+    """
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
     model_uri = training_and_hyperparameter_tuning_out["model_uri"]
     if none_checker(model_uri) == None:
         print(f'\nNo model in input. Skipping Evaluation')
         logging.info(f'\nNo model in input. Skipping Evaluation')
-        return Output({"run_completed": True,})
+        return {"run_completed": True,}
     
     model_type = training_and_hyperparameter_tuning_out["model_type"]
     series_uri = training_and_hyperparameter_tuning_out["series_uri"]
@@ -899,7 +899,16 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
     if eval_i == -1 and evaluate_all_ts==False:
         raise EvalSeriesNotFound(eval_series)
     # Evaluate Model
-    mlflow.set_experiment(experiment_name)
+    # We resume the run identified by `start_pipeline_run` and nest the eval under
+    # it. MLflow does not allow resuming a run (or nesting a child) under a
+    # different experiment than the run's own, so the active experiment must match
+    # the resumed run's experiment. We therefore align it to the resumed run's
+    # experiment rather than blindly using `experiment_name`. For the normal
+    # pipeline these are the same experiment (start_pipeline_run was created in
+    # `experiment_name`), so behavior is unchanged; for the standalone eval job it
+    # lets the eval nest under a parent that lives in any experiment.
+    resumed_experiment_id = mlflow.tracking.MlflowClient().get_run(start_pipeline_run).info.experiment_id
+    mlflow.set_experiment(experiment_id=resumed_experiment_id)
     with mlflow.start_run(tags={"mlflow.runName": parent_run_name}, run_id=start_pipeline_run) as parent_run:
         with mlflow.start_run(tags={"mlflow.runName": "eval"}, nested=True) as mlrun:
             mlflow.set_tag("run_id", mlrun.info.run_id)
@@ -1032,4 +1041,17 @@ def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tu
         completed_run = mlflow.tracking.MlflowClient().get_run(curr_run_id)
         mlflow.log_metrics(completed_run.data.metrics)
 
-        return Output({"run_completed": True,})
+        return {"run_completed": True,}
+
+
+@multi_asset(
+    name="evaluation_asset",
+    description="For evaluation of the results",
+    group_name='deepTSF_pipeline',
+    required_resource_keys={"config"},
+    ins={'start_pipeline_run': AssetIn(key='start_pipeline_run', dagster_type=str),
+         'training_and_hyperparameter_tuning_out': AssetIn(key='training_and_hyperparameter_tuning_out', dagster_type=dict)},
+    outs={"evaluation_out": AssetOut(dagster_type=dict)})
+
+def evaluation_asset(context, start_pipeline_run, training_and_hyperparameter_tuning_out):
+    return Output(run_evaluation(context, start_pipeline_run, training_and_hyperparameter_tuning_out))
