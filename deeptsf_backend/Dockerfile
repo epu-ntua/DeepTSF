@@ -48,7 +48,8 @@ RUN pip install uvicorn[standard]==0.29.0 cryptography==44.0.2 dagster-graphql==
 
 COPY . .
  
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8080"]
+# Shell form so ${BACKEND_PORT} is expanded at runtime (defaults to 8080)
+ENTRYPOINT conda run --no-capture-output -n DeepTSF_env uvicorn api:app --host 0.0.0.0 --port ${BACKEND_PORT:-8080}
 
 #############################DAGSTER#######################################
 

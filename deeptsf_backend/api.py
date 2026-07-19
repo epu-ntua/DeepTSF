@@ -227,7 +227,8 @@ def dagster_launch_job(
     if not result:
         raise HTTPException(status_code=502, detail=f"Unexpected Dagster response: {data}")
 
-    if result.get("__typename") == "LaunchPipelineRunSuccess":
+    # Dagster >=1.x returns "LaunchRunSuccess"; older versions "LaunchPipelineRunSuccess"
+    if result.get("__typename") in ("LaunchRunSuccess", "LaunchPipelineRunSuccess"):
         return result["run"]["runId"]
 
     # Anything else -> bubble up details

@@ -42,8 +42,7 @@ services:
       # - --cookie-csrf-per-request=true
       # - --cookie-csrf-per-request-limit=10
 
-      - --pass-access-token=true 
-      - --set-authorization-header=true
+      - --pass-access-token=true
       - --pass-authorization-header=true
       - --pass-user-headers=true
       - --skip-auth-route=^/favicon\.ico$

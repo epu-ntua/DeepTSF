@@ -7,21 +7,28 @@ import mlflow.utils.rest_utils as rest_utils
 import mlflow.utils.request_utils as request_utils
 from threading import RLock
 
-REDIS_URL = os.environ["CELERY_BROKER_URL"]
+USE_AUTH = str(os.getenv("USE_AUTH", "")).strip().lower() not in {"", "false", "0", "none"}
+REDIS_URL = os.getenv("CELERY_BROKER_URL")
 # TOKEN_BROKER_URL = os.environ["TOKEN_BROKER_URL"]  # http://token-broker:8080/exchange/mlflow
 TOKEN_BROKER_URL = "http://dagster_gateway:8090/exchange/mlflow"
 
-_r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+_r = redis.Redis.from_url(REDIS_URL, decode_responses=True) if USE_AUTH and REDIS_URL else None
 _mlflow_patch_lock = RLock()
 _mlflow_token_ctx: ContextVar[str | None] = ContextVar("mlflow_bearer_token", default=None)
 
-def get_user_token_for_run(run_id: str) -> str:
+def get_user_token_for_run(run_id: str) -> str | None:
+    if not USE_AUTH:
+        return None
+    if _r is None:
+        raise RuntimeError("CELERY_BROKER_URL must be set when USE_AUTH is enabled")
     tok = _r.get(f"dagster:run:{run_id}:user_token")
     if not tok:
         raise RuntimeError(f"No user token found in Redis for run_id={run_id}")
     return tok
 
-def exchange_for_mlflow(user_token: str) -> str:
+def exchange_for_mlflow(user_token: str | None) -> str | None:
+    if not user_token:
+        return None
     return user_token
     # r = requests.post(
     #     TOKEN_BROKER_URL,
@@ -36,7 +43,9 @@ def exchange_for_mlflow(user_token: str) -> str:
 def get_current_mlflow_token() -> str | None:
     return _mlflow_token_ctx.get()
 
-def patch_mlflow_bearer(token: str) -> None:
+def patch_mlflow_bearer(token: str | None) -> None:
+    if not token:
+        return
     _mlflow_token_ctx.set(token)
 
     with _mlflow_patch_lock:

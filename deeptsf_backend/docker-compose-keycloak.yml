@@ -11,13 +11,20 @@ services:
       dockerfile:  Dockerfile_keycloak
     restart: always
     ports:
-      - '8081:8081'
+      - '${BACKEND_PORT:-8081}:${BACKEND_PORT:-8081}'
     expose:
-      - '8081'
-    stdin_open: 
+      - '${BACKEND_PORT:-8081}'
+    stdin_open:
       true
+    environment:
+      - PYTHONUNBUFFERED=1
     env_file:
       - .env
+    volumes:
+      - ./logs:/app/logs
+    # Same command as the Dockerfile ENTRYPOINT, but also mirrors all output
+    # to ./logs/backend.log on the host so logs are readable without docker access.
+    entrypoint: ["/bin/bash", "-c", "mkdir -p /app/logs && conda run --no-capture-output -n DeepTSF_env uvicorn api:app --host 0.0.0.0 --port $${BACKEND_PORT:-8081} 2>&1 | tee -a /app/logs/backend.log"]
     depends_on:
       - redis
     # Uses all .env parameters
@@ -27,7 +34,7 @@ services:
     #       devices:
     #         - driver: nvidia
     #           capabilities: [gpu]
-    mem_limit: 500m
+    mem_limit: 1G
     networks:
        - appnet
   
@@ -45,7 +52,7 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    mem_limit: 3g
+    mem_limit: 6g
     networks:
        - appnet
 
@@ -81,7 +88,7 @@ services:
       # MLFLOW_S3_ENDPOINT_URL
       # AWS_ACCESS_KEY_ID
       # AWS_SECRET_ACCESS_KEY
-    mem_limit: 1.5g
+    mem_limit: 4g
     networks:
        - appnet
 

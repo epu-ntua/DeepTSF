@@ -1,0 +1,303 @@
+INFO:     Started server process [20]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8098 (Press CTRL+C to quit)
+INFO:     172.27.0.13:41026 - "OPTIONS /results/get_list_of_experiments HTTP/1.1" 200 OK
+INFO:     172.27.0.13:41032 - "OPTIONS /results/get_best_run_id_by_mlflow_experiment/0/mape HTTP/1.1" 200 OK
+INFO:     172.27.0.13:41048 - "OPTIONS /results/get_best_run_id_by_mlflow_experiment/0/null HTTP/1.1" 200 OK
+INFO:     172.27.0.13:41062 - "OPTIONS /metrics/get_metric_names HTTP/1.1" 200 OK
+INFO:     172.27.0.13:41076 - "OPTIONS /results/get_best_run_id_by_mlflow_experiment/0/mape HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:     172.27.0.13:41104 - "GET /results/get_list_of_experiments HTTP/1.1" 200 OK
+INFO:     172.27.0.13:41100 - "GET /results/get_best_run_id_by_mlflow_experiment/0/mape HTTP/1.1" 200 OK
+INFO:     172.27.0.13:41080 - "GET /results/get_best_run_id_by_mlflow_experiment/0/null HTTP/1.1" 200 OK
+INFO:     172.27.0.13:41088 - "GET /metrics/get_metric_names HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:     172.27.0.13:41112 - "GET /results/get_best_run_id_by_mlflow_experiment/0/mape HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:     172.27.0.13:41126 - "GET /results/get_best_run_id_by_mlflow_experiment/0/mape HTTP/1.1" 200 OK
+INFO:     172.27.0.13:41132 - "OPTIONS /results/get_metric_list/2558a122fe4142869aa6178f5caf4f0e HTTP/1.1" 200 OK
+INFO:     172.27.0.13:41140 - "OPTIONS /results/get_forecast_vs_actual/2558a122fe4142869aa6178f5caf4f0e/n_samples/200 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+Traceback (most recent call last):
+  File "/app/api.py", line 1593, in load_artifacts
+    resp.raise_for_status()
+  File "/opt/conda/envs/DeepTSF_env/lib/python3.12/site-packages/requests/models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 403 Client Error: Forbidden for url: https://mlflow.energy-guard.eu/api/2.0/mlflow/artifacts/list?run_id=2558a122fe4142869aa6178f5caf4f0e&path=eval_results%2Fpredictions.csv
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/api.py", line 1644, in get_forecast_vs_actual
+    forecast_path = load_artifacts(
+                    ^^^^^^^^^^^^^^^
+  File "/app/api.py", line 1595, in load_artifacts
+    raise RuntimeError(f"Failed to resolve artifact via MLflow REST API: {e} (url={resp.url})")
+RuntimeError: Failed to resolve artifact via MLflow REST API: 403 Client Error: Forbidden for url: https://mlflow.energy-guard.eu/api/2.0/mlflow/artifacts/list?run_id=2558a122fe4142869aa6178f5caf4f0e&path=eval_results%2Fpredictions.csv (url=https://mlflow.energy-guard.eu/api/2.0/mlflow/artifacts/list?run_id=2558a122fe4142869aa6178f5caf4f0e&path=eval_results%2Fpredictions.csv)
+There was an error Failed to resolve artifact via MLflow REST API: 403 Client Error: Forbidden for url: https://mlflow.energy-guard.eu/api/2.0/mlflow/artifacts/list?run_id=2558a122fe4142869aa6178f5caf4f0e&path=eval_results%2Fpredictions.csv (url=https://mlflow.energy-guard.eu/api/2.0/mlflow/artifacts/list?run_id=2558a122fe4142869aa6178f5caf4f0e&path=eval_results%2Fpredictions.csv)
+INFO:     172.27.0.13:34468 - "GET /results/get_forecast_vs_actual/2558a122fe4142869aa6178f5caf4f0e/n_samples/200 HTTP/1.1" 415 Unsupported Media Type
+ERROR:api:Error calling MLflow runs.get: 403 Client Error: Forbidden for url: https://mlflow.energy-guard.eu/api/2.0/mlflow/runs/get?run_id=2558a122fe4142869aa6178f5caf4f0e
+INFO:     172.27.0.13:34454 - "GET /results/get_metric_list/2558a122fe4142869aa6178f5caf4f0e HTTP/1.1" 502 Bad Gateway
+INFO:     172.27.0.13:57060 - "OPTIONS /upload/uploadCSVfile HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+Uploading file...
+
+/tmp/tmpb2_js1qs/RDN_Portugal_load_and_gen.csv
+
+Validating file...
+None
+Check 1: Dataframe can not be empty...
+None
+Check 2: Check if the index is of integer type...
+None
+Check 3: Check present columns according to format...
+None
+Check 4: Check index range and missing values...
+None
+Check 5: Check date column has correct format...
+None
+Check 6: Check column types and if needed, convert them...
+None
+Column 'ID' successfully converted to <class 'str'>.
+Column 'Timeseries ID' successfully converted to <class 'str'>.
+Check 7: each component individualy for duplicates and out of order dates...
+None
+Check 8: Check that all timeseries in a multiple timeseries file have the same number of components...
+None
+Check 9: Infering resolution for multiple ts and checking if all ts have the same one...
+None
+
+Turning multiple ts file to dataframe list...
+INFO:root:
+Turning multiple ts file to dataframe list...
+  0%|          | 0/4 [00:00<?, ?it/s]100%|██████████| 4/4 [00:00<00:00, 39.96it/s]100%|██████████| 4/4 [00:00<00:00, 39.86it/s]
+None
+File 'RDN_Portugal_load_and_gen.csv' uploaded successfully to bucket 'dataset-storage'.
+INFO:     172.27.0.13:33510 - "POST /upload/uploadCSVfile HTTP/1.1" 200 OK
+INFO:     172.27.0.13:41950 - "OPTIONS /models/get_model_names/15%20minutes/true HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:     172.27.0.13:41954 - "GET /models/get_model_names/15%20minutes/true HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+Uploading file...
+
+/tmp/tmp17spejk4/RDN_Portugal_load_and_gen.csv
+
+Validating file...
+None
+Check 1: Dataframe can not be empty...
+None
+Check 2: Check if the index is of integer type...
+None
+Check 3: Check present columns according to format...
+None
+Check 4: Check index range and missing values...
+None
+Check 5: Check date column has correct format...
+None
+Check 6: Check column types and if needed, convert them...
+None
+Column 'ID' successfully converted to <class 'str'>.
+Column 'Timeseries ID' successfully converted to <class 'str'>.
+Check 7: each component individualy for duplicates and out of order dates...
+None
+Check 8: Check that all timeseries in a multiple timeseries file have the same number of components...
+None
+Check 9: Infering resolution for multiple ts and checking if all ts have the same one...
+None
+
+Turning multiple ts file to dataframe list...
+INFO:root:
+Turning multiple ts file to dataframe list...
+  0%|          | 0/4 [00:00<?, ?it/s]100%|██████████| 4/4 [00:00<00:00, 38.87it/s]100%|██████████| 4/4 [00:00<00:00, 38.79it/s]
+None
+File 'RDN_Portugal_load_and_gen.csv' uploaded successfully to bucket 'dataset-storage'.
+INFO:     172.27.0.13:39550 - "POST /upload/uploadCSVfile HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:     172.27.0.13:39598 - "GET /models/get_model_names/15%20minutes/true HTTP/1.1" 200 OK
+INFO:     172.27.0.13:34572 - "OPTIONS /experimentation_pipeline/run_all HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+{'lags': 672, 'output_chunk_length': 672, 'random_state': 42}
+{'lags': 672, 'output_chunk_length': 672, 'random_state': 42}
+{'resources': {'config': {'config': {'a': 0.3, 'analyze_with_shap': False, 'convert_to_local_tz': True, 'country': 'PT', 'database_name': 'rdn_load_data', 'device': 'gpu', 'eval_method': 'ts_ID', 'from_database': False, 'future_covs_csv': 'None', 'future_covs_uri': 'None', 'grid_search': False, 'loss_function': 'mape', 'm_mase': 1, 'max_thr': -1, 'min_non_nan_interval': 24, 'n_trials': 100, 'num_samples': 1, 'num_workers': 4, 'opt_test': False, 'order': 1, 'parent_run_name': 'None', 'past_covs_csv': 'None', 'past_covs_uri': 'None', 'pv_ensemble': False, 'retrain': False, 'scale': True, 'scale_covs': True, 'series_uri': 'None', 'shap_data_size': 100, 'shap_input_length': -1, 'tenant': 'None', 'std_dev': 4.5, 'stride': -1, 'time_covs': False, 'trial_name': 'Default', 'wncutoff': 0.000694, 'ycutoff': 3, 'ydcutoff': 30, 'year_range': 'None', 'experiment_name': 'Pilot 1 - Portuguese TSO energy forecasting', 'rmv_outliers': True, 'multiple': True, 'series_csv': 'dataset-storage/RDN_Portugal_load_and_gen.csv', 'resolution': '15min', 'resampling_agg_method': 'averaging', 'cut_date_val': '20241031', 'cut_date_test': '20241130', 'test_end_date': '20241231', 'darts_model': 'LightGBM', 'forecast_horizon': 672, 'hyperparams_entrypoint': {'lags': 672, 'output_chunk_length': 672, 'random_state': 42}, 'ignore_previous_runs': True, 'imputation_method': 'peppanen', 'ts_used_id': 'None', 'eval_series': 'None', 'evaluate_all_ts': True, 'format': 'long'}}}}
+dagster-deeptsf.energy-guard.eu
+Dagster URL: https://deeptsf-dagster.energy-guard.eu/graphql
+Dagster status: 200
+Dagster headers: {'Server': 'openresty', 'Date': 'Sun, 19 Jul 2026 18:16:50 GMT', 'Content-Type': 'application/json', 'Content-Length': '125', 'Connection': 'keep-alive', 'Gap-Auth': 'sol_thanos@hotmail.com', 'X-Auth-Request-Access-Token': 'eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI0aV9ZY3FpMXhrQml4T21mZGYtVTA1Zl9ET0E3MXpiNmk2VVB3NWp4amhzIn0.eyJleHAiOjE3ODQ0ODUxMzgsImlhdCI6MTc4NDQ4NDgzOCwiYXV0aF90aW1lIjoxNzg0NDgyODk5LCJqdGkiOiJmMTJjYmM4My1jNGY3LTQ0ODEtODA3ZC02ZjVlZjVmOTA1ZTEiLCJpc3MiOiJodHRwczovL2tleWNsb2FrLnRvb2xib3guZXB1Lm50dWEuZ3IvcmVhbG1zL0VuZXJneUd1YXJkIiwiYXVkIjoiYWNjb3VudCIsInN1YiI6IjE0YzMzZWVhLTY1NWItNGZiMS04MDQwLWQwMTE1NDU3YzViNiIsInR5cCI6IkJlYXJlciIsImF6cCI6ImVuZXJneWd1YXJkLWRlZXB0c2YtZGFzaGJvYXJkIiwibm9uY2UiOiI5ZDVmZDhkMC01OWVlLTQ5ZjYtYWYyMS0wOTIzMzIyYzY1Y2YiLCJzZXNzaW9uX3N0YXRlIjoiYzAwZTU0ODAtYzdiZC00YWEzLWI4NDYtMjhmNjA0NDYzOTkxIiwiYWNyIjoiMCIsImFsbG93ZWQtb3JpZ2lucyI6WyIqIl0sInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJpbmVyZ3lfYWRtaW4iLCJvZmZsaW5lX2FjY2VzcyIsImRlZmF1bHQtcm9sZXMtZW5lcmd5Z3VhcmQiLCJ1bWFfYXV0aG9yaXphdGlvbiIsImVmaWRzcy1jb21tb24iXX0sInJlc291cmNlX2FjY2VzcyI6eyJhY2NvdW50Ijp7InJvbGVzIjpbIm1hbmFnZS1hY2NvdW50IiwibWFuYWdlLWFjY291bnQtbGlua3MiLCJ2aWV3LXByb2ZpbGUiXX19LCJzY29wZSI6Im9wZW5pZCBlbWFpbCBwcm9maWxlIiwic2lkIjoiYzAwZTU0ODAtYzdiZC00YWEzLWI4NDYtMjhmNjA0NDYzOTkxIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5hbWUiOiJUaGFub3MgU29saW5hcmFpb3MiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJzb2xfdGhhbm9zQGhvdG1haWwuY29tIiwiZ2l2ZW5fbmFtZSI6IlRoYW5vcyIsImZhbWlseV9uYW1lIjoiU29saW5hcmFpb3MiLCJlbWFpbCI6InNvbF90aGFub3NAaG90bWFpbC5jb20ifQ.C60LWHZl5KDMvxByl_R9NGMDyopto6enMhh1qcW814iR3pgQ43pOkWJPw-a1E3YfAUqmN_YBWc11-SNjkpVqmVbeQAotpHec4-W4GfV_T1GImqIcwMOZTzXffbYM1IhJpww02-kdTjxdkzFA4zFDg_NyKwfe0gN8YAv1oeXYdrtfllGIpuy97c2D88ETcTl414gHb54g9GaHWbcyxIciwVLLRxNJXdfKhKsmK2MKSPY9eVqL6grh0g0QEY8sYD3QSZ33L8LE22jYWTZ9FI6x_S53y5fMOu4n18APPPa3_CRu8unhC3ICWvE_Ipts1i6j7yBzmjmDAkdcXn33Ue0b6g', 'X-Auth-Request-Email': 'sol_thanos@hotmail.com', 'X-Auth-Request-Groups': 'role:inergy_admin,role:offline_access,role:default-roles-energyguard,role:uma_authorization,role:efidss-common,role:account:manage-account,role:account:manage-account-links,role:account:view-profile', 'X-Auth-Request-Preferred-Username': 'sol_thanos@hotmail.com', 'X-Auth-Request-User': '14c33eea-655b-4fb1-8040-d0115457c5b6', 'X-Dagster-Call-Counts': '{"DagsterInstance.add_run_tags": 1, "DagsterInstance.get_run_record_by_id": 4, "DagsterInstance.get_run_records": 1}', 'Strict-Transport-Security': 'max-age=63072000;includeSubDomains; preload', 'X-Served-By': 'deeptsf-dagster.energy-guard.eu'}
+Dagster body: {"data":{"launchPipelineExecution":{"__typename":"LaunchRunSuccess","run":{"runId":"71fedde7-74d5-4fe2-9646-7827b76a3c80"}}}}
+Launched Dagster run 71fedde7-74d5-4fe2-9646-7827b76a3c80
+INFO:     172.27.0.13:34586 - "POST /experimentation_pipeline/run_all HTTP/1.1" 200 OK
+INFO:     Started server process [21]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8098 (Press CTRL+C to quit)
+INFO:     45.33.109.18:47689 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     45.79.149.61:57684 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     Started server process [21]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8098 (Press CTRL+C to quit)
+INFO:     45.79.211.97:43222 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     172.105.128.11:21696 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     172.27.0.13:52678 - "GET /wp-content/plugins/hellopress/wp_filemanager.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52684 - "GET /this_is_a_new_hello_world.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52686 - "GET //sql.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52690 - "GET /1index.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52702 - "GET /reop1.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52706 - "GET /trusj18.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52722 - "GET /trusj15.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52734 - "GET /rft8.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52738 - "GET /ai.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52750 - "GET /wp-rdf.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52752 - "GET /fx.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52760 - "GET /xxx.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52776 - "GET /dropdown.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52778 - "GET /file11.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52786 - "GET /png.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52796 - "GET /wp-slss.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52802 - "GET /ah25.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52816 - "GET /ccou.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52830 - "GET /1.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:52832 - "GET /900.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34636 - "GET /file59.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34646 - "GET /amxloxxr.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34654 - "GET /aboutc.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34668 - "GET /bless18.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34682 - "GET /crgio.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34688 - "GET /wp-act.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34704 - "GET /new4.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34716 - "GET /wp-the.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34724 - "GET /atkno.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34736 - "GET /mass.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34752 - "GET /wefile.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34766 - "GET //min.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34774 - "GET /sid3.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34778 - "GET /fileas.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34794 - "GET /bless24.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34802 - "GET /fun.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34810 - "GET /drykl.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34822 - "GET /wp-admin/css/colors/blue/file.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34834 - "GET /mifta.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34848 - "GET /class-t.api.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:34864 - "GET /vgtyu.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58226 - "GET /atomlib.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58234 - "GET /wp-access.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58244 - "GET /wp-update.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58256 - "GET //erty.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58258 - "GET /wp-admin/maint/wp-is.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58270 - "GET /like.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58276 - "GET /bless5.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58282 - "GET /t.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58294 - "GET /xoot.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58304 - "GET /xqq.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58318 - "GET /wp-load.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58322 - "GET //x.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58334 - "GET /i.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58338 - "GET /ms-edit.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58352 - "GET /v2.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58364 - "GET /new.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58370 - "GET /wp-admin/network/edit.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58378 - "GET /pouhg.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58384 - "GET /cilus.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58398 - "GET /file4.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:58400 - "GET /samll.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41728 - "GET /Okxob.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41730 - "GET /ok.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41744 - "GET /wuasr.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41746 - "GET /bless11.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41760 - "GET /wp-block.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41770 - "GET /aevly.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41782 - "GET /hello.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41788 - "GET /wp-links-opml.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41798 - "GET /forbidals.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41800 - "GET /file30.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41802 - "GET /xda.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41806 - "GET /z.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41814 - "GET /b.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41828 - "GET /edit.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41838 - "GET /app.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41848 - "GET /wp-png.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41854 - "GET /lib.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41864 - "GET /sys.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41878 - "GET /la.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41880 - "GET /tires.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44656 - "GET /lv.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44670 - "GET /myfile.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44680 - "GET /06.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44690 - "GET /fs.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44704 - "GET /asasx.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44720 - "GET /wp-kd4xalrg7m.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44734 - "GET /wp-good.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44738 - "GET /scxy.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44754 - "GET /wmore1.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44762 - "GET //like.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44768 - "GET /x.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44776 - "GET /xa.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44784 - "GET /kolda.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44800 - "GET /wp-aothait.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44810 - "GET /ftde.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44818 - "GET /vx.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44828 - "GET /a5.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44834 - "GET /wp-sing.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44836 - "GET /database.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44846 - "GET /explorer/index_.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44852 - "GET /wp-at.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:44862 - "GET /wp-wz.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33638 - "GET /wp-ver.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33640 - "GET /wp5.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33644 - "GET /wp-pp.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33654 - "GET //w3lls.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33656 - "GET /sbhu.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33668 - "GET /wp-content/uploads/admin.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33678 - "GET /favicon.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33688 - "GET /txets.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33692 - "GET /wp-su.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33706 - "GET /ff.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33718 - "GET /reze.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33734 - "GET /666.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33738 - "GET /wehrman.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33740 - "GET /wp-conflg.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33756 - "GET /ff1.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33762 - "GET /fff.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33776 - "GET /amax.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33780 - "GET /wp-firewall.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33790 - "GET /appt.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:33792 - "GET /wp-thi.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43280 - "GET /jj.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43296 - "GET /333.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43300 - "GET /albin.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43310 - "GET /66.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43326 - "GET /motu.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43334 - "GET /kj.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43344 - "GET /wp4.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43358 - "GET /file61.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43368 - "GET //wp.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43372 - "GET /wp-trackback.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43388 - "GET /db.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43390 - "GET /NewFile.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43398 - "GET //xxx.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43404 - "GET /ms.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43418 - "GET /mini.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43428 - "GET /first.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43432 - "GET /0okj.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43446 - "GET /grsiuk.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43450 - "GET /shell20211028.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43456 - "GET /revealability.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43462 - "GET //btx25.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:43472 - "GET /bthil.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41796 - "GET /hplfuns.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41810 - "GET /error.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41812 - "GET //edit.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41822 - "GET /pass4.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41830 - "GET /sadcut1.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41836 - "GET /bgymj.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41852 - "GET /yas.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41866 - "GET //dx.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41874 - "GET /yellow.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41882 - "GET /wp-der.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41892 - "GET /lala.php HTTP/1.1" 404 Not Found
+INFO:     172.27.0.13:41902 - "GET /aa.php HTTP/1.1" 404 Not Found

@@ -294,7 +294,7 @@ async def proxy_all(path: str, request: Request):
                         content=upstream.content,
                         status_code=upstream.status_code,
                         headers={k: v for k, v in upstream.headers.items()
-                                 if k.lower() not in ["content-encoding", "transfer-encoding", "connection"]},
+                                 if k.lower() not in ["content-encoding", "transfer-encoding", "connection", "date", "server"]},
                         media_type=content_type,
                     )
 
@@ -318,7 +318,7 @@ async def proxy_all(path: str, request: Request):
             print("[gateway] ERROR during launch handling:", repr(e))
     resp_headers = {
         k: v for k, v in upstream.headers.items()
-        if k.lower() not in ["content-encoding", "transfer-encoding", "connection", "content-length"]
+        if k.lower() not in ["content-encoding", "transfer-encoding", "connection", "content-length", "date", "server"]
     }
 
     return Response(
