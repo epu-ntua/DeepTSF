@@ -1,0 +1,97 @@
+# EnergyGuard deployment — orchestration services ONLY (dagster + celery worker + redis broker).
+# The EnergyGuard frontend and backend run on another machine; postgres (pgdb),
+# MLflow and MinIO are reused from the existing DeepTSF stack on this machine
+# (reached over the external `keycloak_net` docker network / public URLs).
+#
+# Run with:
+#   docker-compose -p deeptsf-energyguard -f docker-compose-dagster-celery.yml up -d --build
+#
+# NOTE: service/container names are deliberately suffixed with "energyguard" so their
+# DNS aliases on the shared keycloak_net network do not collide with the original
+# DeepTSF stack (which already has `redis`, `worker` and `dagster` aliases there).
+
+services:
+
+  redis-energyguard:
+    image: redis:7-alpine
+    container_name: energyguard-redis
+    hostname: redis-energyguard
+    restart: always
+    # Password-protected because the port is published so the remote
+    # backend / dagster gateway can reach the broker. REDIS_PASSWORD is set in .env
+    # and must match the password inside CELERY_BROKER_URL / CELERY_RESULT_BACKEND.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    ports:
+      - "6380:6379"
+    networks:
+      - keycloak_net
+
+  # One-shot: creates the dagster_energyguard database in the existing pgdb
+  # (pgdb's init-extra-db.sql only ran at first init and only created dagster_celery,
+  # which the original DeepTSF dagster is already using).
+  init-dagster-db:
+    image: postgres:16-alpine
+    container_name: energyguard-init-dagster-db
+    restart: "no"
+    environment:
+      PGHOST: ${POSTGRES_HOST}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until pg_isready; do echo 'waiting for pgdb...'; sleep 2; done
+        psql -tAc "SELECT 1 FROM pg_database WHERE datname='dagster_energyguard'" | grep -q 1 \
+          || psql -c 'CREATE DATABASE dagster_energyguard'
+        echo 'dagster_energyguard database ready'
+    networks:
+      - keycloak_net
+
+  worker-energyguard:
+    container_name: energyguard-celery-worker
+    hostname: worker-energyguard
+    build:
+      context: ./
+      target: celery-worker
+      dockerfile: Dockerfile_keycloak
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - redis-energyguard
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    mem_limit: 26g
+    networks:
+      - keycloak_net
+
+  dagster-energyguard:
+    container_name: energyguard-dagster
+    hostname: dagster-energyguard
+    restart: always
+    build:
+      context: ./
+      target: dagster
+      dockerfile: Dockerfile_keycloak
+    depends_on:
+      - redis-energyguard
+      - init-dagster-db
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    ports:
+      # host port 8006 is taken by the original DeepTSF dagster -> expose on 8007
+      - "8007:8006"
+    env_file:
+      - .env
+    mem_limit: 4g
+    networks:
+      - keycloak_net
+
+networks:
+  keycloak_net:
+    external: true
