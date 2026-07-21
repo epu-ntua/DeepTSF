@@ -65,6 +65,10 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     mem_limit: 26g
+    volumes:
+      # Per-user keycloak offline tokens written by the dagster gateway; the
+      # worker reads them to keep minting access tokens for the whole run.
+      - eg_offline_tokens:/srv/eg-auth
     networks:
       - keycloak_net
 
@@ -89,9 +93,17 @@ services:
     env_file:
       - .env
     mem_limit: 4g
+    volumes:
+      - eg_offline_tokens:/srv/eg-auth
     networks:
       - keycloak_net
 
 networks:
   keycloak_net:
+    external: true
+
+volumes:
+  # Created once with: docker volume create eg_offline_tokens
+  # Shared with the oauth2proxy stack, which writes the tokens.
+  eg_offline_tokens:
     external: true

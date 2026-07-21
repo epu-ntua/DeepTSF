@@ -10,7 +10,7 @@ from dagster import ConfigurableResource
 from dagster_mlflow import end_mlflow_on_run_finished, mlflow_tracking
 from .optuna_search import optuna_search
 from .training import train
-from dagster_deeptsf.auth_runtime import get_user_token_for_run, exchange_for_mlflow, patch_mlflow_bearer
+from dagster_deeptsf.auth_runtime import install_mlflow_auth_for_run
 from dotenv import load_dotenv
 load_dotenv()
 from minio import Minio
@@ -99,9 +99,7 @@ def start_pipeline_run(context):
     else:
         tenant = "mlflow-bucket"
     
-    user_tok = get_user_token_for_run(context.run_id)
-    mlflow_tok = exchange_for_mlflow(user_tok)
-    patch_mlflow_bearer(mlflow_tok)
+    install_mlflow_auth_for_run(context.run_id)
 
 
     experiment_name = config.experiment_name
@@ -190,9 +188,7 @@ def training_and_hyperparameter_tuning_asset(context, start_pipeline_run, etl_ou
     else:
         tenant = "mlflow-bucket"
 
-    user_tok = get_user_token_for_run(context.run_id)
-    mlflow_tok = exchange_for_mlflow(user_tok)
-    patch_mlflow_bearer(mlflow_tok)
+    install_mlflow_auth_for_run(context.run_id)
     opt_test = config.opt_test
     experiment_name = config.experiment_name
     darts_model = config.darts_model
