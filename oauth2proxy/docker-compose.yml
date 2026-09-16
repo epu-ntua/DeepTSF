@@ -86,6 +86,10 @@ services:
     networks:
       - keycloak_net
     environment:
+      # Without this, the gateway's print() debug output is block-buffered and
+      # never reaches `docker logs` (uvicorn's own INFO lines go to stderr and
+      # show up regardless, which makes it look like the gateway is silent).
+      PYTHONUNBUFFERED: "1"
       DAGSTER_UPSTREAM: "http://dagster-energyguard:8006"
       REDIS_URL: "redis://:${REDIS_PASSWORD}@redis-energyguard:6379/0"
       # run -> user mapping must outlive the longest training run
