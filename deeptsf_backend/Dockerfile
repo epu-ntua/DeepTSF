@@ -65,6 +65,9 @@ EXPOSE 8006
 
 COPY . .
 
+# Tolerate multi-byte characters split across log chunks (backport of upstream Dagster fix)
+RUN python patch_dagster_logs.py
+
 WORKDIR /app/dagster_deeptsf
 
 # Set the DAGSTER_HOME environment variable
