@@ -38,23 +38,23 @@ services:
     networks:
        - appnet
   
-  worker:
-    build:
-      context: ./
-      target: celery-worker
-      dockerfile:  Dockerfile_keycloak
-    restart: always
-    env_file:
-      - .env
-    depends_on:
-      - redis
-    # runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    mem_limit: 6g
-    networks:
-       - appnet
+  # worker:
+  #   build:
+  #     context: ./
+  #     target: celery-worker
+  #     dockerfile:  Dockerfile_keycloak
+  #   restart: always
+  #   env_file:
+  #     - .env
+  #   depends_on:
+  #     - redis
+  #   # runtime: nvidia
+  #   environment:
+  #     - NVIDIA_VISIBLE_DEVICES=all
+  #     - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+  #   mem_limit: 6g
+  #   networks:
+  #      - appnet
 
   redis:
     image: redis:7-alpine
@@ -62,35 +62,35 @@ services:
     networks:
        - appnet
 
-  dagster:
-    container_name: DeepTSF--dagster-orchestrator
-    hostname: DeepTSF--dagster-orchestrator
-    restart: always
-    # image: inergy2020iccs/deeptsf_dagster:1.0.1 # only for releases
-    build:
-      context: ./
-      target: dagster
-      dockerfile:  Dockerfile_keycloak
-    depends_on:
-      - redis
-    # runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    expose:
-      - 8006
-    ports:
-      - 8006:8006
-    env_file:
-      - .env
-      # Uses following .env parameters:
-      # MLFLOW_TRACKING_URI
-      # MLFLOW_S3_ENDPOINT_URL
-      # AWS_ACCESS_KEY_ID
-      # AWS_SECRET_ACCESS_KEY
-    mem_limit: 4g
-    networks:
-       - appnet
+  # dagster:
+  #   container_name: DeepTSF--dagster-orchestrator
+  #   hostname: DeepTSF--dagster-orchestrator
+  #   restart: always
+  #   # image: inergy2020iccs/deeptsf_dagster:1.0.1 # only for releases
+  #   build:
+  #     context: ./
+  #     target: dagster
+  #     dockerfile:  Dockerfile_keycloak
+  #   depends_on:
+  #     - redis
+  #   # runtime: nvidia
+  #   environment:
+  #     - NVIDIA_VISIBLE_DEVICES=all
+  #     - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+  #   expose:
+  #     - 8006
+  #   ports:
+  #     - 8006:8006
+  #   env_file:
+  #     - .env
+  #     # Uses following .env parameters:
+  #     # MLFLOW_TRACKING_URI
+  #     # MLFLOW_S3_ENDPOINT_URL
+  #     # AWS_ACCESS_KEY_ID
+  #     # AWS_SECRET_ACCESS_KEY
+  #   mem_limit: 4g
+  #   networks:
+  #      - appnet
 
   # frontend:
   #   container_name: load-forecasting-dashboard
