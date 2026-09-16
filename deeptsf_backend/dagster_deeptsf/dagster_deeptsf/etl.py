@@ -33,7 +33,7 @@ from urllib3 import disable_warnings
 from dotenv import load_dotenv
 from minio import Minio
 from dagster import multi_asset, AssetIn, AssetOut, MetadataValue, Output, graph_multi_asset 
-from dagster_deeptsf.auth_runtime import get_user_token_for_run, exchange_for_mlflow, patch_mlflow_bearer
+from dagster_deeptsf.auth_runtime import install_mlflow_auth_for_run
 
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
@@ -833,9 +833,7 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
     else:
         tenant = "mlflow-bucket"
 
-    user_tok = get_user_token_for_run(context.run_id)
-    mlflow_tok = exchange_for_mlflow(user_tok)
-    patch_mlflow_bearer(mlflow_tok)
+    install_mlflow_auth_for_run(context.run_id)
     series_csv = config.series_csv
     year_range = config.year_range
     resolution = config.resolution

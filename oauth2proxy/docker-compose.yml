@@ -1,16 +1,35 @@
-version: "3.8"
+# EnergyGuard dagster auth layer, running on the gpu machine next to dagster.
+# Chain: nginx proxy manager (https://deeptsf-dagster.energy-guard.eu)
+#        -> oauth2_proxy_dagster (:4180) -> dagster_gateway (:8090)
+#        -> dagster-energyguard (:8006, from ../deeptsf_backend/docker-compose-dagster-celery.yml)
+# The gateway also writes per-run user tokens into redis-energyguard (db 0), where
+# dagster/worker auth_runtime.py reads them.
+#
+# Run with (from this directory; reads ./.env):
+#   docker-compose -p energyguard-oauth2proxy up -d
 
+# keycloak_net is the network nginx proxy manager, dagster-energyguard and
+# redis-energyguard are all on, so NPM can forward to "oauth2_proxy_dagster" by name.
 networks:
-  proxy:
+  keycloak_net:
     external: true
-    name: nginxproxy_energyguard_net
+
+volumes:
+  # Created once with: docker volume create eg_offline_tokens
+  eg_offline_tokens:
+    external: true
 
 services:
   oauth2_proxy_dagster:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.11.0
     container_name: oauth2_proxy_dagster
-    networks: [proxy]
+    networks:
+      - keycloak_net
     restart: unless-stopped
+    # Also published on the host for debugging (curl http://localhost:4180/ping);
+    # NPM itself reaches it over keycloak_net by container name.
+    ports:
+      - "4180:4180"
     command:
 
       - --http-address=0.0.0.0:4180
@@ -27,7 +46,7 @@ services:
       - --cookie-samesite=none #change this
       - --whitelist-domain=.energy-guard.eu
       - --session-store-type=redis
-      - --redis-connection-url=redis://redis:6379/0
+      - --redis-connection-url=redis://:${REDIS_PASSWORD}@redis-energyguard:6379/2
       - --cookie-domain=.energy-guard.eu
       # - --session-cookie-minimal=true
       # optional, if you want identity headers forwarded upstream:
@@ -39,14 +58,23 @@ services:
       - --backend-logout-url=https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/logout?id_token_hint={id_token}&post_logout_redirect_uri=https%3A%2F%2Fdeeptsf-dagster.energy-guard.eu%2F
       - --oidc-extra-audience=jupyterhub
       - --oidc-extra-audience=account
-      # - --cookie-csrf-per-request=true
-      # - --cookie-csrf-per-request-limit=10
+      # The dagster UI polls /graphql continuously. Without per-request CSRF cookies,
+      # every unauthenticated poll overwrites the single shared CSRF cookie, so the
+      # cookie no longer matches when the user returns to /oauth2/callback
+      # -> "CSRF token mismatch, potential attack". These give each login flow its own.
+      - --cookie-csrf-per-request=true
+      - --cookie-csrf-per-request-limit=10
 
       - --pass-access-token=true
       - --pass-authorization-header=true
       - --pass-user-headers=true
-      - --skip-auth-route=^/favicon\.ico$
-      - --skip-auth-route=^/robots\.txt$
+      # XHR/GraphQL calls must get 401 instead of a 302 to keycloak: a redirect is
+      # useless to fetch() and it churns cookies. The dagster UI re-authenticates via
+      # a normal page load instead.
+      - --api-route=^/graphql
+      # $$ is compose's escape for a literal $ (regex end-of-string anchor)
+      - --skip-auth-route=^/favicon\.ico$$
+      - --skip-auth-route=^/robots\.txt$$
       - --skip-auth-route=^/_next/.*
       - --skip-auth-route=^/static/.*
 
@@ -55,19 +83,32 @@ services:
     image: python:3.12-slim
     container_name: dagster_gateway
     restart: unless-stopped
-    networks: [proxy]
+    networks:
+      - keycloak_net
     environment:
-      DAGSTER_UPSTREAM: "http://DeepTSF--dagster-orchestrator:8006"
-      REDIS_URL: "redis://redis:6379/0"
-      RUN_TOKEN_TTL_SECONDS: "21600"
+      DAGSTER_UPSTREAM: "http://dagster-energyguard:8006"
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis-energyguard:6379/0"
+      # run -> user mapping must outlive the longest training run
+      RUN_TOKEN_TTL_SECONDS: "2592000"
       OAUTH2_PROXY_INTERNAL_URL: "http://oauth2_proxy_dagster:4180"
+      # Offline-token enrollment (see enrollment.py). PUBLIC_BASE_URL must match
+      # the redirect URI registered on the dagster-offline keycloak client.
+      KC_ISSUER_URL: "${KC_ISSUER_URL}"
+      KC_OFFLINE_ID: "${KC_OFFLINE_ID}"
+      KC_OFFLINE_SECRET: "${KC_OFFLINE_SECRET}"
+      PUBLIC_BASE_URL: "https://deeptsf-dagster.energy-guard.eu"
+      EG_TOKEN_ENC_KEY: "${EG_TOKEN_ENC_KEY}"
+      EG_OFFLINE_TOKEN_DIR: "/srv/eg-auth"
     volumes:
       - ./dagster_gateway.py:/app/dagster_gateway.py:ro
+      - ./enrollment.py:/app/enrollment.py:ro
+      - ./offline_store.py:/app/offline_store.py:ro
+      # Per-user keycloak offline tokens, encrypted at rest. Shared with the
+      # dagster worker, which reads them to refresh access tokens during runs.
+      - eg_offline_tokens:/srv/eg-auth
     working_dir: /app
     command: >
       /bin/sh -lc "
-        pip install --no-cache-dir fastapi uvicorn[standard] httpx redis websockets &&
+        pip install --no-cache-dir fastapi uvicorn[standard] httpx redis websockets cryptography &&
         uvicorn dagster_gateway:app --host 0.0.0.0 --port 8090
       "
-
-#       - --redirect-url=https://deeptsf-dagster.energy-guard.eu/oauth2/callback

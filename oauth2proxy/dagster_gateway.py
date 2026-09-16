@@ -28,11 +28,18 @@ import httpx
 import redis
 import websockets
 from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi.responses import RedirectResponse
+from urllib.parse import urlencode
 from typing import Any
+
+import enrollment
+from offline_store import is_enrolled
 
 DAGSTER_UPSTREAM = os.environ["DAGSTER_UPSTREAM"].rstrip("/")  # e.g. http://dagster-webserver:8006
 REDIS_URL = os.environ["REDIS_URL"]
-RUN_TOKEN_TTL = int(os.environ.get("RUN_TOKEN_TTL_SECONDS", "21600"))  # 6h
+# How long the run -> user mapping lives. Must outlast the longest training run,
+# since the worker resolves its user from this for the whole duration.
+RUN_TOKEN_TTL = int(os.environ.get("RUN_TOKEN_TTL_SECONDS", "2592000"))  # 30d
 
 # NEW: where the gateway can reach oauth2-proxy internally
 OAUTH2_PROXY_INTERNAL_URL = os.environ.get("OAUTH2_PROXY_INTERNAL_URL", "").rstrip("/")
@@ -119,6 +126,29 @@ async def _get_user_token(request: Request) -> str | None:
         return direct
 
     return await _token_via_oauth2_auth(request)
+
+
+def _username_from_token(token: str) -> str:
+    """The identity mlflow-oidc-auth keys users on (it lowercases emails)."""
+    claims = enrollment._jwt_payload(token)
+    username = claims.get("email") or claims.get("preferred_username") or ""
+    return username.strip().lower()
+
+
+async def _current_username(request: Request) -> str:
+    token = await _get_user_token(request)
+    return _username_from_token(token) if token else ""
+
+
+def _wants_html(request: Request) -> bool:
+    """True for a top-level browser navigation. Enrollment redirects only make
+    sense here — you cannot redirect a fetch()/XHR, and the dagster UI polls
+    /graphql constantly."""
+    return (
+        request.method == "GET"
+        and "text/html" in request.headers.get("accept", "")
+        and request.headers.get("upgrade", "").lower() != "websocket"
+    )
 
 
 # -------------------------
@@ -242,11 +272,39 @@ async def ws_graphql_proxy(client_ws: WebSocket):
 # -------------------------
 # HTTP proxy
 # -------------------------
+@app.get("/eg-auth/start")
+async def eg_auth_start(request: Request):
+    """Begin offline-token enrollment for the signed-in user."""
+    username = await _current_username(request)
+    if not username:
+        return Response(status_code=401, content=b"not authenticated")
+    return enrollment.start(request, r, username)
+
+
+@app.get("/eg-auth/callback")
+async def eg_auth_callback(request: Request):
+    """Keycloak redirects here with the authorization code."""
+    return await enrollment.callback(request, r)
+
+
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 async def proxy_all(path: str, request: Request):
     # If something tries websocket upgrade outside the websocket route, fail cleanly
     if request.headers.get("upgrade", "").lower() == "websocket":
         return Response(status_code=426, content=b"WebSocket upgrade not supported on this route")
+
+    # Enroll first-time users on a normal page load, before they ever get the
+    # chance to launch a run without a usable offline token. Costs one silent
+    # redirect through keycloak (no login prompt — SSO is already established),
+    # and only happens once per user.
+    if enrollment.configured() and _wants_html(request):
+        username = await _current_username(request)
+        if username and not is_enrolled(username):
+            nxt = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+            print(f"[gateway] {username} not enrolled; starting offline enrollment")
+            return RedirectResponse(
+                f"/eg-auth/start?{urlencode({'next': nxt})}", status_code=302
+            )
 
     url = f"{DAGSTER_UPSTREAM}/{path}"
     body = await request.body()
@@ -308,11 +366,19 @@ async def proxy_all(path: str, request: Request):
                 print("[gateway] extracted run_ids:", run_ids)
 
                 if user_token and run_ids:
-                    for run_id in run_ids:
-                        r.setex(f"dagster:run:{run_id}:user_token", RUN_TOKEN_TTL, user_token)
-                        print(f"[gateway] stored token for run_id={run_id}")
+                    # Record only WHO launched the run. The worker resolves the
+                    # user's offline token from the shared volume itself, so no
+                    # long-lived secret is ever copied into redis.
+                    username = _username_from_token(user_token)
+                    if username and is_enrolled(username):
+                        for run_id in run_ids:
+                            r.setex(f"dagster:run:{run_id}:user", RUN_TOKEN_TTL, username)
+                            print(f"[gateway] run_id={run_id} -> user={username}")
+                    else:
+                        print(f"[gateway] user={username!r} enrolled={is_enrolled(username) if username else False}; "
+                              f"runs {run_ids} will fail to authenticate to mlflow")
                 else:
-                    print("[gateway] NOT storing token: user_token?", bool(user_token), "run_ids?", run_ids)
+                    print("[gateway] NOT storing user: user_token?", bool(user_token), "run_ids?", run_ids)
 
         except Exception as e:
             print("[gateway] ERROR during launch handling:", repr(e))

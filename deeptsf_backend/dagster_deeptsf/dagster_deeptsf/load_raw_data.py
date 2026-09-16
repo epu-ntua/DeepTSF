@@ -31,7 +31,7 @@ from utils import ConfigParser
 from utils import none_checker
 from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form, truth_checker
 from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder, WrongDateFormat, DuplicateDateError, MissingMultipleIndexError, NonIntegerMultipleIndexError, ComponentTooShortError
-from dagster_deeptsf.auth_runtime import get_user_token_for_run, exchange_for_mlflow, patch_mlflow_bearer
+from dagster_deeptsf.auth_runtime import install_mlflow_auth_for_run
 
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
@@ -535,9 +535,7 @@ def load_raw_data_asset(context, start_pipeline_run):
     else:
         tenant = "mlflow-bucket"
 
-    user_tok = get_user_token_for_run(context.run_id)
-    mlflow_tok = exchange_for_mlflow(user_tok)
-    patch_mlflow_bearer(mlflow_tok)
+    install_mlflow_auth_for_run(context.run_id)
 
     series_csv=config.series_csv
     series_uri=config.series_uri

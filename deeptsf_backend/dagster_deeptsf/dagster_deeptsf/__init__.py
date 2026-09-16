@@ -26,12 +26,22 @@ all_assets = load_assets_from_modules([load_raw_data, etl, assets, evaluate_fore
 #     }
 # )
 
+# Route dagster's celery dispatch through the same broker the worker listens on
+# (dagster-celery otherwise defaults to pyamqp://guest@localhost//).
+celery_executor_env = celery_executor.configured(
+    {
+        "broker": {"env": "CELERY_BROKER_URL"},
+        "backend": {"env": "CELERY_RESULT_BACKEND"},
+    },
+    name="celery",
+)
+
 defs = Definitions(
     assets=all_assets,
     jobs=[deeptsf_dagster_job],
     # schedules=[basic_schedule],
     schedules=[],
-    executor=celery_executor,
+    executor=celery_executor_env,
     resources={
         "config": DeepTSFConfig(),
     }
