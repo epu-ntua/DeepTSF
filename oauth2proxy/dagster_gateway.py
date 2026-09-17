@@ -297,11 +297,18 @@ async def proxy_all(path: str, request: Request):
     # chance to launch a run without a usable offline token. Costs one silent
     # redirect through keycloak (no login prompt — SSO is already established),
     # and only happens once per user.
+    # The same silent flow also renews a token that is close to expiring, so a
+    # user who keeps coming back never has a run fail on an expired token.
     if enrollment.configured() and _wants_html(request):
         username = await _current_username(request)
+        reason = None
         if username and not is_enrolled(username):
+            reason = "not enrolled; starting offline enrollment"
+        elif username and enrollment.renewal_due(r, username):
+            reason = "offline token expires soon; renewing"
+        if reason:
             nxt = request.url.path + (f"?{request.url.query}" if request.url.query else "")
-            print(f"[gateway] {username} not enrolled; starting offline enrollment")
+            print(f"[gateway] {username} {reason}")
             return RedirectResponse(
                 f"/eg-auth/start?{urlencode({'next': nxt})}", status_code=302
             )

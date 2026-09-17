@@ -33,9 +33,9 @@ import mlflow.utils.rest_utils as rest_utils
 import mlflow.utils.request_utils as request_utils
 
 from dagster_deeptsf.offline_store import (
-    delete_offline_token,
+    delete_offline_token_if_unchanged,
     read_offline_token,
-    write_offline_token,
+    replace_offline_token,
 )
 
 USE_AUTH = str(os.getenv("USE_AUTH", "")).strip().lower() not in {"", "false", "0", "none"}
@@ -96,47 +96,59 @@ def _refresh_access_token(username: str) -> tuple[str, float]:
             "for the worker to refresh access tokens"
         )
 
-    offline_token = read_offline_token(username)
-    if not offline_token:
-        raise OfflineTokenError(
-            f"No offline token stored for {username}. They need to open the "
-            "dagster UI once to enroll."
+    # The gateway may renew the user's token (a new offline session) while we
+    # are mid-request with the old one. So every write-back or delete below only
+    # happens if the file still holds the token we used, and an invalid_grant on
+    # a token that has since been replaced is retried once with the new token.
+    for attempt in range(2):
+        offline_token = read_offline_token(username)
+        if not offline_token:
+            raise OfflineTokenError(
+                f"No offline token stored for {username}. They need to open the "
+                "dagster UI once to enroll."
+            )
+
+        resp = requests.post(
+            KEYCLOAK_TOKEN_URL,
+            data={
+                "grant_type": "refresh_token",
+                "client_id": KC_OFFLINE_ID,
+                "client_secret": KC_OFFLINE_SECRET,
+                "refresh_token": offline_token,
+            },
+            timeout=HTTP_TIMEOUT_S,
         )
 
-    resp = requests.post(
-        KEYCLOAK_TOKEN_URL,
-        data={
-            "grant_type": "refresh_token",
-            "client_id": KC_OFFLINE_ID,
-            "client_secret": KC_OFFLINE_SECRET,
-            "refresh_token": offline_token,
-        },
-        timeout=HTTP_TIMEOUT_S,
-    )
-
-    if resp.status_code != 200:
-        body = resp.text[:300]
-        if "invalid_grant" in body:
-            # Idle-expired (default 30 days unused) or revoked. Drop it so the
-            # user's next visit to the UI re-enrolls them cleanly.
-            delete_offline_token(username)
-            raise OfflineTokenError(
-                f"Keycloak rejected {username}'s offline token (expired or revoked). "
-                f"They should open the dagster UI to re-enroll. Response: {body}"
-            )
-        raise RuntimeError(f"Token refresh for {username} failed ({resp.status_code}): {body}")
+        if resp.status_code != 200:
+            body = resp.text[:300]
+            if "invalid_grant" in body:
+                if attempt == 0 and not delete_offline_token_if_unchanged(username, offline_token):
+                    print(f"[auth_runtime] {username}'s token was renewed during refresh; retrying")
+                    continue
+                # Idle-expired (default 30 days unused) or revoked. Drop it so the
+                # user's next visit to the UI re-enrolls them cleanly.
+                delete_offline_token_if_unchanged(username, offline_token)
+                raise OfflineTokenError(
+                    f"Keycloak rejected {username}'s offline token (expired or revoked). "
+                    f"They should open the dagster UI to re-enroll. Response: {body}"
+                )
+            raise RuntimeError(f"Token refresh for {username} failed ({resp.status_code}): {body}")
+        break
 
     payload = resp.json()
     access_token = payload.get("access_token")
     if not access_token:
         raise RuntimeError(f"Token refresh for {username} returned no access_token")
 
-    # Defensive: only happens if "Revoke Refresh Token" gets switched on for the
-    # client. Persist the rotated token so the next refresh still works.
+    # Keycloak returns a new refresh token for the same offline session. Persist
+    # it (required if "Revoke Refresh Token" is ever switched on for the client),
+    # unless the gateway renewed the user meanwhile: the renewed token must win.
     rotated = payload.get("refresh_token")
     if rotated and rotated != offline_token:
         try:
-            write_offline_token(username, rotated)
+            if not replace_offline_token(username, offline_token, rotated):
+                print(f"[auth_runtime] {username}'s token was renewed during refresh; "
+                      f"keeping the renewed one")
         except OSError as e:
             print(f"[auth_runtime] WARNING: could not persist rotated token for "
                   f"{username}: {e!r}")

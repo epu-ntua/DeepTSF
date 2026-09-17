@@ -48,6 +48,13 @@ services:
       - --session-store-type=redis
       - --redis-connection-url=redis://:${REDIS_PASSWORD}@redis-energyguard:6379/2
       - --cookie-domain=.energy-guard.eu
+      # Without this (default 0) oauth2-proxy never re-checks a stored session with
+      # keycloak, so logging out of another EnergyGuard app leaves dagster logged in
+      # until the 7-day cookie expires. With it, a session older than 1m is refreshed;
+      # once the SSO session is gone the refresh fails and the session is dropped when
+      # the access token expires. Keep it below keycloak's access token lifespan.
+      # Does not affect the dagster offline tokens (separate client, see enrollment.py).
+      - --cookie-refresh=1m
       # - --session-cookie-minimal=true
       # optional, if you want identity headers forwarded upstream:
       - --set-xauthrequest=true
@@ -86,6 +93,10 @@ services:
     networks:
       - keycloak_net
     environment:
+      # Without this, the gateway's print() debug output is block-buffered and
+      # never reaches `docker logs` (uvicorn's own INFO lines go to stderr and
+      # show up regardless, which makes it look like the gateway is silent).
+      PYTHONUNBUFFERED: "1"
       DAGSTER_UPSTREAM: "http://dagster-energyguard:8006"
       REDIS_URL: "redis://:${REDIS_PASSWORD}@redis-energyguard:6379/0"
       # run -> user mapping must outlive the longest training run
@@ -99,6 +110,11 @@ services:
       PUBLIC_BASE_URL: "https://deeptsf-dagster.energy-guard.eu"
       EG_TOKEN_ENC_KEY: "${EG_TOKEN_ENC_KEY}"
       EG_OFFLINE_TOKEN_DIR: "/srv/eg-auth"
+      # Re-issue a user's offline token on page load once it is this close to expiring.
+      EG_OFFLINE_RENEW_BEFORE_DAYS: "5"
+      # Must match keycloak's "Offline Session Idle" for the dagster-offline client
+      # (realm default 30). Used to estimate expiry when the token has no exp claim.
+      EG_OFFLINE_SESSION_IDLE_DAYS: "30"
     volumes:
       - ./dagster_gateway.py:/app/dagster_gateway.py:ro
       - ./enrollment.py:/app/enrollment.py:ro
