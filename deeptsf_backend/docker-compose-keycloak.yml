@@ -20,8 +20,8 @@ services:
       - PYTHONUNBUFFERED=1
     env_file:
       - .env
-    volumes:
-      - ./logs:/app/logs
+    # volumes:
+    #   - ./logs:/app/logs
     # Same command as the Dockerfile ENTRYPOINT, but also mirrors all output
     # to ./logs/backend.log on the host so logs are readable without docker access.
     entrypoint: ["/bin/bash", "-c", "mkdir -p /app/logs && conda run --no-capture-output -n DeepTSF_env uvicorn api:app --host 0.0.0.0 --port $${BACKEND_PORT:-8081} 2>&1 | tee -a /app/logs/backend.log"]
