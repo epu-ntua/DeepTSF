@@ -1338,7 +1338,7 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
                     "future_covs_uri": "None",
                     "grid_search": False,
                     "loss_function": "mape",
-                    "m_mase": 1,
+                    "m_mase": int(parameters["forecast_horizon"]),  # MASE naive baseline = value forecast_horizon steps behind
                     "max_thr": -1,
                     "min_non_nan_interval": 24,
                     "n_trials": 100,

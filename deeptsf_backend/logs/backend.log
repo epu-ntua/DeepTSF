@@ -22024,3 +22024,67 @@ INFO:     Started server process [20]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8098 (Press CTRL+C to quit)
+INFO:     Started server process [20]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8098 (Press CTRL+C to quit)
+WARNING:  Invalid HTTP request received.
+INFO:     172.104.11.4:12266 - "GET / HTTP/1.1" 401 Unauthorized
+WARNING:  Invalid HTTP request received.
+INFO:     172.236.228.222:5498 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     45.79.207.129:33073 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     172.236.239.55:22484 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     172.27.0.12:38108 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     172.27.0.12:53774 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     172.27.0.12:46524 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     172.27.0.12:46530 - "GET /robots.txt HTTP/1.1" 404 Not Found
+INFO:     172.27.0.12:43640 - "GET /sitemap.xml HTTP/1.1" 404 Not Found
+INFO:     172.27.0.12:36066 - "GET /.git/config HTTP/1.1" 404 Not Found
+INFO:     172.27.0.12:36072 - "GET /.git/config HTTP/1.1" 404 Not Found
+INFO:     172.27.0.12:45584 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     172.27.0.12:49948 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     172.27.0.12:49956 - "GET /robots.txt HTTP/1.1" 404 Not Found
+INFO:     52.248.42.176:52962 - "GET /stats HTTP/1.1" 404 Not Found
+INFO:     172.27.0.12:34804 - "GET / HTTP/1.1" 401 Unauthorized
+INFO:     172.27.0.12:39018 - "OPTIONS /results/get_best_run_id_by_mlflow_experiment/0/mape HTTP/1.1" 200 OK
+INFO:     172.27.0.12:39032 - "OPTIONS /results/get_best_run_id_by_mlflow_experiment/0/mape HTTP/1.1" 200 OK
+INFO:     172.27.0.12:39048 - "OPTIONS /results/get_best_run_id_by_mlflow_experiment/0/null HTTP/1.1" 200 OK
+INFO:     172.27.0.12:39062 - "OPTIONS /results/get_list_of_experiments HTTP/1.1" 200 OK
+INFO:     172.27.0.12:39070 - "OPTIONS /metrics/get_metric_names HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:     172.27.0.12:39086 - "GET /results/get_best_run_id_by_mlflow_experiment/0/mape HTTP/1.1" 200 OK
+INFO:     172.27.0.12:39088 - "GET /results/get_list_of_experiments HTTP/1.1" 200 OK
+INFO:     172.27.0.12:39090 - "GET /results/get_best_run_id_by_mlflow_experiment/0/null HTTP/1.1" 200 OK
+INFO:     172.27.0.12:39092 - "GET /metrics/get_metric_names HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:     172.27.0.12:39100 - "GET /results/get_best_run_id_by_mlflow_experiment/0/mape HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:     172.27.0.12:39674 - "GET /results/get_best_run_id_by_mlflow_experiment/0/mape HTTP/1.1" 200 OK
+INFO:     172.27.0.12:39682 - "OPTIONS /results/get_metric_list/2558a122fe4142869aa6178f5caf4f0e HTTP/1.1" 200 OK
+INFO:     172.27.0.12:39690 - "OPTIONS /results/get_forecast_vs_actual/2558a122fe4142869aa6178f5caf4f0e/n_samples/200 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://keycloak.toolbox.epu.ntua.gr/realms/EnergyGuard/protocol/openid-connect/token/introspect "HTTP/1.1 200 OK"
+ERROR:api:Error calling MLflow runs.get: 403 Client Error: Forbidden for url: https://mlflow.energy-guard.eu/api/2.0/mlflow/runs/get?run_id=2558a122fe4142869aa6178f5caf4f0e
+INFO:     172.27.0.12:39694 - "GET /results/get_metric_list/2558a122fe4142869aa6178f5caf4f0e HTTP/1.1" 502 Bad Gateway
+Traceback (most recent call last):
+  File "/app/api.py", line 1593, in load_artifacts
+    resp.raise_for_status()
+  File "/opt/conda/envs/DeepTSF_env/lib/python3.12/site-packages/requests/models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 403 Client Error: Forbidden for url: https://mlflow.energy-guard.eu/api/2.0/mlflow/artifacts/list?run_id=2558a122fe4142869aa6178f5caf4f0e&path=eval_results%2Fpredictions.csv
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/api.py", line 1644, in get_forecast_vs_actual
+    forecast_path = load_artifacts(
+                    ^^^^^^^^^^^^^^^
+  File "/app/api.py", line 1595, in load_artifacts
+    raise RuntimeError(f"Failed to resolve artifact via MLflow REST API: {e} (url={resp.url})")
+RuntimeError: Failed to resolve artifact via MLflow REST API: 403 Client Error: Forbidden for url: https://mlflow.energy-guard.eu/api/2.0/mlflow/artifacts/list?run_id=2558a122fe4142869aa6178f5caf4f0e&path=eval_results%2Fpredictions.csv (url=https://mlflow.energy-guard.eu/api/2.0/mlflow/artifacts/list?run_id=2558a122fe4142869aa6178f5caf4f0e&path=eval_results%2Fpredictions.csv)
+There was an error Failed to resolve artifact via MLflow REST API: 403 Client Error: Forbidden for url: https://mlflow.energy-guard.eu/api/2.0/mlflow/artifacts/list?run_id=2558a122fe4142869aa6178f5caf4f0e&path=eval_results%2Fpredictions.csv (url=https://mlflow.energy-guard.eu/api/2.0/mlflow/artifacts/list?run_id=2558a122fe4142869aa6178f5caf4f0e&path=eval_results%2Fpredictions.csv)
+INFO:     172.27.0.12:39700 - "GET /results/get_forecast_vs_actual/2558a122fe4142869aa6178f5caf4f0e/n_samples/200 HTTP/1.1" 415 Unsupported Media Type
+INFO:     172.27.0.12:58078 - "GET /.git/config HTTP/1.1" 404 Not Found
