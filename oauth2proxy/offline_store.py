@@ -66,40 +66,76 @@ def file_lock(path: Path) -> Iterator[None]:
         os.close(fd)
 
 
-def read_offline_token(username: str) -> Optional[str]:
-    """Return the user's decrypted offline token, or None if not enrolled."""
-    path = token_path(username)
-    if not path.exists():
-        return None
+def _read_record_unlocked(path: Path) -> Optional[dict]:
+    """Decrypted {"token", "stored_at"} for *path*, or None. Caller holds the lock."""
     try:
-        with file_lock(path):
-            record = json.loads(path.read_text())
+        record = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
         return None
     blob = record.get("token")
     if not blob:
         return None
     try:
-        return _fernet().decrypt(blob.encode()).decode()
+        token = _fernet().decrypt(blob.encode()).decode()
     except (InvalidToken, ValueError):
         # Wrong/rotated EG_TOKEN_ENC_KEY, or a corrupt file. Treat as
         # un-enrolled so the user is simply asked to enroll again.
         return None
+    stored_at = None
+    with contextlib.suppress(TypeError, ValueError):
+        stored_at = datetime.fromisoformat(record["stored_at"])
+    return {"token": token, "stored_at": stored_at}
 
 
-def write_offline_token(username: str, offline_token: str) -> None:
-    """Encrypt and persist the user's offline token (atomically, 0600)."""
-    path = token_path(username)
+def _write_unlocked(path: Path, username: str, offline_token: str) -> None:
     record = {
         "username": username,
         "token": _fernet().encrypt(offline_token.encode()).decode(),
         "stored_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00"),
     }
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(record, indent=2))
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+
+
+def read_offline_record(username: str) -> Optional[dict]:
+    """The user's decrypted token plus when it was last written, or None.
+
+    stored_at moves on every write, and the worker rewrites the file each time
+    it uses the token, so it doubles as "last time Keycloak saw this session"."""
+    path = token_path(username)
+    if not path.exists():
+        return None
     with file_lock(path):
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(record, indent=2))
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, path)
+        return _read_record_unlocked(path)
+
+
+def read_offline_token(username: str) -> Optional[str]:
+    """Return the user's decrypted offline token, or None if not enrolled."""
+    record = read_offline_record(username)
+    return record["token"] if record else None
+
+
+def write_offline_token(username: str, offline_token: str) -> None:
+    """Encrypt and persist the user's offline token (atomically, 0600)."""
+    path = token_path(username)
+    with file_lock(path):
+        _write_unlocked(path, username, offline_token)
+
+
+def replace_offline_token(username: str, expected: str, offline_token: str) -> bool:
+    """Write *offline_token* only if the stored token is still *expected*.
+
+    For a worker persisting the token Keycloak returned from a refresh: if the
+    gateway renewed the user in the meantime, the renewed token must win."""
+    path = token_path(username)
+    with file_lock(path):
+        current = _read_record_unlocked(path)
+        if not current or current["token"] != expected:
+            return False
+        _write_unlocked(path, username, offline_token)
+        return True
 
 
 def delete_offline_token(username: str) -> None:
@@ -107,6 +143,21 @@ def delete_offline_token(username: str) -> None:
     revoked, so their next visit re-enrolls them."""
     with contextlib.suppress(OSError):
         token_path(username).unlink()
+
+
+def delete_offline_token_if_unchanged(username: str, expected: str) -> bool:
+    """Delete the stored token only if it is still *expected*. Returns False
+    when it was replaced meanwhile, i.e. there is a newer token to try."""
+    path = token_path(username)
+    if not path.exists():
+        return True
+    with file_lock(path):
+        current = _read_record_unlocked(path)
+        if current and current["token"] != expected:
+            return False
+        with contextlib.suppress(OSError):
+            path.unlink()
+        return True
 
 
 def is_enrolled(username: str) -> bool:

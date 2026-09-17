@@ -110,6 +110,11 @@ services:
       PUBLIC_BASE_URL: "https://deeptsf-dagster.energy-guard.eu"
       EG_TOKEN_ENC_KEY: "${EG_TOKEN_ENC_KEY}"
       EG_OFFLINE_TOKEN_DIR: "/srv/eg-auth"
+      # Re-issue a user's offline token on page load once it is this close to expiring.
+      EG_OFFLINE_RENEW_BEFORE_DAYS: "5"
+      # Must match keycloak's "Offline Session Idle" for the dagster-offline client
+      # (realm default 30). Used to estimate expiry when the token has no exp claim.
+      EG_OFFLINE_SESSION_IDLE_DAYS: "30"
     volumes:
       - ./dagster_gateway.py:/app/dagster_gateway.py:ro
       - ./enrollment.py:/app/enrollment.py:ro
