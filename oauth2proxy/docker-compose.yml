@@ -48,6 +48,13 @@ services:
       - --session-store-type=redis
       - --redis-connection-url=redis://:${REDIS_PASSWORD}@redis-energyguard:6379/2
       - --cookie-domain=.energy-guard.eu
+      # Without this (default 0) oauth2-proxy never re-checks a stored session with
+      # keycloak, so logging out of another EnergyGuard app leaves dagster logged in
+      # until the 7-day cookie expires. With it, a session older than 1m is refreshed;
+      # once the SSO session is gone the refresh fails and the session is dropped when
+      # the access token expires. Keep it below keycloak's access token lifespan.
+      # Does not affect the dagster offline tokens (separate client, see enrollment.py).
+      - --cookie-refresh=1m
       # - --session-cookie-minimal=true
       # optional, if you want identity headers forwarded upstream:
       - --set-xauthrequest=true
