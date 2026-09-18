@@ -38,23 +38,21 @@ services:
     networks:
        - appnet
   
-  # worker:
-  #   build:
-  #     context: ./
-  #     target: celery-worker
-  #     dockerfile:  Dockerfile_keycloak
-  #   restart: always
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     - redis
-  #   # runtime: nvidia
-  #   environment:
-  #     - NVIDIA_VISIBLE_DEVICES=all
-  #     - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-  #   mem_limit: 6g
-  #   networks:
-  #      - appnet
+  # Consumes the backend's own celery tasks (e.g. CSV upload validation) from the
+  # local redis. Dagster runs are still executed by the worker on the GPU machine.
+  worker:
+    build:
+      context: ./
+      target: celery-worker
+      dockerfile:  Dockerfile_keycloak
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    mem_limit: 6g
+    networks:
+       - appnet
 
   redis:
     image: redis:7-alpine
