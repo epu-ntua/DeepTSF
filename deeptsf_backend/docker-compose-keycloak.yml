@@ -1,9 +1,37 @@
-# to run this you need to create a .env file with the contents of .env_keycloak and fill the missing variables.
+# DeepTSF full stack, keycloak-auth variant: backend + celery worker + redis broker
+# + dagster orchestrator. This is the file to use for a complete deployment on a
+# single machine; docker-compose-dagster-celery.yml is the orchestration-only
+# subset for deployments whose backend lives elsewhere.
+#
+# Everything machine-specific is read from .env, so the same file serves a plain
+# DeepTSF run (all defaults) and a named deployment such as EnergyGuard:
+#
+#   COMPOSE_NETWORK      external network to join                    (default keycloak_net)
+#   BACKEND_PORT         host + container port of the FastAPI app    (default 8081)
+#   BACKEND_CONTAINER    container name / DNS alias of the backend   (default DeepTSF-backend)
+#   REDIS_HOST           DNS alias of the broker; must match the host
+#                        inside CELERY_BROKER_URL / CELERY_RESULT_BACKEND  (default redis)
+#   REDIS_PASSWORD       broker password; leave unset for no auth
+#   DAGSTER_PORT         host port for the dagster UI                (default 8006)
+#   DAGSTER_HOSTNAME     DNS alias of dagster, used by the gateway   (default dagster)
+#   DAGSTER_CONTAINER    container name of dagster       (default DeepTSF--dagster-orchestrator)
+#   DAGSTER_PG_DATABASE  dagster storage db; must match db_name in
+#                        dagster_deeptsf/dagster.yaml                (default dagster_energyguard)
+#   DOCKER_RUNTIME       set to nvidia to give worker/dagster the GPUs (default runc)
+#   BACKEND_MEM_LIMIT / WORKER_MEM_LIMIT / DAGSTER_MEM_LIMIT
+#
+# One-off setup before the first run:
+#   docker network create ${COMPOSE_NETWORK}   # only if it does not exist yet
+#   docker volume create eg_offline_tokens     # shared with ../oauth2proxy
+#
+# Run with (-p keeps the containers separate from any other DeepTSF checkout):
+#   docker-compose -p deeptsf-energyguard -f docker-compose-keycloak.yml up -d --build
+
 services:
 
   backend:
-    container_name: DeepTSF-backend
-    hostname: DeepTSF-backend
+    container_name: ${BACKEND_CONTAINER:-DeepTSF-backend}
+    hostname: ${BACKEND_CONTAINER:-DeepTSF-backend}
     # image: inergy2020iccs/deeptsf_backend:1.0.2  # only for releases
     build:
       context: ./
@@ -27,17 +55,18 @@ services:
     entrypoint: ["/bin/bash", "-c", "mkdir -p /app/logs && conda run --no-capture-output -n DeepTSF_env uvicorn api:app --host 0.0.0.0 --port $${BACKEND_PORT:-8081} 2>&1 | tee -a /app/logs/backend.log"]
     depends_on:
       - redis
-    # Uses all .env parameters
-    # deploy: # activate this if you want gpu usage
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities: [gpu]
-    mem_limit: 1G
+    mem_limit: ${BACKEND_MEM_LIMIT:-1G}
     networks:
-       - appnet
-  
+      appnet:
+        # "backend" is the alias the frontend and the CORS defaults in api.py use;
+        # the second one is what a reverse proxy in front of this stack points at.
+        aliases:
+          - backend
+          - ${BACKEND_CONTAINER:-DeepTSF-backend}
+
+  # Consumes the backend's celery tasks (e.g. CSV upload validation) from redis.
+  # Deliberately left without a container_name so it can be scaled:
+  #   docker-compose -f docker-compose-keycloak.yml up -d --scale worker=2
   worker:
     build:
       context: ./
@@ -48,23 +77,65 @@ services:
       - .env
     depends_on:
       - redis
-    # runtime: nvidia
+    runtime: ${DOCKER_RUNTIME:-runc}
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    mem_limit: 6g
+    mem_limit: ${WORKER_MEM_LIMIT:-6g}
+    volumes:
+      # Per-user keycloak offline tokens written by ../oauth2proxy's dagster gateway;
+      # the worker reads them (EG_OFFLINE_TOKEN_DIR) to keep minting MLflow access
+      # tokens for the whole run. Unused when USE_AUTH is not keycloak.
+      - eg_offline_tokens:/srv/eg-auth
     networks:
        - appnet
 
   redis:
     image: redis:7-alpine
+    hostname: ${REDIS_HOST:-redis}
     restart: always
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    # Password-protected only if REDIS_PASSWORD is set, in which case it must match
+    # the password inside CELERY_BROKER_URL / CELERY_RESULT_BACKEND and in
+    # ../oauth2proxy/.env. $$ is compose's escape for a literal $.
+    command: ["sh", "-c", "if [ -n \"$$REDIS_PASSWORD\" ]; then exec redis-server --requirepass \"$$REDIS_PASSWORD\"; else exec redis-server; fi"]
+    # Publish the broker only if something outside this stack (a backend on another
+    # machine) has to reach it; the password above is then mandatory.
+    # ports:
+    #   - "6380:6379"
+    networks:
+      appnet:
+        aliases:
+          - redis
+          - ${REDIS_HOST:-redis}
+
+  # One-shot: creates the dagster storage database if it is missing, so a fresh
+  # postgres (or one whose init script created a different db) does not need manual
+  # setup. Exits immediately once the database is there.
+  init-dagster-db:
+    image: postgres:16-alpine
+    restart: "no"
+    environment:
+      PGHOST: ${POSTGRES_HOST}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: postgres
+      DAGSTER_PG_DATABASE: ${DAGSTER_PG_DATABASE:-dagster_energyguard}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until pg_isready; do echo 'waiting for postgres...'; sleep 2; done
+        psql -tAc "SELECT 1 FROM pg_database WHERE datname='$$DAGSTER_PG_DATABASE'" | grep -q 1 \
+          || psql -c "CREATE DATABASE \"$$DAGSTER_PG_DATABASE\""
+        echo "$$DAGSTER_PG_DATABASE database ready"
     networks:
        - appnet
 
   dagster:
-    container_name: DeepTSF--dagster-orchestrator
-    hostname: DeepTSF--dagster-orchestrator
+    container_name: ${DAGSTER_CONTAINER:-DeepTSF--dagster-orchestrator}
+    hostname: ${DAGSTER_HOSTNAME:-dagster}
     restart: always
     # image: inergy2020iccs/deeptsf_dagster:1.0.1 # only for releases
     build:
@@ -73,14 +144,15 @@ services:
       dockerfile:  Dockerfile_keycloak
     depends_on:
       - redis
-    # runtime: nvidia
+      - init-dagster-db
+    runtime: ${DOCKER_RUNTIME:-runc}
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     expose:
       - 8006
     ports:
-      - 8006:8006
+      - ${DAGSTER_PORT:-8006}:8006
     env_file:
       - .env
       # Uses following .env parameters:
@@ -88,9 +160,18 @@ services:
       # MLFLOW_S3_ENDPOINT_URL
       # AWS_ACCESS_KEY_ID
       # AWS_SECRET_ACCESS_KEY
-    mem_limit: 4g
+    mem_limit: ${DAGSTER_MEM_LIMIT:-4g}
+    volumes:
+      # Same offline-token store as the worker; runs launched through the gateway
+      # look up their user's token here.
+      - eg_offline_tokens:/srv/eg-auth
     networks:
-       - appnet
+      appnet:
+        # "dagster" is what api.py's non-keycloak CORS defaults use; the second one
+        # is what ../oauth2proxy's DAGSTER_UPSTREAM points at.
+        aliases:
+          - dagster
+          - ${DAGSTER_HOSTNAME:-dagster}
 
   # frontend:
   #   container_name: load-forecasting-dashboard
@@ -99,20 +180,21 @@ services:
   #   restart: always
   #   # build: ./load-forecasting-dashboard
   #   build: https://github.com/I-NERGY/DeepTSF.git
-  #   # volumes: # this bind mount is maybe redundant?
-  #   #   - ./src:/app/src # check if this works like that. relative paths are inside the build directory or the current directory?
   #   ports:
   #     - '3000:3000'
   #   stdin_open: true
   #   env_file:
   #     - .env # needs to add all variables of the front-end env_file to the current .env
-  #   # environment:
-  #   #   CHOKIDAR_USEPOLLING: true
-  #   #   REACT_APP_NAME: Load_Forecasting_Dashboard
   #   networks:
-  #     - load-forecasting-net
+  #     - appnet
 
 networks:
   appnet:
-    name: ${COMPOSE_NETWORK}
+    name: ${COMPOSE_NETWORK:-keycloak_net}
+    external: true
+
+volumes:
+  # Created once with: docker volume create eg_offline_tokens
+  # Shared with the oauth2proxy stack, which writes the tokens.
+  eg_offline_tokens:
     external: true
