@@ -23,6 +23,7 @@ from mlflow.tracking import MlflowClient
 from utils_backend import to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio, none_checker
 import psutil, nvsmi
 import os
+import re
 import requests
 import jwt
 import logging
@@ -1620,11 +1621,201 @@ def load_artifacts(run_id, src_path, tenant, request, dst_path=None):
     return local_path
 
 
+def list_run_artifacts(run_id: str, path: str, request: Request):
+    """
+    List the artifacts of a run under `path` via the MLflow REST API
+    (/mlflow/artifacts/list). Returns the raw `files` entries, each of which
+    carries `path`, `is_dir` and `file_size`.
+    """
+    url = f"{MLFLOW_API_BASE}/mlflow/artifacts/list"
+    try:
+        resp = requests.get(
+            url,
+            params={"run_id": run_id, "path": path},
+            headers=_mlflow_headers(request),
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error(f"Error calling MLflow artifacts.list for {run_id}/{path}: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to contact MLflow tracking server: {e}"
+        )
+
+    try:
+        data = resp.json()
+    except ValueError as e:
+        logger.error("Failed to decode MLflow JSON in artifacts.list", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Invalid JSON from MLflow artifacts.list: {e}"
+        )
+
+    return data.get("files", []) or []
+
+
+@engineer_router.get(
+    '/results/get_evaluation_series/{run_id}',
+    tags=['MLflow Info', 'Model Evaluation']
+)
+async def get_evaluation_series(run_id: str, request: Request):
+    """
+    List the time series that were evaluated in a run.
+
+    When a run evaluates every time series of a multiple dataset, the pipeline
+    logs one directory per Timeseries ID under `eval_results` (see
+    `evaluate_forecasts.py`); a run that evaluates a single series logs
+    `predictions.csv` straight into `eval_results`. This endpoint tells the two
+    apart so the client knows whether it has to ask the user which series to
+    plot.
+    """
+    files = list_run_artifacts(run_id, "eval_results", request)
+
+    series = sorted(
+        os.path.basename(entry.get("path", "").rstrip("/"))
+        for entry in files
+        if entry.get("is_dir") and entry.get("path")
+    )
+
+    return {
+        "multiple": bool(series),
+        "series": series,
+    }
+
+
+# plot_series names each trace after the component's ID from the source file's
+# "ID" column, which is the only place that ID survives into a run's artifacts.
+_PLOT_COMPONENT_RE = re.compile(r'"name"\s*:\s*"Time series actual - component (.*?)"')
+
+# What darts calls the components of a series stacked out of a multiple dataset:
+# every component arrives as a column named "Value", so stacking dedupes them.
+_PLACEHOLDER_COMPONENT_RE = re.compile(r"^Value(_\d+)?$")
+
+
+def _component_ids_from_plot(run_id, artifact_dir, tenant, request):
+    """
+    Read the component IDs of a series out of the Actual_vs_Predicted.html logged
+    beside its CSVs.
+
+    multiple_ts_file_to_dfs() builds every component as a one-column frame named
+    "Value", so by the time they are stacked into one series darts has renamed
+    them Value, Value_1, Value_2 ... and predictions.csv inherits those. The IDs
+    from the source file's "ID" column reach only the plot, whose traces
+    plot_series names "Time series actual - component <id>".
+    """
+    with tempfile.TemporaryDirectory() as plot_dir:
+        plot_path = load_artifacts(
+            run_id=run_id,
+            src_path=f"{artifact_dir}/Actual_vs_Predicted.html",
+            tenant=tenant,
+            request=request,
+            dst_path=plot_dir,
+        )
+        with open(plot_path, "r", encoding="utf-8", errors="replace") as plot:
+            names = _PLOT_COMPONENT_RE.findall(plot.read())
+
+    # plot_series falls back to a component's position when it is given no IDs to
+    # use, and a position is no better a name than Value_1 is.
+    if names == [str(i) for i in range(len(names))]:
+        return []
+
+    return names
+
+
+def _name_components(df, component_ids):
+    """Name a frame's columns after the component IDs, when the two line up."""
+    if component_ids and len(df.columns) == len(component_ids):
+        df.columns = component_ids
+    return df
+
+
+def _same_time_window(forecast_df, actual_df, n):
+    """
+    Put the forecast and the actual series on one window: the last `n` samples of
+    the forecast, and the part of the actual series that falls inside them.
+
+    The backtest starts after the actual series does (its first `overlap` steps
+    are dropped) and stops at the end of its last full forecast window, short of
+    where the actual series ends. Cutting `n` samples off the end of each frame
+    on its own therefore lands them on two different windows, which is why `n`
+    counts back from the last forecast timestamp and the actual series follows it.
+
+    `n` of zero or less means the whole forecast.
+    """
+    # A series indexed by position rather than by time compares fine as it is, and
+    # pd.to_datetime would read those integers as nanoseconds since the epoch.
+    indexed_by_time = not (
+        pd.api.types.is_numeric_dtype(forecast_df.index)
+        or pd.api.types.is_numeric_dtype(actual_df.index)
+    )
+    if indexed_by_time:
+        try:
+            forecast_index = pd.to_datetime(forecast_df.index)
+            actual_index = pd.to_datetime(actual_df.index)
+        except (ValueError, TypeError):
+            pass
+        else:
+            forecast_df = forecast_df.set_index(forecast_index)
+            actual_df = actual_df.set_index(actual_index)
+
+    forecast_df = forecast_df.sort_index()
+    actual_df = actual_df.sort_index()
+
+    if n > 0:
+        forecast_df = forecast_df.iloc[-n:]
+    if forecast_df.empty:
+        return forecast_df, actual_df.iloc[:0]
+
+    window_start, window_end = forecast_df.index[0], forecast_df.index[-1]
+    actual_df = actual_df[(actual_df.index >= window_start) & (actual_df.index <= window_end)]
+
+    return forecast_df, actual_df
+
+
+def _split_response(df):
+    """
+    Serialise a dataframe in pandas' 'split' orientation: one entry per column,
+    one timestamp per index entry and one row of values per timestamp. Keeping the
+    rows intact is what lets a multivariate series reach the client with every
+    component, instead of collapsing to the first one. NaN is not valid JSON, so
+    gaps go out as null.
+    """
+    return {
+        "columns": [str(column) for column in df.columns],
+        "index": [str(timestamp) for timestamp in df.index],
+        "data": [
+            [None if pd.isna(value) else value for value in row]
+            for row in df.to_numpy().tolist()
+        ],
+    }
+
+
 @engineer_router.get(
     '/results/get_forecast_vs_actual/{run_id}/n_samples/{n}',
     tags=['MLflow Info', 'Model Evaluation']
 )
-async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
+async def get_forecast_vs_actual(
+    run_id: str,
+    n: int,
+    request: Request,
+    series: Optional[str] = None,
+):
+    """
+    Return the last `n` samples of the forecast of a run, together with the part of
+    the actual series that covers the same time window.
+
+    `series` selects one Timeseries ID of a run that evaluated a whole multiple
+    dataset; it is left out for runs that evaluated a single series. Both series
+    are returned in pandas' 'split' orientation, so every component of a
+    multivariate series comes back as its own column with its own name.
+    """
+    series_dir = none_checker(series)
+    series_dir = series_dir.strip() if isinstance(series_dir, str) else series_dir
+    if series_dir and ("/" in series_dir or "\\" in series_dir or series_dir.startswith(".")):
+        # `series` names one directory logged under eval_results, nothing else.
+        raise HTTPException(status_code=400, detail=f"Invalid series: {series}")
+    artifact_dir = "eval_results" if not series_dir else f"eval_results/{series_dir}"
 
     try:
         # If you already have middleware populating request.state.user:
@@ -1643,30 +1834,47 @@ async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
         # Use REST-based artifact loader
         forecast_path = load_artifacts(
             run_id=run_id,
-            src_path="eval_results/predictions.csv",
+            src_path=f"{artifact_dir}/predictions.csv",
             tenant=tenant,
             request=request,
         )
         actual_path = load_artifacts(
             run_id=run_id,
-            src_path="eval_results/original_series.csv",
+            src_path=f"{artifact_dir}/original_series.csv",
             tenant=tenant,
             request=request,
         )
 
-        forecast_df = pd.read_csv(forecast_path, index_col=0).iloc[-n:]
-        actual_df = pd.read_csv(actual_path, index_col=0)[-n:]
+        forecast_df, actual_df = _same_time_window(
+            pd.read_csv(forecast_path, index_col=0),
+            pd.read_csv(actual_path, index_col=0),
+            n,
+        )
 
-        forecast_response = forecast_df.to_dict('split')
-        actual_response = actual_df.to_dict('split')
+        # A series stacked out of a multiple dataset reaches here with placeholder
+        # component names, so the real IDs are recovered from the run's own plot.
+        component_ids = []
+        if len(actual_df.columns) > 1 and all(
+            _PLACEHOLDER_COMPONENT_RE.match(str(column)) for column in actual_df.columns
+        ):
+            try:
+                component_ids = _component_ids_from_plot(run_id, artifact_dir, tenant, request)
+            except Exception:
+                logger.warning(
+                    f"Could not read component names from the plot of run {run_id}",
+                    exc_info=True,
+                )
 
-        # Unlist since each row is [value]
-        actual_response["data"] = [row[0] for row in actual_response["data"]]
-        forecast_response["data"] = [row[0] for row in forecast_response["data"]]
+        actual_df = _name_components(actual_df, component_ids)
+        forecast_df = _name_components(forecast_df, component_ids)
+
+        forecast_response = _split_response(forecast_df)
+        actual_response = _split_response(actual_df)
 
         response = {
             "forecast": forecast_response,
             "actual": actual_response,
+            "series": series_dir or None,
         }
     except Exception as e:
         traceback.print_exc()
