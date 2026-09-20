@@ -23,6 +23,7 @@ from mlflow.tracking import MlflowClient
 from utils_backend import to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio, none_checker
 import psutil, nvsmi
 import os
+import re
 import requests
 import jwt
 import logging
@@ -1683,6 +1684,95 @@ async def get_evaluation_series(run_id: str, request: Request):
     }
 
 
+# plot_series names each trace after the component's ID from the source file's
+# "ID" column, which is the only place that ID survives into a run's artifacts.
+_PLOT_COMPONENT_RE = re.compile(r'"name"\s*:\s*"Time series actual - component (.*?)"')
+
+# What darts calls the components of a series stacked out of a multiple dataset:
+# every component arrives as a column named "Value", so stacking dedupes them.
+_PLACEHOLDER_COMPONENT_RE = re.compile(r"^Value(_\d+)?$")
+
+
+def _component_ids_from_plot(run_id, artifact_dir, tenant, request):
+    """
+    Read the component IDs of a series out of the Actual_vs_Predicted.html logged
+    beside its CSVs.
+
+    multiple_ts_file_to_dfs() builds every component as a one-column frame named
+    "Value", so by the time they are stacked into one series darts has renamed
+    them Value, Value_1, Value_2 ... and predictions.csv inherits those. The IDs
+    from the source file's "ID" column reach only the plot, whose traces
+    plot_series names "Time series actual - component <id>".
+    """
+    with tempfile.TemporaryDirectory() as plot_dir:
+        plot_path = load_artifacts(
+            run_id=run_id,
+            src_path=f"{artifact_dir}/Actual_vs_Predicted.html",
+            tenant=tenant,
+            request=request,
+            dst_path=plot_dir,
+        )
+        with open(plot_path, "r", encoding="utf-8", errors="replace") as plot:
+            names = _PLOT_COMPONENT_RE.findall(plot.read())
+
+    # plot_series falls back to a component's position when it is given no IDs to
+    # use, and a position is no better a name than Value_1 is.
+    if names == [str(i) for i in range(len(names))]:
+        return []
+
+    return names
+
+
+def _name_components(df, component_ids):
+    """Name a frame's columns after the component IDs, when the two line up."""
+    if component_ids and len(df.columns) == len(component_ids):
+        df.columns = component_ids
+    return df
+
+
+def _same_time_window(forecast_df, actual_df, n):
+    """
+    Put the forecast and the actual series on one window: the last `n` samples of
+    the forecast, and the part of the actual series that falls inside them.
+
+    The backtest starts after the actual series does (its first `overlap` steps
+    are dropped) and stops at the end of its last full forecast window, short of
+    where the actual series ends. Cutting `n` samples off the end of each frame
+    on its own therefore lands them on two different windows, which is why `n`
+    counts back from the last forecast timestamp and the actual series follows it.
+
+    `n` of zero or less means the whole forecast.
+    """
+    # A series indexed by position rather than by time compares fine as it is, and
+    # pd.to_datetime would read those integers as nanoseconds since the epoch.
+    indexed_by_time = not (
+        pd.api.types.is_numeric_dtype(forecast_df.index)
+        or pd.api.types.is_numeric_dtype(actual_df.index)
+    )
+    if indexed_by_time:
+        try:
+            forecast_index = pd.to_datetime(forecast_df.index)
+            actual_index = pd.to_datetime(actual_df.index)
+        except (ValueError, TypeError):
+            pass
+        else:
+            forecast_df = forecast_df.set_index(forecast_index)
+            actual_df = actual_df.set_index(actual_index)
+
+    forecast_df = forecast_df.sort_index()
+    actual_df = actual_df.sort_index()
+
+    if n > 0:
+        forecast_df = forecast_df.iloc[-n:]
+    if forecast_df.empty:
+        return forecast_df, actual_df.iloc[:0]
+
+    window_start, window_end = forecast_df.index[0], forecast_df.index[-1]
+    actual_df = actual_df[(actual_df.index >= window_start) & (actual_df.index <= window_end)]
+
+    return forecast_df, actual_df
+
+
 def _split_response(df):
     """
     Serialise a dataframe in pandas' 'split' orientation: one entry per column,
@@ -1712,7 +1802,8 @@ async def get_forecast_vs_actual(
     series: Optional[str] = None,
 ):
     """
-    Return the last `n` samples of the forecast and of the actual series of a run.
+    Return the last `n` samples of the forecast of a run, together with the part of
+    the actual series that covers the same time window.
 
     `series` selects one Timeseries ID of a run that evaluated a whole multiple
     dataset; it is left out for runs that evaluated a single series. Both series
@@ -1754,8 +1845,28 @@ async def get_forecast_vs_actual(
             request=request,
         )
 
-        forecast_df = pd.read_csv(forecast_path, index_col=0).iloc[-n:]
-        actual_df = pd.read_csv(actual_path, index_col=0)[-n:]
+        forecast_df, actual_df = _same_time_window(
+            pd.read_csv(forecast_path, index_col=0),
+            pd.read_csv(actual_path, index_col=0),
+            n,
+        )
+
+        # A series stacked out of a multiple dataset reaches here with placeholder
+        # component names, so the real IDs are recovered from the run's own plot.
+        component_ids = []
+        if len(actual_df.columns) > 1 and all(
+            _PLACEHOLDER_COMPONENT_RE.match(str(column)) for column in actual_df.columns
+        ):
+            try:
+                component_ids = _component_ids_from_plot(run_id, artifact_dir, tenant, request)
+            except Exception:
+                logger.warning(
+                    f"Could not read component names from the plot of run {run_id}",
+                    exc_info=True,
+                )
+
+        actual_df = _name_components(actual_df, component_ids)
+        forecast_df = _name_components(forecast_df, component_ids)
 
         forecast_response = _split_response(forecast_df)
         actual_response = _split_response(actual_df)
