@@ -1620,11 +1620,111 @@ def load_artifacts(run_id, src_path, tenant, request, dst_path=None):
     return local_path
 
 
+def list_run_artifacts(run_id: str, path: str, request: Request):
+    """
+    List the artifacts of a run under `path` via the MLflow REST API
+    (/mlflow/artifacts/list). Returns the raw `files` entries, each of which
+    carries `path`, `is_dir` and `file_size`.
+    """
+    url = f"{MLFLOW_API_BASE}/mlflow/artifacts/list"
+    try:
+        resp = requests.get(
+            url,
+            params={"run_id": run_id, "path": path},
+            headers=_mlflow_headers(request),
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error(f"Error calling MLflow artifacts.list for {run_id}/{path}: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to contact MLflow tracking server: {e}"
+        )
+
+    try:
+        data = resp.json()
+    except ValueError as e:
+        logger.error("Failed to decode MLflow JSON in artifacts.list", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Invalid JSON from MLflow artifacts.list: {e}"
+        )
+
+    return data.get("files", []) or []
+
+
+@engineer_router.get(
+    '/results/get_evaluation_series/{run_id}',
+    tags=['MLflow Info', 'Model Evaluation']
+)
+async def get_evaluation_series(run_id: str, request: Request):
+    """
+    List the time series that were evaluated in a run.
+
+    When a run evaluates every time series of a multiple dataset, the pipeline
+    logs one directory per Timeseries ID under `eval_results` (see
+    `evaluate_forecasts.py`); a run that evaluates a single series logs
+    `predictions.csv` straight into `eval_results`. This endpoint tells the two
+    apart so the client knows whether it has to ask the user which series to
+    plot.
+    """
+    files = list_run_artifacts(run_id, "eval_results", request)
+
+    series = sorted(
+        os.path.basename(entry.get("path", "").rstrip("/"))
+        for entry in files
+        if entry.get("is_dir") and entry.get("path")
+    )
+
+    return {
+        "multiple": bool(series),
+        "series": series,
+    }
+
+
+def _split_response(df):
+    """
+    Serialise a dataframe in pandas' 'split' orientation: one entry per column,
+    one timestamp per index entry and one row of values per timestamp. Keeping the
+    rows intact is what lets a multivariate series reach the client with every
+    component, instead of collapsing to the first one. NaN is not valid JSON, so
+    gaps go out as null.
+    """
+    return {
+        "columns": [str(column) for column in df.columns],
+        "index": [str(timestamp) for timestamp in df.index],
+        "data": [
+            [None if pd.isna(value) else value for value in row]
+            for row in df.to_numpy().tolist()
+        ],
+    }
+
+
 @engineer_router.get(
     '/results/get_forecast_vs_actual/{run_id}/n_samples/{n}',
     tags=['MLflow Info', 'Model Evaluation']
 )
-async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
+async def get_forecast_vs_actual(
+    run_id: str,
+    n: int,
+    request: Request,
+    series: Optional[str] = None,
+):
+    """
+    Return the last `n` samples of the forecast and of the actual series of a run.
+
+    `series` selects one Timeseries ID of a run that evaluated a whole multiple
+    dataset; it is left out for runs that evaluated a single series. Both series
+    are returned in pandas' 'split' orientation, so every component of a
+    multivariate series comes back as its own column with its own name.
+    """
+    series_dir = none_checker(series)
+    series_dir = series_dir.strip() if isinstance(series_dir, str) else series_dir
+    if series_dir and ("/" in series_dir or "\\" in series_dir or series_dir.startswith(".")):
+        # `series` names one directory logged under eval_results, nothing else.
+        raise HTTPException(status_code=400, detail=f"Invalid series: {series}")
+    artifact_dir = "eval_results" if not series_dir else f"eval_results/{series_dir}"
 
     try:
         # If you already have middleware populating request.state.user:
@@ -1643,13 +1743,13 @@ async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
         # Use REST-based artifact loader
         forecast_path = load_artifacts(
             run_id=run_id,
-            src_path="eval_results/predictions.csv",
+            src_path=f"{artifact_dir}/predictions.csv",
             tenant=tenant,
             request=request,
         )
         actual_path = load_artifacts(
             run_id=run_id,
-            src_path="eval_results/original_series.csv",
+            src_path=f"{artifact_dir}/original_series.csv",
             tenant=tenant,
             request=request,
         )
@@ -1657,16 +1757,13 @@ async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
         forecast_df = pd.read_csv(forecast_path, index_col=0).iloc[-n:]
         actual_df = pd.read_csv(actual_path, index_col=0)[-n:]
 
-        forecast_response = forecast_df.to_dict('split')
-        actual_response = actual_df.to_dict('split')
-
-        # Unlist since each row is [value]
-        actual_response["data"] = [row[0] for row in actual_response["data"]]
-        forecast_response["data"] = [row[0] for row in forecast_response["data"]]
+        forecast_response = _split_response(forecast_df)
+        actual_response = _split_response(actual_df)
 
         response = {
             "forecast": forecast_response,
             "actual": actual_response,
+            "series": series_dir or None,
         }
     except Exception as e:
         traceback.print_exc()
