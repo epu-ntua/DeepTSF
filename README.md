@@ -105,7 +105,6 @@ resources:
       ydcutoff: 30
       year_range: None
 ```
-
 For a more complete guide check the extensive documentation.
 
 This application can also be deployed in a kubernetes enviroment. 
