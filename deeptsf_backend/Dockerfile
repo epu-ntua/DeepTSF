@@ -25,6 +25,12 @@ RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkg
 
 WORKDIR /app 
 
+# Deployment-specific dagster storage names (see dagster_deeptsf/dagster.yaml and
+# dagster_deeptsf/__init__.py); override them in .env.
+ENV DAGSTER_PG_DATABASE=dagster_celery \
+    DAGSTER_COMPUTE_LOGS_PREFIX=dagster-compute-logs \
+    DAGSTER_IO_MANAGER_PREFIX=dagster-io-manager
+
 COPY ./conda.yaml ./conda.yaml
 
 RUN conda update conda

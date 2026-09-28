@@ -9,7 +9,8 @@ run_storage:
         env: POSTGRES_PASSWORD
       hostname: 
         env: POSTGRES_HOST
-      db_name: dagster_energyguard
+      db_name:
+        env: DAGSTER_PG_DATABASE
       port: 5432
 
 event_log_storage:
@@ -23,7 +24,8 @@ event_log_storage:
         env: POSTGRES_PASSWORD
       hostname: 
         env: POSTGRES_HOST
-      db_name: dagster_energyguard
+      db_name:
+        env: DAGSTER_PG_DATABASE
       port: 5432
 
 schedule_storage:
@@ -37,7 +39,8 @@ schedule_storage:
         env: POSTGRES_PASSWORD
       hostname: 
         env: POSTGRES_HOST
-      db_name: dagster_energyguard
+      db_name:
+        env: DAGSTER_PG_DATABASE
       port: 5432
 
 compute_logs:
@@ -46,7 +49,8 @@ compute_logs:
   config:
     bucket: "dagster-storage"
     local_dir: "/app/dagster_deeptsf/storage/"
-    prefix: "dagster-compute-logs-energyguard"
+    prefix:
+      env: DAGSTER_COMPUTE_LOGS_PREFIX
     use_ssl: true
     verify: false
     endpoint_url:

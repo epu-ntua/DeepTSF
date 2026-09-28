@@ -54,7 +54,7 @@ defs = Definitions(
                 verify=False,
             ),
             s3_bucket="dagster-storage",
-            s3_prefix="dagster-io-manager-energyguard",
+            s3_prefix=os.environ.get("DAGSTER_IO_MANAGER_PREFIX", "dagster-io-manager"),
         ),
     }
 )

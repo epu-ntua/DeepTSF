@@ -4,7 +4,7 @@
 # subset for deployments whose backend lives elsewhere.
 #
 # Everything machine-specific is read from .env, so the same file serves a plain
-# DeepTSF run (all defaults) and a named deployment such as EnergyGuard:
+# DeepTSF run (all defaults) and a named deployment next to it:
 #
 #   COMPOSE_NETWORK      external network to join                    (default keycloak_net)
 #   BACKEND_PORT         host + container port of the FastAPI app    (default 8081)
@@ -15,8 +15,8 @@
 #   DAGSTER_PORT         host port for the dagster UI                (default 8006)
 #   DAGSTER_HOSTNAME     DNS alias of dagster, used by the gateway   (default dagster)
 #   DAGSTER_CONTAINER    container name of dagster       (default DeepTSF--dagster-orchestrator)
-#   DAGSTER_PG_DATABASE  dagster storage db; must match db_name in
-#                        dagster_deeptsf/dagster.yaml                (default dagster_energyguard)
+#   DAGSTER_PG_DATABASE  dagster storage db, created if missing; dagster.yaml
+#                        reads it too                                (default dagster_celery)
 #   DOCKER_RUNTIME       set to nvidia to give worker/dagster the GPUs (default runc)
 #   BACKEND_MEM_LIMIT / WORKER_MEM_LIMIT / DAGSTER_MEM_LIMIT
 #
@@ -25,7 +25,7 @@
 #   docker volume create eg_offline_tokens     # shared with ../oauth2proxy
 #
 # Run with (-p keeps the containers separate from any other DeepTSF checkout):
-#   docker-compose -p deeptsf-energyguard -f docker-compose-keycloak.yml up -d --build
+#   docker-compose -p <project> -f docker-compose-keycloak.yml up -d --build
 
 services:
 
@@ -121,7 +121,7 @@ services:
       PGUSER: ${POSTGRES_USER}
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: postgres
-      DAGSTER_PG_DATABASE: ${DAGSTER_PG_DATABASE:-dagster_energyguard}
+      DAGSTER_PG_DATABASE: ${DAGSTER_PG_DATABASE:-dagster_celery}
     entrypoint:
       - /bin/sh
       - -c

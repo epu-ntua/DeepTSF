@@ -266,17 +266,19 @@ app = FastAPI(
     },
 )
 
+# Origins of a specific deployment's frontend, comma separated (set in .env).
+CORS_EXTRA_ORIGINS = [o.strip() for o in os.environ.get("CORS_EXTRA_ORIGINS", "").split(",") if o.strip()]
+
 ORIGINS = [
             "https://deeptsf-backend.aiodp.ai",
             "https://deeptsf.aiodp.ai", 
             "https://deeptsf-dagster.stage.aiodp.ai",
             "https://deeptsf-dagster.aiodp.ai",
             "https://deeptsf.stage.aiodp.ai",
-            "https://deeptsf.energy-guard.eu",
             "https://deeptsf.dev.aiodp.ai",
             "https://marketplace.aiodp.ai",
             "https://platform.aiodp.ai"
-        ]
+        ] + CORS_EXTRA_ORIGINS
 
 if USE_AUTH == "keycloak":
     app.add_middleware(
@@ -288,9 +290,8 @@ if USE_AUTH == "keycloak":
                     "https://deeptsf.toolbox.epu.ntua.gr",
                     "https://dagster.deeptsf.toolbox.epu.ntua.gr",
                     "https://keycloak.toolbox.epu.ntua.gr",
-                    "https://deeptsf.energy-guard.eu",
                     "http://localhost:3000",
-                    "http://localhost:8086"],
+                    "http://localhost:8086"] + CORS_EXTRA_ORIGINS,
         allow_credentials=True,
         allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
         allow_headers=["*"],
