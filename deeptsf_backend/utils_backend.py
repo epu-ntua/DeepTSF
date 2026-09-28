@@ -284,7 +284,9 @@ def load_local_pl_model(model_root_dir):
     from darts.models.forecasting.lgbm import LightGBMModel
     from darts.models.forecasting.random_forest import RandomForest
     from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
-    from darts_mlp import MLPModel  
+    # darts_mlp.models, not darts_mlp: in /app the darts_mlp/ source folder shadows the
+    # installed package as a namespace package, which only resolves via the submodule.
+    from darts_mlp.models import MLPModel
     print("\nLoading local PL model...")
     model_info_dict = load_yaml_as_dict(
         os.path.join(model_root_dir, 'model_info.yml'))
@@ -1199,15 +1201,18 @@ def load_local_csv_or_df_as_darts_timeseries(local_path_or_df,
         else:
             id_l, ts_id_l = [[]], [[]]
             if type(local_path_or_df) == pd.DataFrame:
-                covariates = darts.TimeSeries.from_dataframe(
-                    local_path_or_df,
-                    fill_missing_dates=True,
-                    freq=None)
+                single = local_path_or_df.copy()
             else:
-                covariates = darts.TimeSeries.from_csv(
-                    local_path_or_df, time_col=time_col,
-                    fill_missing_dates=True,
-                    freq=None)
+                single = pd.read_csv(local_path_or_df, index_col=time_col)
+            single.index = pd.to_datetime(single.index)
+            single = single.sort_index()
+            # irregular timestamps (jitter, stray readings) go on the regular grid first;
+            # darts can not infer a frequency from them
+            single = regularize(single, resolution if none_checker(resolution) else infer_resolution(single.index))
+            covariates = darts.TimeSeries.from_dataframe(
+                single,
+                fill_missing_dates=True,
+                freq=None)
             covariates = covariates.astype(np.float32)
             if last_date is not None:
                 try:
@@ -1367,10 +1372,12 @@ def parse_uri_prediction_input(client,
         past_covariates = None
 
     if weather_covariates:
+        # True means the default weather variable; a name or a list of names selects them
+        weather_fields = ["shortwave_radiation"] if weather_covariates is True else weather_covariates
         #TODO intergrate weather covariates to work with all kinds of datasets
         covs_nans = get_weather_covariates(series[0].pd_dataframe().index[0], 
                                            pd.Timestamp(date.today()).ceil(freq='D') + pd.Timedelta("10D"), 
-                                           weather_covariates,
+                                           weather_fields,
                                            inference=True)
         covs = []
         for cov in covs_nans:
@@ -1663,6 +1670,39 @@ def to_standard_form(freq):
             return f'{total_seconds // 60}min'
     else:
         return f'{total_seconds}s'  # Secondly frequency
+
+
+# Calendar features DeepTSF adds as future covariates when time_covs is on. The ETL
+# (training data) and inference (darts_flavor) both build them with time_covariates(),
+# so a model is always served the same components, in the same order, it was trained on.
+TIME_COVARIATE_NAMES = ["year", "month_sin", "month_cos", "dayofyear_sin", "dayofyear_cos",
+                        "hour_sin", "hour_cos", "dayofweek_sin", "dayofweek_cos",
+                        "weekofyear_sin", "weekofyear_cos", "holidays"]
+
+
+def time_covariates(time_index, country_code):
+    """The TIME_COVARIATE_NAMES components over time_index, as one darts TimeSeries.
+    Raises if country_code is not a country the holidays package knows."""
+    from darts.utils.timeseries_generation import datetime_attribute_timeseries, holidays_timeseries
+
+    time_index = pd.DatetimeIndex(time_index)
+    parts = [datetime_attribute_timeseries(time_index=time_index, attribute="year")]
+    for attribute in ("month", "dayofyear", "hour", "dayofweek", "weekofyear"):
+        parts.append(datetime_attribute_timeseries(time_index=time_index, attribute=attribute, cyclic=True))
+    parts.append(holidays_timeseries(time_index=time_index, country_code=country_code))
+    covariates = parts[0]
+    for part in parts[1:]:
+        covariates = covariates.stack(part)
+    return covariates
+
+
+def time_covariates_for(time_index, series_id, country):
+    """time_covariates() with the ETL's choice of holiday calendar: the series id if it
+    is a country code, otherwise the configured country."""
+    try:
+        return time_covariates(time_index, str(series_id))
+    except Exception:
+        return time_covariates(time_index, country)
 
 
 def infer_resolution(index):

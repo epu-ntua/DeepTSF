@@ -1,0 +1,15 @@
+# Installed on top of ../conda.yaml's pins by setup_test_env.sh.
+# Same versions as the dagster / celery-worker images (see ../Dockerfile_keycloak).
+dagster-webserver==1.8.13
+dagster-shell==0.24.13
+dagster-mlflow==0.24.13
+dagster-postgres==0.24.13
+dagster-aws==0.24.13
+# Provided by conda in the images (not in conda.yaml's pip list); mlflow 2.11 needs pkg_resources
+setuptools==69.5.1
+# Test tooling
+pytest==8.3.3
+pytest-xdist==3.6.1
+pytest-timeout==2.3.1
+# In-process S3 server standing in for MinIO
+moto[server]==5.0.16

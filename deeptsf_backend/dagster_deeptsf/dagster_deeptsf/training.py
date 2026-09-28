@@ -192,7 +192,7 @@ def train(context, start_pipeline_run, etl_out):
 
     ## model
     # TODO: Take care of future covariates (RNN, ...) / past covariates (BlockRNN, NBEATS, ...)
-    if darts_model in ["NBEATS", "BlockRNN", "TCN", "NHiTS", "Transformer"]:
+    if darts_model in ["NBEATS", "BlockRNN", "TCN", "NHiTS", "Transformer", "MLP"]:
         """They do not accept future covariates as they predict blocks all together.
         They won't use initial forecasted values to predict the rest of the block
         So they won't need to additionally feed future covariates during the recurrent process.
@@ -530,14 +530,18 @@ def train(context, start_pipeline_run, etl_out):
                 print(f'\nTraining {darts_model}...')
                 logging.info(f'\nTraining {darts_model}...')
 
+                # ARIMA is fit on one series (the last one), with that series' covariates
+                fit_future_covariates = future_covariates_transformed['train']
                 if type(series_transformed['train']) == list:
                     fit_series = series_transformed['train'][-1]
+                    if type(fit_future_covariates) == list:
+                        fit_future_covariates = fit_future_covariates[-1]
                 else:
                     fit_series = series_transformed['train']
 
                 model.fit(
                     series=fit_series,
-                    future_covariates=future_covariates_transformed['train'],
+                    future_covariates=fit_future_covariates,
                     )
                 model_type = "pkl"
             
@@ -572,6 +576,9 @@ def train(context, start_pipeline_run, etl_out):
                 "scale_covs": scale_covs,
                 "past_covs": past_covariates is not None,
                 "future_covs": future_covariates is not None,
+                # inference rebuilds the ETL's calendar features for models trained on them
+                "time_covs": bool(config.time_covs) and future_covariates is not None,
+                "country": config.country,
                 }
             with open('model_info.yml', mode='w') as outfile:
                 yaml.dump(

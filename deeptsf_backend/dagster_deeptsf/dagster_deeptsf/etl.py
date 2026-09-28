@@ -5,7 +5,7 @@ from utils import none_checker
 import os
 from os import times
 from utils import download_online_file, truth_checker, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
-from utils import plot_imputation, plot_removed, get_weather_covariates, to_seconds, regularize
+from utils import plot_imputation, plot_removed, get_weather_covariates, to_seconds, regularize, time_covariates, TIME_COVARIATE_NAMES
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 import darts
 from darts.utils.timeseries_generation import holidays_timeseries
@@ -155,63 +155,17 @@ def add_cyclical_time_features(calendar):
     return calendar
 
 def get_time_covariates(series, country_code='PT', id_name='0'):
-    """ Do it the darts way"""
+    """Calendar features of the series as a list of univariate dataframes (see
+    utils.time_covariates, which inference uses too, so both build the same components)."""
 
     if isinstance(series, pd.Series):
         series = darts.TimeSeries.from_series(series)
 
-    year = datetime_attribute_timeseries(
-        time_index=series, attribute='year')
-
-    month = datetime_attribute_timeseries(
-        time_index=series, attribute='month', cyclic=True)
-
-    dayofyear = datetime_attribute_timeseries(
-        time_index=series, attribute='dayofyear', cyclic=True)
-
-    hour = datetime_attribute_timeseries(
-        time_index=series, attribute='hour', cyclic=True)
-
-    # minute = datetime_attribute_timeseries(
-    #     time_index=series, attribute='minute', cyclic=True)
-
-    dayofweek = datetime_attribute_timeseries(
-        time_index=series, attribute='dayofweek', cyclic=True)
-
-    weekofyear = datetime_attribute_timeseries(
-        time_index=series, attribute='weekofyear', cyclic=True)
-
-    # dayofyear = datetime_attribute_timeseries(
-    #     time_index=series, attribute='dayofyear')
-
-    holidays = holidays_timeseries(
-        time_index=series.time_index, country_code=country_code)
-
-    # weekofyear = darts.TimeSeries.from_series(
-    #     series.time_index.isocalendar().week)
-
-    ts_list_covariates =  year.stack(month). \
-                               stack(dayofyear). \
-                               stack(hour). \
-                               stack(dayofweek). \
-                               stack(weekofyear). \
-                               stack(holidays)
-    
+    ts_list_covariates = time_covariates(series.time_index, country_code)
     ts_list_covariates = [ts_list_covariates.univariate_component(i).pd_dataframe() for i in range(ts_list_covariates.n_components)]
 
-    id_l_covariates = ["year", 
-                            "month_sin",
-                            "month_cos", 
-                            "dayofyear_sin",
-                            "dayofyear_cos",
-                            "hour_sin", 
-                            "hour_cos",
-                            "dayofweek_sin", 
-                            "dayofweek_cos",
-                            "weekofyear_sin",
-                            "weekofyear_cos",
-                            "holidays"]
-    ts_id_l_covariates = [id_name for _ in range(12)]
+    id_l_covariates = list(TIME_COVARIATE_NAMES)
+    ts_id_l_covariates = [id_name for _ in range(len(TIME_COVARIATE_NAMES))]
 
     return ts_list_covariates, id_l_covariates, ts_id_l_covariates
 

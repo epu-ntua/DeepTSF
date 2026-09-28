@@ -10,7 +10,7 @@ from celery.result import AsyncResult
 import json
 import traceback
 from pydantic import BaseModel
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union
 import pandas as pd
 import mlflow
 from utils_backend import ConfigParser, load_model
@@ -1934,7 +1934,8 @@ class ForecastRequest(BaseModel):
     timesteps_ahead: int
     series_uri: Optional[str] = None
     multiple_file_type: Optional[bool] = False
-    weather_covariates: Optional[bool] = False
+    # True for the default weather variable (shortwave_radiation), or the open-meteo variable name(s)
+    weather_covariates: Optional[Union[bool, str, List[str]]] = False
     resolution: Optional[str] = "1h"
     ts_id_pred: Optional[str] = "None"
     series: Optional[Dict] = None

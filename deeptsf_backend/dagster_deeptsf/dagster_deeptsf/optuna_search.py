@@ -103,7 +103,8 @@ def log_optuna(study,
                past_covariates=None, 
                future_covariates=None, 
                evaluate_all_ts=False,
-               scale_covs=True):
+               scale_covs=True,
+               model_info_extra=None):
     scale = scale
     if evaluate_all_ts: 
         mlflow.log_artifacts(opt_all_results, "optuna_val_results_all_timeseries")
@@ -140,6 +141,10 @@ def log_optuna(study,
             "past_covs": past_covariates is not None,
             "future_covs": future_covariates is not None,
             }
+        # inference rebuilds the ETL's calendar features for models trained on them
+        extra = model_info_extra or {}
+        model_info_dict["time_covs"] = bool(extra.get("time_covs")) and future_covariates is not None
+        model_info_dict["country"] = extra.get("country", "PT")
         
         with open('model_info.yml', mode='w') as outfile:
             yaml.dump(
@@ -269,8 +274,14 @@ def log_optuna(study,
     fig.write_html(f"{opt_tmpdir}/plot_optimization_history.html")
     plt.close()
 
-    fig = optuna.visualization.plot_param_importances(study)
-    fig.write_html(f"{opt_tmpdir}/plot_param_importances.html")
+    try:
+        fig = optuna.visualization.plot_param_importances(study)
+        fig.write_html(f"{opt_tmpdir}/plot_param_importances.html")
+    except RuntimeError as e:
+        # e.g. "zero total variance" when every completed trial scored the same;
+        # the importance plot is only a diagnostic, so it must not fail the search
+        print(f"\nSkipping the parameter importance plot: {e}")
+        logging.info(f"\nSkipping the parameter importance plot: {e}")
     plt.close()
 
     fig = optuna.visualization.plot_slice(study)
@@ -318,7 +329,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
              cut_date_test, device, forecast_horizon, m_mase, stride, retrain, scale, 
              scale_covs, multiple, eval_series, mlrun, trial, study, opt_tmpdir, 
              num_workers, eval_method, loss_function, opt_all_results,
-             evaluate_all_ts, num_samples, pv_ensemble, format, tenant):
+             evaluate_all_ts, num_samples, pv_ensemble, format, tenant, model_info_extra=None):
 
                 # hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
                 hyperparameters = hyperparams_entrypoint
@@ -416,7 +427,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                     model=model, darts_model=darts_model, scale=scale, scalers_dir=scalers_dir, 
                     features_dir=features_dir, opt_all_results=opt_all_results, 
                     past_covariates=train_past_covariates, future_covariates=train_future_covariates, 
-                    evaluate_all_ts=evaluate_all_ts, scale_covs=scale_covs)
+                    evaluate_all_ts=evaluate_all_ts, scale_covs=scale_covs, model_info_extra=model_info_extra)
 
                 return metrics[loss_function]
 
@@ -794,14 +805,18 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         print(f'\nTraining {darts_model}...')
         logging.info(f'\nTraining {darts_model}...')
 
+        # ARIMA is fit on one series (the last one), with that series' covariates
+        fit_future_covariates = future_covariates_transformed['train']
         if type(series_transformed['train']) == list:
             fit_series = series_transformed['train'][-1]
+            if type(fit_future_covariates) == list:
+                fit_future_covariates = fit_future_covariates[-1]
         else:
             fit_series = series_transformed['train']
 
         model.fit(
             series=fit_series,
-            future_covariates=future_covariates_transformed['train'],
+            future_covariates=fit_future_covariates,
             )
         model_type = "pkl"
     
@@ -1290,7 +1305,8 @@ def optuna_search(context, start_pipeline_run, etl_out):
                         darts_model, hyperparams_entrypoint, trial_name, cut_date_val, test_end_date, cut_date_test, device,
                         forecast_horizon, m_mase, stride, retrain, scale, scale_covs,
                         multiple, eval_series, mlrun, trial, study, opt_tmpdir, num_workers, eval_method, 
-                        loss_function, opt_all_results, evaluate_all_ts, num_samples, pv_ensemble, format, tenant),
+                        loss_function, opt_all_results, evaluate_all_ts, num_samples, pv_ensemble, format, tenant,
+                        model_info_extra={"time_covs": config.time_covs, "country": config.country}),
                         n_trials=n_trials, n_jobs = 1)
 
             log_optuna(study, opt_tmpdir, hyperparams_entrypoint, trial_name, mlrun, opt_all_results=opt_all_results, evaluate_all_ts=evaluate_all_ts, scale_covs=scale_covs)
