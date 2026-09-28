@@ -809,10 +809,11 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         fit_future_covariates = future_covariates_transformed['train']
         if type(series_transformed['train']) == list:
             fit_series = series_transformed['train'][-1]
-            if type(fit_future_covariates) == list:
-                fit_future_covariates = fit_future_covariates[-1]
         else:
             fit_series = series_transformed['train']
+        # covariates are always loaded as a list (also for a single series)
+        if type(fit_future_covariates) == list:
+            fit_future_covariates = fit_future_covariates[-1]
 
         model.fit(
             series=fit_series,

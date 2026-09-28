@@ -32,7 +32,7 @@ class _MLflowPLDartsModelWrapper:
 
 
     def __init__(self, darts_model, transformer=None, transformer_past_covs=None, transformer_future_covs=None, ts_id_l=[[]],
-                 time_covariates=None):
+                 time_covariates=None, uses_past_covs=True, uses_future_covs=True):
         """
         Initializes the _MLflowPLDartsModelWrapper class.
 
@@ -52,6 +52,10 @@ class _MLflowPLDartsModelWrapper:
         self.ts_id_l=ts_id_l
         # {"country": ...} if the model was trained with the ETL's calendar features (time_covs)
         self.time_covariates = time_covariates
+        # covariate kinds the model was trained with; training drops the kinds a model
+        # can not use (e.g. future covariates for MLP), so inference drops them too
+        self.uses_past_covs = uses_past_covs
+        self.uses_future_covs = uses_future_covs
 
     def _add_time_covariates(self, model_input_parsed):
         """Rebuild the calendar features the ETL added for training (utils.time_covariates)
@@ -115,6 +119,11 @@ class _MLflowPLDartsModelWrapper:
         # Parse
         model_input_parsed = parse_uri_prediction_input(client, model_input, self.model, self.ts_id_l, bucket_name='mlflow-bucket')
         # print("SERIES", model_input_parsed['series'])
+        if not self.uses_past_covs:
+            model_input_parsed['past_covariates'] = None
+        if not self.uses_future_covs:
+            model_input_parsed['future_covariates'] = None
+
         # Transform
         if self.time_covariates:
             self._add_time_covariates(model_input_parsed)
@@ -158,8 +167,14 @@ class _MLflowPLDartsModelWrapper:
 
         from darts.models.forecasting.forecasting_model import (
             GlobalForecastingModel, TransferableFutureCovariatesLocalForecastingModel)
-        if isinstance(self.model, (GlobalForecastingModel, TransferableFutureCovariatesLocalForecastingModel)):
+        if isinstance(self.model, GlobalForecastingModel):
             predictions = self.model.predict(**predict_dict)
+        elif isinstance(self.model, TransferableFutureCovariatesLocalForecastingModel):
+            # ARIMA forecasts one given series (not a list), with its future covariates
+            arima_kwargs = {"n": predict_dict["n"], "series": predict_dict["series"][0]}
+            if "future_covariates" in predict_dict:
+                arima_kwargs["future_covariates"] = predict_dict["future_covariates"][0]
+            predictions = [self.model.predict(**arima_kwargs)]
         else:
             # Local models (NaiveSeasonal) only forecast the series they were fitted on and
             # take no `series` argument, so fit them on the history sent with the request.
@@ -221,4 +236,6 @@ def _load_pyfunc(model_folder):
     ts_id_l = load_ts_id(load_ts_id_uri=f"{model_folder}/ts_id_l.pkl", mode="local")
 
     time_covariates = {"country": model_info.get("country", "PT")} if model_info.get("time_covs") else None
-    return _MLflowPLDartsModelWrapper(model, scaler, scaler_past_covs, scaler_future_covs, ts_id_l, time_covariates)
+    return _MLflowPLDartsModelWrapper(model, scaler, scaler_past_covs, scaler_future_covs, ts_id_l, time_covariates,
+                                      uses_past_covs=bool(model_info.get("past_covs", True)),
+                                      uses_future_covs=bool(model_info.get("future_covs", True)))

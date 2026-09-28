@@ -17,7 +17,7 @@ from typing import Optional
 import pandas as pd
 
 from . import data
-from .cases import WEATHER_FIELD, Case, hyperparameters, optuna_hyperparameters
+from .cases import Case, hyperparameters, optuna_hyperparameters
 
 INPUT_BUCKET = "dataset-storage"
 
@@ -72,8 +72,7 @@ def prepare_inputs(case: Case, workdir) -> CaseInputs:
         inputs.past_covs_csv = _upload(data.write_covariates_csv(inputs.past_covs, local / "past.csv"),
                                        f"{case.id}/past.csv")
     if case.future_covs:
-        names = (WEATHER_FIELD,) if case.weather else ("future_1", "future_2")
-        inputs.future_covs = data.covariates_frame(spec, case.kind, names=names, seed=30)
+        inputs.future_covs = data.covariates_frame(spec, case.kind, names=("future_1", "future_2"), seed=30)
         inputs.future_covs_csv = _upload(data.write_covariates_csv(inputs.future_covs, local / "future.csv"),
                                          f"{case.id}/future.csv")
     return inputs

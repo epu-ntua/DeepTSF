@@ -17,8 +17,8 @@ import math
 import pandas as pd
 import pytest
 
-from support.cases import all_cases
-from support.inference import api_client, build_request, expected_forecast_index, fake_open_meteo
+from support.cases import FUTURE_COV_MODELS, PAST_COV_MODELS, all_cases
+from support.inference import api_client, build_request, expected_forecast_index
 from support.pipeline import get_run
 
 CASES = [c for c in all_cases() if not c.expect_error]
@@ -71,9 +71,10 @@ def test_model_artifacts(case, services, workdir):
     assert type(wrapper.model).__name__ == DARTS_CLASS[case.model]
     if case.model != "Naive":            # Naive is trained unscaled
         assert wrapper.transformer is not None, "series scaler was not packaged"
-    if case.past_covs:
+    # scalers exist only for the covariate kinds the model uses (training drops the others)
+    if case.past_covs and case.model in PAST_COV_MODELS:
         assert wrapper.transformer_past_covs is not None, "past covariates scaler was not packaged"
-    if case.future_covs:
+    if case.future_covs and case.model in FUTURE_COV_MODELS:
         assert wrapper.transformer_future_covs is not None, "future covariates scaler was not packaged"
 
 
@@ -81,15 +82,13 @@ def test_model_artifacts(case, services, workdir):
 @pytest.mark.parametrize("case", CASES, ids=[c.id for c in CASES])
 def test_inference_endpoint(case, services, workdir):
     run = _successful_run(case, workdir)
-    body = build_request(run, weather=case.weather)
-    with fake_open_meteo():
-        response = api_client().post("/serving/get_result", json=body)
+    response = api_client().post("/serving/get_result", json=build_request(run))
     assert response.status_code == 200, response.text
 
     forecast = pd.DataFrame(response.json())
     forecast.index = pd.to_datetime(forecast.index)
     forecast = forecast.sort_index()
     assert len(forecast) == case.spec.horizon, forecast
-    assert list(forecast.index) == list(expected_forecast_index(run, weather=case.weather))
+    assert list(forecast.index) == list(expected_forecast_index(run))
     values = forecast.to_numpy().ravel()
     assert all(math.isfinite(v) for v in values), forecast
