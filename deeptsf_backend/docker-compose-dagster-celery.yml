@@ -92,7 +92,7 @@ services:
       - "8007:8006"
     env_file:
       - .env
-    mem_limit: 4g
+    mem_limit: ${DAGSTER_MEM_LIMIT:-8g}
     volumes:
       - eg_offline_tokens:/srv/eg-auth
     networks:

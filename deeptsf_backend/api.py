@@ -41,7 +41,6 @@ from math import nan
 import bson
 from minio import Minio
 from minio.error import S3Error
-from dagster_graphql import DagsterGraphQLClient, DagsterGraphQLClientError
 
 # import base64
 # from cryptography import x509
@@ -152,6 +151,19 @@ def _dagster_headers(request: Request) -> Dict[str, str]:
     if auth:
         headers["Authorization"] = auth  # "Bearer <token>"
     return headers
+
+def _dagster_base_url() -> str:
+    """
+    Base URL of the Dagster webserver. In jwt mode it is derived from `host`;
+    otherwise DAGSTER_ENDPOINT_URL is used, defaulting to https (keycloak) or
+    http when it has no scheme.
+    """
+    if USE_AUTH == "jwt":
+        return "https://deeptsf-dagster" + os.environ.get('host')
+    if "://" in DAGSTER_ENDPOINT_URL:
+        return DAGSTER_ENDPOINT_URL
+    scheme = "https" if USE_AUTH == "keycloak" else "http"
+    return f"{scheme}://{DAGSTER_ENDPOINT_URL}"
 
 def dagster_launch_job(
     dagster_base_url: str,
@@ -1417,26 +1429,10 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     #    params["time_covs"] = "PT"
     print(run_config)
 
-    if USE_AUTH == "jwt":
-        KUBE_HOST = os.environ.get('host')
-        DAGSTER_HOST = "deeptsf-dagster" + KUBE_HOST
-        print(DAGSTER_HOST)
-        client = DagsterGraphQLClient(DAGSTER_HOST, use_https=True)
-    elif USE_AUTH == "keycloak":
-        KUBE_HOST = os.environ.get('host')
-        DAGSTER_HOST = DAGSTER_ENDPOINT_URL
-        print(DAGSTER_HOST)
-        client = DagsterGraphQLClient(DAGSTER_HOST, use_https=True)
-    else: 
-        DAGSTER_HOST = DAGSTER_ENDPOINT_URL.split("://")[-1]
-        PORT = DAGSTER_HOST.split(":")[-1]
-        DAGSTER_HOST = DAGSTER_HOST.split(":")[0]
-        client = DagsterGraphQLClient(DAGSTER_HOST, port_number=int(PORT), use_https=False)
-
     # 3  submit an asynchronous run
     try:
         run_id = dagster_launch_job(
-            dagster_base_url="https://deeptsf-dagster.energy-guard.eu/", #TODO Change!
+            dagster_base_url=_dagster_base_url(),
             location_name="dagster_deeptsf",
             repository_name="__repository__",   # see note below
             job_name="deeptsf_dagster_job",
