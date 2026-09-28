@@ -459,8 +459,9 @@ def train(context, start_pipeline_run, etl_out):
             # Naive Models    
             elif darts_model == 'Naive':
                 # Identify resolution
-                daily_timesteps = int(24 * 60 // (pd.to_timedelta(series_transformed['train'][0].time_index[1]-series_transformed['train'][0].time_index[0]).seconds//60))
-                seasonality_timesteps = daily_timesteps * int(hyperparameters['days_seasonality'])
+                # total_seconds(), not .seconds: .seconds drops whole days, so it is 0 for daily or coarser data
+                step_seconds = pd.to_timedelta(series_transformed['train'][0].time_index[1]-series_transformed['train'][0].time_index[0]).total_seconds()
+                seasonality_timesteps = max(1, round(int(hyperparameters['days_seasonality']) * 86400 / step_seconds))
                 print(f'\nTrained Model: NaiveSeasonal, with seasonality (in timesteps): {seasonality_timesteps}') 
 
                 hparams_to_log = hyperparameters

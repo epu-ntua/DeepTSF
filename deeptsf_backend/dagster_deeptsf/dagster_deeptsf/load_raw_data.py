@@ -29,7 +29,7 @@ import sys
 sys.path.append('..')
 from utils import ConfigParser
 from utils import none_checker
-from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form, truth_checker
+from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form, infer_resolution, truth_checker
 from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder, WrongDateFormat, DuplicateDateError, MissingMultipleIndexError, NonIntegerMultipleIndexError, ComponentTooShortError
 from dagster_deeptsf.auth_runtime import install_mlflow_auth_for_run
 
@@ -232,7 +232,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             ts.index = pd.to_datetime(ts.index)
             print("Infering resolution for single timeseries...")
             #Infering resolution for single timeseries
-            resolution = to_standard_form(pd.to_timedelta(np.diff(ts.index).min()))
+            resolution = infer_resolution(ts.index)
         if multiple:
             if format == "long":
                 date_col = "Datetime"
@@ -312,7 +312,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         print("Check 7: Infering resolution for single timeseries...")
         update_task(6, 7, "Check 7: Infering resolution for single timeseries...", task)
         #Infering resolution for single timeseries
-        resolution = to_standard_form(pd.to_timedelta(np.diff(ts.index).min()))
+        resolution = infer_resolution(ts.index)
 
         update_task(7, 7, "Validation completed!", task)
 

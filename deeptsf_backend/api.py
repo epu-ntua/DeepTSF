@@ -1342,7 +1342,8 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
                 "config": {
                     "a": 0.3,
                     "analyze_with_shap": False,
-                    "convert_to_local_tz": True,
+                    # Timestamps from the frontend are used as uploaded, not shifted from UTC to local time.
+                    "convert_to_local_tz": False,
                     "country": "PT",
                     "database_name": "rdn_load_data",
                     "device": "gpu",

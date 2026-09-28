@@ -1477,19 +1477,19 @@ def multiple_ts_file_to_dfs(series_csv: Union[str, pd.DataFrame] = "../../RDN/Lo
                 raise ComponentTooShortError(len(series), ts_id, id)
             
             if resolution!=None:
-                series = series.asfreq(resolution)
+                series = regularize(series, resolution)
             elif first:
-                infered_resolution = to_standard_form(pd.to_timedelta(np.diff(series.index).min()))
-                series = series.asfreq(infered_resolution)
+                infered_resolution = infer_resolution(series.index)
+                series = regularize(series, infered_resolution)
                 first = False
                 first_id = id
                 first_ts_id = ts_id
             else:
-                temp = to_standard_form(pd.to_timedelta(np.diff(series.index).min()))
+                temp = infer_resolution(series.index)
                 if temp != infered_resolution:
                     raise DifferentFrequenciesMultipleTS(temp, id, ts_id, infered_resolution, first_id, first_ts_id)
                 else:
-                    series = series.asfreq(temp)
+                    series = regularize(series, temp)
                     infered_resolution = temp
 
             res[-1].append(pd.DataFrame({value_name : series}))
@@ -1663,6 +1663,53 @@ def to_standard_form(freq):
             return f'{total_seconds // 60}min'
     else:
         return f'{total_seconds}s'  # Secondly frequency
+
+
+def infer_resolution(index):
+    """
+    Infers the resolution of a (sorted) datetime index, in the form of to_standard_form.
+
+    If every step between consecutive timestamps is a whole multiple of the smallest
+    step, the series is regular (possibly with missing timestamps) and the smallest
+    step is its resolution. Otherwise the timestamps are irregular (jitter, stray
+    samples, ...) and the median step, rounded to a whole number of days, hours,
+    minutes or seconds, is used instead, so one odd timestamp can not set it.
+    """
+    steps = np.diff(pd.DatetimeIndex(index).unique().sort_values().asi8) // 10**9
+    steps = steps[steps > 0]
+    if len(steps) == 0:
+        raise ValueError("Can not infer the resolution of a series with less than 2 distinct timestamps")
+    smallest = int(steps.min())
+    if np.all(steps % smallest == 0):
+        return to_standard_form(pd.Timedelta(seconds=smallest))
+    typical = float(np.median(steps))
+    unit = next(u for u in (86400, 3600, 60, 1) if typical >= u)
+    return to_standard_form(pd.Timedelta(seconds=unit * max(1, round(typical / unit))))
+
+
+def regularize(series, resolution):
+    """
+    Puts a series (or DataFrame) with a datetime index on a regular grid of the given
+    resolution. If its timestamps already lie on such a grid this is just asfreq
+    (missing timestamps become NaN). Otherwise, since asfreq would silently drop every
+    off-grid timestamp, each value is moved to its nearest point of a grid starting at
+    midnight of the first day, and values sharing a point are averaged. Nearest point
+    rather than fixed bins, so a reading slightly early (09:59:40) still counts for its
+    own step (10:00) instead of the previous one.
+    """
+    if len(series) == 0:
+        return series
+    step = pd.to_timedelta(to_offset(resolution))
+    offsets = np.asarray((series.index - series.index[0]) / step)
+    if np.all(offsets == np.round(offsets)):
+        return series.asfreq(resolution)
+    print(f"\nTimestamps do not lie on a regular {resolution} grid, averaging them onto the nearest {resolution} step...")
+    logging.info(f"\nTimestamps do not lie on a regular {resolution} grid, averaging them onto the nearest {resolution} step...")
+    origin = series.index[0].floor("D")
+    steps_from_origin = np.round(np.asarray((series.index - origin) / step)).astype("int64")
+    nearest = pd.DatetimeIndex(origin + pd.to_timedelta(steps_from_origin * step.value, unit="ns"),
+                               name=series.index.name)
+    return series.groupby(nearest).mean().asfreq(resolution)
 
 
 def change_form(freq, change_format_to="pandas_form"):

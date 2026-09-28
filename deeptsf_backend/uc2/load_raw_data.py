@@ -17,7 +17,7 @@ import pandas as pd
 import numpy as np
 import csv
 from datetime import datetime
-from utils_backend import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form
+from utils_backend import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form, infer_resolution
 import shutil
 import pretty_errors
 import uuid
@@ -275,7 +275,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         print("Check 7: Infering resolution for single timeseries...")
         update_task(6, 7, "Infering resolution for single timeseries...", 86, task)
         #Infering resolution for single timeseries
-        resolution = to_standard_form(pd.to_timedelta(np.diff(ts.index).min()))
+        resolution = infer_resolution(ts.index)
 
         update_task(7, 7, "Validation completed!", 100, task)
 

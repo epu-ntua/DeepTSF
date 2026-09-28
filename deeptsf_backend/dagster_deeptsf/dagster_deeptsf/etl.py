@@ -5,7 +5,7 @@ from utils import none_checker
 import os
 from os import times
 from utils import download_online_file, truth_checker, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
-from utils import plot_imputation, plot_removed, get_weather_covariates, to_seconds
+from utils import plot_imputation, plot_removed, get_weather_covariates, to_seconds, regularize
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 import darts
 from darts.utils.timeseries_generation import holidays_timeseries
@@ -625,12 +625,9 @@ def impute(ts: pd.DataFrame,
     return res, imputed_values
 
 def utc_to_local(df, country_code):
-    # Get dictionary of countries and their timezones
-    timezone_countries = {country: timezone 
-                            for country, timezones in country_timezones.items()
-                            for timezone in timezones}
-
-    local_timezone = timezone_countries[country_code]
+    # A country's first listed timezone is its main one (e.g. PT -> Europe/Lisbon,
+    # not Atlantic/Azores). Raises KeyError for codes that are not countries.
+    local_timezone = country_timezones[country_code][0]
 
     print(f"\nUsing timezone {local_timezone}...")
     logging.info(f"\nUsing timezone {local_timezone}...")
@@ -946,6 +943,7 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
                          index_col=0)]]
         
         ts_list[0][0].index = pd.to_datetime(ts_list[0][0].index)
+        ts_list[0][0] = regularize(ts_list[0][0].sort_index(), infered_resolution_series)
         id_l, ts_id_l = [["Timeseries"]], [["Timeseries"]] 
 
     # Year range handling
@@ -982,7 +980,13 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
                     #All preprocessing is done on each component separately 
                     print(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}...")
                     logging.info(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}...")
-                    if convert_to_local_tz:
+                    if convert_to_local_tz and to_seconds(infered_resolution_series) >= 86400:
+                        # Daily or coarser timestamps are dates, not instants: shifting them to
+                        # local time moves them off midnight by an offset that changes with DST,
+                        # so half the points fall off the regular grid and get imputed.
+                        print(f"\nResolution is {infered_resolution_series}, keeping dates as given (no timezone conversion)...")
+                        logging.info(f"\nResolution is {infered_resolution_series}, keeping dates as given (no timezone conversion)...")
+                    elif convert_to_local_tz:
                         print(f"\nConverting to local Timezone...")
                         logging.info(f"\nConverting to local Timezone...")
                         try:
