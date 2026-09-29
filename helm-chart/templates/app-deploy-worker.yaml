@@ -13,6 +13,9 @@ spec:
       release: {{ .Release.Name }} 
   template:
     metadata:
+      annotations:
+        # Images keep the same tag across pushes; a new commit must still roll the pods.
+        commitHash: {{ .Values.commitHash | default "" | quote }}
       labels:
         app: {{ .Values.worker.service.name }}
         release: {{ .Release.Name }}

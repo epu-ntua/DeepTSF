@@ -2029,7 +2029,9 @@ async def get_result(request: ForecastRequest, http_request: Request) -> str:
             # Proxied artifacts live in the user's tenant bucket: fetch the model
             # folder straight from MinIO (as load_artifacts does) and load it locally.
             try:
-                tenant = email_to_tenant(get_current_user(http_request).get("email"))
+                # jwt middleware stores the bearer's claims; the cookie is browser-only
+                user = getattr(http_request.state, "user", None) or get_current_user(http_request)
+                tenant = email_to_tenant(user.get("email"))
             except Exception:
                 tenant = None
             tenant = "mlflow-bucket" if none_checker(tenant) is None else tenant
