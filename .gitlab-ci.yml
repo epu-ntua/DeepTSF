@@ -5,7 +5,7 @@ stages:
   - deploy-prod
 
 variables:
-  VERSION: "1.3.0"
+  VERSION: "1.4.0"
   HARBOR_IMAGE_BACKEND: "${HARBOR_HOST}/iccs/deeptsf-backend"
   HARBOR_IMAGE_DAGSTER: "${HARBOR_HOST}/iccs/deeptsf-dagster"
   HARBOR_IMAGE_WORKER: "${HARBOR_HOST}/iccs/deeptsf-worker"
@@ -159,6 +159,7 @@ deploy-stage:
       --set env.POSTGRES_DATABASE=${POSTGRES_DATABASE} \
       --set env.POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
       --set env.POSTGRES_HOST=${POSTGRES_HOST} \
+      ${DEEPTSF_ENV:+--set-file envFile=${DEEPTSF_ENV}} \
       --set commitHash=${CI_COMMIT_SHA}
   only:
     - master
@@ -212,7 +213,7 @@ deploy-prod:
       --set env.POSTGRES_HOST=${POSTGRES_HOST} \
       --set commitHash=${CI_COMMIT_SHA}
   only:
-    - master
+    - none
   tags:
     - shared
   environment:

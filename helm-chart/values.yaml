@@ -41,6 +41,10 @@ redis:
 minio:
   ssl: false
 
+# Contents of a .env file with the extra env vars for backend/dagster/worker
+# (see env.example). Passed by CI with --set-file envFile=<path>.
+envFile: ""
+
 env:
   host: ""
   marketplace: ""

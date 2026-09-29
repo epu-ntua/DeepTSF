@@ -43,9 +43,9 @@ spec:
         resources:
           limits:
             memory: {{ .Values.backend.memory_limit | quote }}
-        # envFrom:
-        # - configMapRef:
-        #     name: {{ .Release.Name }}-{{ .Values.backend.service.name }}-cm
+        envFrom:
+        - secretRef:
+            name: {{ .Release.Name }}-deeptsf-env
         env:
         - name: host
           value: {{ required "host environment variable is required" .Values.env.host | quote }}

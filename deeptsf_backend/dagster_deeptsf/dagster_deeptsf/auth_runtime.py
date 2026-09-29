@@ -38,13 +38,20 @@ from dagster_deeptsf.offline_store import (
     replace_offline_token,
 )
 
-USE_AUTH = str(os.getenv("USE_AUTH", "")).strip().lower() not in {"", "false", "0", "none"}
 REDIS_URL = os.getenv("CELERY_BROKER_URL")
 
 # TOKEN_ISSUER_URL already points at .../protocol/openid-connect/token.
 KEYCLOAK_TOKEN_URL = os.getenv("KEYCLOAK_TOKEN_URL") or os.getenv("TOKEN_ISSUER_URL")
 KC_OFFLINE_ID = (os.getenv("KC_OFFLINE_ID") or "").strip()
 KC_OFFLINE_SECRET = (os.getenv("KC_OFFLINE_SECRET") or "").strip()
+
+# Only deployments fronted by the dagster gateway (EnergyGuard) set KC_OFFLINE_ID.
+# Elsewhere (e.g. the Kubernetes deploy) dagster runs without auth even though
+# USE_AUTH is set for the backend, so this module must stay a no-op there.
+USE_AUTH = (
+    str(os.getenv("USE_AUTH", "")).strip().lower() not in {"", "false", "0", "none"}
+    and bool(KC_OFFLINE_ID)
+)
 # Renew this many seconds before the access token actually expires.
 REFRESH_MARGIN_SECONDS = int(os.getenv("EG_REFRESH_MARGIN_SECONDS", "60"))
 HTTP_TIMEOUT_S = 15
