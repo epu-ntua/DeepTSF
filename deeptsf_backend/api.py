@@ -1989,7 +1989,7 @@ class ForecastRequest(BaseModel):
 
 
 @engineer_router.post('/serving/get_result', tags=['Model Serving'])
-async def get_result(request: ForecastRequest) -> str: 
+async def get_result(request: ForecastRequest, http_request: Request) -> str:
     """
     Function to handle serving MLflow models with required parameters.
     
@@ -2017,7 +2017,29 @@ async def get_result(request: ForecastRequest) -> str:
 
         # Load model as a PyFuncModel.
         print("\nLoading pyfunc model...")
-        pyfunc_model_folder = get_run_tag(request.run_id, "pyfunc_model_folder")
+        # Through the REST API with the user's token, as the other endpoints do,
+        # so a multitenant MLflow resolves the run for the right user.
+        resp = requests.get(f"{MLFLOW_API_BASE}/mlflow/runs/get", params={"run_id": request.run_id},
+                            headers=_mlflow_headers(http_request), timeout=15)
+        resp.raise_for_status()
+        tags = {t["key"]: t["value"] for t in resp.json()["run"]["data"].get("tags", [])}
+        pyfunc_model_folder = tags["pyfunc_model_folder"]
+
+        if pyfunc_model_folder.startswith("mlflow-artifacts:"):
+            # Proxied artifacts live in the user's tenant bucket: fetch the model
+            # folder straight from MinIO (as load_artifacts does) and load it locally.
+            try:
+                tenant = email_to_tenant(get_current_user(http_request).get("email"))
+            except Exception:
+                tenant = None
+            tenant = "mlflow-bucket" if none_checker(tenant) is None else tenant
+            prefix = pyfunc_model_folder.split("mlflow-artifacts:", 1)[1].strip("/") + "/"
+            local_dir = tempfile.mkdtemp()
+            for obj in client.list_objects(tenant, prefix=prefix, recursive=True):
+                client.fget_object(tenant, obj.object_name,
+                                   os.path.join(local_dir, obj.object_name[len(prefix):]))
+            pyfunc_model_folder = local_dir
+
         loaded_model = mlflow.pyfunc.load_model(pyfunc_model_folder)
 
         request.series = pd.DataFrame.from_dict(request.series)
