@@ -63,7 +63,7 @@ compute_logs:
 #   module: dagster_deeptsf.MyS3ComputeLogManager
 #   class: MyS3ComputeLogManager
 #   config:
-#     access_key: 
+#     access_key:
 #           env: MINIO_ACCESS_KEY
 #     secret_key:
 #           env: MINIO_SECRET_KEY
@@ -72,7 +72,7 @@ compute_logs:
 #     prefix: "dagster-compute-logs"
 #     use_ssl: true
 #     verify: false
-#     endpoint_url: 
+#     endpoint_url:
 #       env: MLFLOW_S3_ENDPOINT_URL
 #     skip_empty_files: true
 #     upload_interval: 1

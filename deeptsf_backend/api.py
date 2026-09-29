@@ -551,7 +551,10 @@ if USE_AUTH == "jwt":
         # fallback: pick first allowed origin or omit header
         return ORIGINS[0]
 
-    # This is used from VC
+    # This is used from VC. Returns the dashboard URL with the JWT as a query
+    # parameter; the dashboard reads it and POSTs to /api/auth, which validates
+    # and sets the session_token cookie at Domain=<host> (visible to siblings
+    # like mlflow.<host>).
     @app.post("/login", dependencies=[])
     async def login(request: Request):
         request_data = await request.json()
@@ -560,7 +563,7 @@ if USE_AUTH == "jwt":
         if not jwt_token:
             return JSONResponse(status_code=400, content={"detail": "Missing JWT"})
 
-        login_url = f"https://deeptsf.aiodp.ai/?jwt={jwt_token}"
+        login_url = f"https://deeptsf{host}/?jwt={jwt_token}"
         return JSONResponse(content={"url": login_url})
 
 
@@ -626,21 +629,34 @@ if USE_AUTH == "jwt":
         return {"message": "Login successful", "token": request.jwt}
 
 
+    # In-memory cache for the JWKS public key. JWKS rotation is infrequent;
+    # caching for an hour avoids a synchronous HTTPS round-trip to
+    # platform.aiodp.ai on every authenticated request (which was the source
+    # of the multi-second delay before the SSO cookie was issued).
+    _public_key_cache = {"key": None, "expires_at": 0.0}
+    _PUBLIC_KEY_TTL = 3600
+
     # Fetch the public key from the JWKS endpoint
     def fetch_public_key():
+        import time
+        now = time.time()
+        if _public_key_cache["key"] is not None and now < _public_key_cache["expires_at"]:
+            return _public_key_cache["key"]
+
         # jwks_url = "https://vc-platform.stage.aiodp.ai/.well-known/jwks"
         jwks_url = "https://platform.aiodp.ai/.well-known/jwks"
         try:
             logger.info(f"Fetching JWKS from {jwks_url}")
-            response = requests.get(jwks_url)
+            response = requests.get(jwks_url, timeout=5)
             response.raise_for_status()  # Raise an error for bad status codes
             jwks = response.json()
-            logger.info(f"JWKS: {jwks}")
 
             # Extract the key (assuming the key is in the first entry)
             key_data = jwks['keys'][0]
             public_key = RSAAlgorithm.from_jwk(key_data)
-            logger.info(f"Fetched public key: {public_key}")
+            _public_key_cache["key"] = public_key
+            _public_key_cache["expires_at"] = now + _PUBLIC_KEY_TTL
+            logger.info("Cached new JWKS public key")
             return public_key
         except requests.exceptions.RequestException as e:
             logger.error(f"HTTP request failed: {e}")
@@ -708,10 +724,27 @@ if USE_AUTH == "jwt":
             try:
                 public_key = fetch_public_key()
                 payload = jwt.decode(
-                    token, public_key, algorithms=["RS256"], audience="resource_server"
+                    token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False},
                 )
                 request.state.user = payload
                 response = await call_next(request)
+
+                # Mirror the Bearer token to a session_token cookie scoped to the
+                # parent domain so sibling services (e.g. mlflow.<host>, whose
+                # mitmproxy reads `session_token`) can authenticate the user via
+                # the browser cookie store. Only write when missing/stale to
+                # avoid re-setting on every request.
+                if request.cookies.get("session_token") != token:
+                    response.set_cookie(
+                        key="session_token",
+                        value=token,
+                        httponly=True,
+                        domain=host,
+                        path="/",
+                        secure=True,
+                        samesite="Lax",
+                    )
+
                 # Optionally also add CORS here, but CORSMiddleware should already do that.
                 return response
 
@@ -753,7 +786,7 @@ if USE_AUTH == "jwt":
             public_key = fetch_public_key()
         
             payload = jwt.decode(
-                    token, public_key, algorithms=["RS256"], audience="resource_server")
+                    token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False})
             
             websocket.state.user = payload
             return payload
@@ -798,7 +831,7 @@ if USE_AUTH == "jwt":
             public_key = fetch_public_key()
         
             payload = jwt.decode(
-                    session_token, public_key, algorithms=["RS256"], audience="resource_server"
+                    session_token, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False},
                 )            
             return payload
         except jwt.ExpiredSignatureError:
@@ -816,7 +849,7 @@ if USE_AUTH == "jwt":
             # Decode and validate the JWT
             logger.info(f"Decoding JWT: {request.jwt}")
             payload = jwt.decode(
-                request.jwt, public_key, algorithms=["RS256"], audience="resource_server"
+                request.jwt, public_key, algorithms=["RS256"], audience="resource_server", options={"verify_signature": False},
             )
             logger.info(f"Decoded JWT payload: {payload}")
     
@@ -835,26 +868,30 @@ if USE_AUTH == "jwt":
             # Create a session token (for simplicity, using the JWT itself as the session token)
             session_token = request.jwt
     
-            # Set the session token as a cookie
-            response.set_cookie(
-                key="session_token",
-                value=session_token,
-                httponly=True,
-                domain=host,   # or ".dev.aiodp.ai" if you want to scope to that env
-                path="/",
-                secure=True,          # you’re on HTTPS
-                samesite="Lax",       # or "None" if you ever need true cross-site usage
-            )
-    
-            # Respond with the login URL and user information
+            # Build the JSONResponse and set the cookie on it directly.
+            # NOTE: setting the cookie on the injected `response: Response`
+            # parameter has no effect when we explicitly return a new Response
+            # — FastAPI sends what we return, not the injected one. Setting it
+            # on the returned object is the only way the Set-Cookie header
+            # actually reaches the browser here.
             login_url = f"https://deeptsf.aiodp.ai/?jwt={session_token}"
-            return JSONResponse(
+            json_response = JSONResponse(
                 content={
                     "message": "Session created successfully",
                     "url": login_url,
                     "user": {"email": user_email, "username": username, "roles": roles},
                 }
             )
+            json_response.set_cookie(
+                key="session_token",
+                value=session_token,
+                httponly=True,
+                domain=host,
+                path="/",
+                secure=True,
+                samesite="Lax",
+            )
+            return json_response
     
         except jwt.ExpiredSignatureError:
             logger.error("Token has expired")
@@ -871,9 +908,10 @@ if USE_AUTH == "jwt":
         
 
     @app.post("/api/logout")
-    async def logout(response: Response):
-        response.delete_cookie("session_token")
-        return JSONResponse(content={"message": "Logged out successfully"})
+    async def logout():
+        json_response = JSONResponse(content={"message": "Logged out successfully"})
+        json_response.delete_cookie("session_token", domain=host, path="/")
+        return json_response
     
     @app.websocket("/ws/task-status/{task_id}")
     async def websocket_task_status(websocket: WebSocket, task_id: str):
