@@ -1,0 +1,128 @@
+# Orchestration services ONLY (dagster + celery worker + redis broker), for a
+# deployment whose frontend and backend run on another machine; postgres, MLflow
+# and MinIO are reused from an existing DeepTSF stack on this machine (reached over
+# the external ${COMPOSE_NETWORK} docker network / public URLs).
+#
+# Everything deployment-specific is read from .env (same variables as
+# docker-compose-keycloak.yml):
+#
+#   COMPOSE_NETWORK      external network to join                    (default keycloak_net)
+#   REDIS_HOST           DNS alias of the broker; must match the host
+#                        inside CELERY_BROKER_URL / CELERY_RESULT_BACKEND  (default celery-redis)
+#   REDIS_CONTAINER      container name of the broker                (default deeptsf-celery-redis)
+#   REDIS_PASSWORD       broker password (required, the port is published)
+#   REDIS_PORT           host port the broker is published on        (default 6380)
+#   WORKER_CONTAINER     container name of the celery worker         (default deeptsf-celery-worker)
+#   DAGSTER_HOSTNAME     DNS alias of dagster, used by the gateway   (default dagster-orchestrator)
+#   DAGSTER_CONTAINER    container name of dagster                   (default deeptsf-dagster)
+#   DAGSTER_PORT         host port for the dagster UI                (default 8006)
+#   DAGSTER_PG_DATABASE  dagster storage db, created if missing      (default dagster_celery)
+#   DOCKER_RUNTIME       set to nvidia to give worker/dagster the GPUs (default runc)
+#   WORKER_MEM_LIMIT / DAGSTER_MEM_LIMIT
+#
+# Run with (-p keeps the containers separate from any other DeepTSF checkout):
+#   docker-compose -p <project> -f docker-compose-dagster-celery.yml up -d --build
+#
+# NOTE: the service names below are deliberately not the plain `redis`, `worker` and
+# `dagster`: compose registers service names as DNS aliases, and a DeepTSF stack
+# started from docker-compose-keycloak.yml on the same network already owns those.
+
+services:
+
+  celery-redis:
+    image: redis:7-alpine
+    container_name: ${REDIS_CONTAINER:-deeptsf-celery-redis}
+    restart: always
+    # Password-protected because the port is published so the remote
+    # backend / dagster gateway can reach the broker. REDIS_PASSWORD is set in .env
+    # and must match the password inside CELERY_BROKER_URL / CELERY_RESULT_BACKEND.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    networks:
+      appnet:
+        aliases:
+          - ${REDIS_HOST:-celery-redis}
+
+  # One-shot: creates the dagster storage database in the existing postgres if it
+  # is missing. Exits immediately once the database is there.
+  init-dagster-db:
+    image: postgres:16-alpine
+    restart: "no"
+    environment:
+      PGHOST: ${POSTGRES_HOST}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: postgres
+      DAGSTER_PG_DATABASE: ${DAGSTER_PG_DATABASE:-dagster_celery}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until pg_isready; do echo 'waiting for postgres...'; sleep 2; done
+        psql -tAc "SELECT 1 FROM pg_database WHERE datname='$$DAGSTER_PG_DATABASE'" | grep -q 1 \
+          || psql -c "CREATE DATABASE \"$$DAGSTER_PG_DATABASE\""
+        echo "$$DAGSTER_PG_DATABASE database ready"
+    networks:
+      - appnet
+
+  celery-worker:
+    container_name: ${WORKER_CONTAINER:-deeptsf-celery-worker}
+    build:
+      context: ./
+      target: celery-worker
+      dockerfile: Dockerfile_keycloak
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - celery-redis
+    runtime: ${DOCKER_RUNTIME:-runc}
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    mem_limit: ${WORKER_MEM_LIMIT:-26g}
+    volumes:
+      # Per-user keycloak offline tokens written by the dagster gateway; the
+      # worker reads them to keep minting access tokens for the whole run.
+      - eg_offline_tokens:/srv/eg-auth
+    networks:
+      - appnet
+
+  dagster-orchestrator:
+    container_name: ${DAGSTER_CONTAINER:-deeptsf-dagster}
+    restart: always
+    build:
+      context: ./
+      target: dagster
+      dockerfile: Dockerfile_keycloak
+    depends_on:
+      - celery-redis
+      - init-dagster-db
+    runtime: ${DOCKER_RUNTIME:-runc}
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    ports:
+      - "${DAGSTER_PORT:-8006}:8006"
+    env_file:
+      - .env
+    mem_limit: ${DAGSTER_MEM_LIMIT:-8g}
+    volumes:
+      - eg_offline_tokens:/srv/eg-auth
+    networks:
+      appnet:
+        # What ../oauth2proxy's DAGSTER_UPSTREAM points at.
+        aliases:
+          - ${DAGSTER_HOSTNAME:-dagster-orchestrator}
+
+networks:
+  appnet:
+    name: ${COMPOSE_NETWORK:-keycloak_net}
+    external: true
+
+volumes:
+  # Created once with: docker volume create eg_offline_tokens
+  # Shared with the oauth2proxy stack, which writes the tokens.
+  eg_offline_tokens:
+    external: true

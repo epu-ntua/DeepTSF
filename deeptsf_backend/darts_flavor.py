@@ -1,5 +1,5 @@
 import os
-from utils_backend import load_model, load_scaler, load_ts_id, parse_uri_prediction_input, load_local_model_info, to_seconds
+from utils_backend import load_model, load_scaler, load_ts_id, parse_uri_prediction_input, load_local_model_info, to_seconds, time_covariates_for
 import pretty_errors
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
@@ -31,7 +31,8 @@ class _MLflowPLDartsModelWrapper:
     """
 
 
-    def __init__(self, darts_model, transformer=None, transformer_past_covs=None, transformer_future_covs=None, ts_id_l=[[]]):
+    def __init__(self, darts_model, transformer=None, transformer_past_covs=None, transformer_future_covs=None, ts_id_l=[[]],
+                 time_covariates=None, uses_past_covs=True, uses_future_covs=True):
         """
         Initializes the _MLflowPLDartsModelWrapper class.
 
@@ -49,6 +50,37 @@ class _MLflowPLDartsModelWrapper:
         self.transformer_past_covs = transformer_past_covs if type(transformer_past_covs) == list or transformer_past_covs==None else [transformer_past_covs]
         self.transformer_future_covs = transformer_future_covs if type(transformer_future_covs) == list or transformer_future_covs==None else [transformer_future_covs]
         self.ts_id_l=ts_id_l
+        # {"country": ...} if the model was trained with the ETL's calendar features (time_covs)
+        self.time_covariates = time_covariates
+        # covariate kinds the model was trained with; training drops the kinds a model
+        # can not use (e.g. future covariates for MLP), so inference drops them too
+        self.uses_past_covs = uses_past_covs
+        self.uses_future_covs = uses_future_covs
+
+    def _add_time_covariates(self, model_input_parsed):
+        """Rebuild the calendar features the ETL added for training (utils.time_covariates)
+        over the history and the forecast period, after any user / weather future
+        covariates, the order the ETL stacks them in."""
+        import numpy as np
+        import pandas as pd
+
+        series = model_input_parsed["series"][0]
+        # beyond the forecast: regression models look ahead via lags_future_covariates,
+        # torch models predict whole output chunks
+        ahead = int(model_input_parsed["timesteps_ahead"]) + (getattr(self.model, "output_chunk_length", None) or 1) + 10
+        index = pd.date_range(series.start_time(), periods=len(series) + ahead, freq=series.freq)
+        if self.ts_id_l != [[]]:
+            series_id = self.ts_id_l[model_input_parsed["idx_in_train_dataset"]][0]
+        else:
+            series_id = "Timeseries"                   # the ETL's id of a single series
+        calendar = time_covariates_for(index, series_id, self.time_covariates["country"]).astype(np.float32)
+        user = model_input_parsed["future_covariates"]
+        if user is None:
+            model_input_parsed["future_covariates"] = [calendar]
+        else:
+            user = user[0].astype(np.float32)
+            model_input_parsed["future_covariates"] = [user.slice_intersect(calendar).stack(calendar.slice_intersect(user))]
+
 
     def predict(self, model_input):
         """
@@ -87,7 +119,15 @@ class _MLflowPLDartsModelWrapper:
         # Parse
         model_input_parsed = parse_uri_prediction_input(client, model_input, self.model, self.ts_id_l)
         # print("SERIES", model_input_parsed['series'])
+        if not self.uses_past_covs:
+            model_input_parsed['past_covariates'] = None
+        if not self.uses_future_covs:
+            model_input_parsed['future_covariates'] = None
+
         # Transform
+        if self.time_covariates:
+            self._add_time_covariates(model_input_parsed)
+
         if self.transformer is not None:
             print('\nTransforming series...')
             model_input_parsed['series'] = self.transformer[model_input_parsed["idx_in_train_dataset"]].transform(
@@ -109,8 +149,12 @@ class _MLflowPLDartsModelWrapper:
             "series" : model_input_parsed['series'],
         }
 
-        if model_input_parsed['roll_size'] != None:
-            predict_dict["roll_size"]=model_input_parsed['roll_size']
+        from darts.models.forecasting.torch_forecasting_model import TorchForecastingModel
+        is_torch_model = isinstance(self.model, TorchForecastingModel)
+        # roll_size and batch_size only exist for torch models, and roll_size can not
+        # exceed the model's output_chunk_length (1 for RNNModel)
+        if model_input_parsed['roll_size'] != None and is_torch_model:
+            predict_dict["roll_size"] = min(int(model_input_parsed['roll_size']), self.model.output_chunk_length)
         
         if model_input_parsed['future_covariates'] != None:
             predict_dict["future_covariates"]=model_input_parsed['future_covariates']
@@ -118,10 +162,24 @@ class _MLflowPLDartsModelWrapper:
         if model_input_parsed['past_covariates'] != None:
             predict_dict["past_covariates"]=model_input_parsed['past_covariates']
 
-        if model_input_parsed['batch_size'] != None:
+        if model_input_parsed['batch_size'] != None and is_torch_model:
             predict_dict["batch_size"]=model_input_parsed['batch_size']
 
-        predictions = self.model.predict(**predict_dict)
+        from darts.models.forecasting.forecasting_model import (
+            GlobalForecastingModel, TransferableFutureCovariatesLocalForecastingModel)
+        if isinstance(self.model, GlobalForecastingModel):
+            predictions = self.model.predict(**predict_dict)
+        elif isinstance(self.model, TransferableFutureCovariatesLocalForecastingModel):
+            # ARIMA forecasts one given series (not a list), with its future covariates
+            arima_kwargs = {"n": predict_dict["n"], "series": predict_dict["series"][0]}
+            if "future_covariates" in predict_dict:
+                arima_kwargs["future_covariates"] = predict_dict["future_covariates"][0]
+            predictions = [self.model.predict(**arima_kwargs)]
+        else:
+            # Local models (NaiveSeasonal) only forecast the series they were fitted on and
+            # take no `series` argument, so fit them on the history sent with the request.
+            self.model.fit(predict_dict["series"][0])
+            predictions = [self.model.predict(n=predict_dict["n"])]
 
         # print("PREDICTIONS", predictions)
 
@@ -177,4 +235,7 @@ def _load_pyfunc(model_folder):
     #Loading ts_id_l that was used to train the model
     ts_id_l = load_ts_id(load_ts_id_uri=f"{model_folder}/ts_id_l.pkl", mode="local")
 
-    return _MLflowPLDartsModelWrapper(model, scaler, scaler_past_covs, scaler_future_covs, ts_id_l)
+    time_covariates = {"country": model_info.get("country", "PT")} if model_info.get("time_covs") else None
+    return _MLflowPLDartsModelWrapper(model, scaler, scaler_past_covs, scaler_future_covs, ts_id_l, time_covariates,
+                                      uses_past_covs=bool(model_info.get("past_covs", True)),
+                                      uses_future_covs=bool(model_info.get("future_covs", True)))

@@ -5,7 +5,7 @@ from utils import none_checker
 import os
 from os import times
 from utils import download_online_file, truth_checker, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
-from utils import plot_imputation, plot_removed, get_weather_covariates, to_seconds
+from utils import plot_imputation, plot_removed, get_weather_covariates, to_seconds, regularize, time_covariates, TIME_COVARIATE_NAMES
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 import darts
 from darts.utils.timeseries_generation import holidays_timeseries
@@ -33,6 +33,7 @@ from urllib3 import disable_warnings
 from dotenv import load_dotenv
 from minio import Minio
 from dagster import multi_asset, AssetIn, AssetOut, MetadataValue, Output, graph_multi_asset 
+from dagster_deeptsf.auth_runtime import install_mlflow_auth_for_run
 
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
@@ -154,63 +155,17 @@ def add_cyclical_time_features(calendar):
     return calendar
 
 def get_time_covariates(series, country_code='PT', id_name='0'):
-    """ Do it the darts way"""
+    """Calendar features of the series as a list of univariate dataframes (see
+    utils.time_covariates, which inference uses too, so both build the same components)."""
 
     if isinstance(series, pd.Series):
         series = darts.TimeSeries.from_series(series)
 
-    year = datetime_attribute_timeseries(
-        time_index=series, attribute='year')
-
-    month = datetime_attribute_timeseries(
-        time_index=series, attribute='month', cyclic=True)
-
-    dayofyear = datetime_attribute_timeseries(
-        time_index=series, attribute='dayofyear', cyclic=True)
-
-    hour = datetime_attribute_timeseries(
-        time_index=series, attribute='hour', cyclic=True)
-
-    # minute = datetime_attribute_timeseries(
-    #     time_index=series, attribute='minute', cyclic=True)
-
-    dayofweek = datetime_attribute_timeseries(
-        time_index=series, attribute='dayofweek', cyclic=True)
-
-    weekofyear = datetime_attribute_timeseries(
-        time_index=series, attribute='weekofyear', cyclic=True)
-
-    # dayofyear = datetime_attribute_timeseries(
-    #     time_index=series, attribute='dayofyear')
-
-    holidays = holidays_timeseries(
-        time_index=series.time_index, country_code=country_code)
-
-    # weekofyear = darts.TimeSeries.from_series(
-    #     series.time_index.isocalendar().week)
-
-    ts_list_covariates =  year.stack(month). \
-                               stack(dayofyear). \
-                               stack(hour). \
-                               stack(dayofweek). \
-                               stack(weekofyear). \
-                               stack(holidays)
-    
+    ts_list_covariates = time_covariates(series.time_index, country_code)
     ts_list_covariates = [ts_list_covariates.univariate_component(i).pd_dataframe() for i in range(ts_list_covariates.n_components)]
 
-    id_l_covariates = ["year", 
-                            "month_sin",
-                            "month_cos", 
-                            "dayofyear_sin",
-                            "dayofyear_cos",
-                            "hour_sin", 
-                            "hour_cos",
-                            "dayofweek_sin", 
-                            "dayofweek_cos",
-                            "weekofyear_sin",
-                            "weekofyear_cos",
-                            "holidays"]
-    ts_id_l_covariates = [id_name for _ in range(12)]
+    id_l_covariates = list(TIME_COVARIATE_NAMES)
+    ts_id_l_covariates = [id_name for _ in range(len(TIME_COVARIATE_NAMES))]
 
     return ts_list_covariates, id_l_covariates, ts_id_l_covariates
 
@@ -624,12 +579,9 @@ def impute(ts: pd.DataFrame,
     return res, imputed_values
 
 def utc_to_local(df, country_code):
-    # Get dictionary of countries and their timezones
-    timezone_countries = {country: timezone 
-                            for country, timezones in country_timezones.items()
-                            for timezone in timezones}
-
-    local_timezone = timezone_countries[country_code]
+    # A country's first listed timezone is its main one (e.g. PT -> Europe/Lisbon,
+    # not Atlantic/Azores). Raises KeyError for codes that are not countries.
+    local_timezone = country_timezones[country_code][0]
 
     print(f"\nUsing timezone {local_timezone}...")
     logging.info(f"\nUsing timezone {local_timezone}...")
@@ -831,6 +783,8 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
         mlflow.set_tracking_uri(mlflow_uri)
     else:
         tenant = "mlflow-bucket"
+
+    install_mlflow_auth_for_run(context.run_id)
     series_csv = config.series_csv
     year_range = config.year_range
     resolution = config.resolution
@@ -943,6 +897,7 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
                          index_col=0)]]
         
         ts_list[0][0].index = pd.to_datetime(ts_list[0][0].index)
+        ts_list[0][0] = regularize(ts_list[0][0].sort_index(), infered_resolution_series)
         id_l, ts_id_l = [["Timeseries"]], [["Timeseries"]] 
 
     # Year range handling
@@ -979,7 +934,13 @@ def etl_asset(context, start_pipeline_run, load_raw_data_out):
                     #All preprocessing is done on each component separately 
                     print(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}...")
                     logging.info(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}...")
-                    if convert_to_local_tz:
+                    if convert_to_local_tz and to_seconds(infered_resolution_series) >= 86400:
+                        # Daily or coarser timestamps are dates, not instants: shifting them to
+                        # local time moves them off midnight by an offset that changes with DST,
+                        # so half the points fall off the regular grid and get imputed.
+                        print(f"\nResolution is {infered_resolution_series}, keeping dates as given (no timezone conversion)...")
+                        logging.info(f"\nResolution is {infered_resolution_series}, keeping dates as given (no timezone conversion)...")
+                    elif convert_to_local_tz:
                         print(f"\nConverting to local Timezone...")
                         logging.info(f"\nConverting to local Timezone...")
                         try:

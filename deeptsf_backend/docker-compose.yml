@@ -115,9 +115,9 @@ services:
       dockerfile:  Dockerfile
     restart: always
     ports:
-      - '8080:8080'
+      - '${BACKEND_PORT:-8080}:${BACKEND_PORT:-8080}'
     expose:
-      - '8080'
+      - '${BACKEND_PORT:-8080}'
     stdin_open: 
       true
     env_file:

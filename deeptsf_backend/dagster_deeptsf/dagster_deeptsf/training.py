@@ -9,6 +9,7 @@ from darts.models.forecasting.lgbm import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
 from darts.models.forecasting.arima import ARIMA
 from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
+from dagster_deeptsf.auth_runtime import install_mlflow_auth_for_run
 
 import yaml
 import mlflow
@@ -112,6 +113,9 @@ def train(context, start_pipeline_run, etl_out):
         mlflow.set_tracking_uri(mlflow_uri)
     else:
         tenant = "mlflow-bucket"
+    
+    install_mlflow_auth_for_run(context.run_id)
+
 
 
     parameters_dict = {
@@ -188,7 +192,7 @@ def train(context, start_pipeline_run, etl_out):
 
     ## model
     # TODO: Take care of future covariates (RNN, ...) / past covariates (BlockRNN, NBEATS, ...)
-    if darts_model in ["NBEATS", "BlockRNN", "TCN", "NHiTS", "Transformer"]:
+    if darts_model in ["NBEATS", "BlockRNN", "TCN", "NHiTS", "Transformer", "MLP"]:
         """They do not accept future covariates as they predict blocks all together.
         They won't use initial forecasted values to predict the rest of the block
         So they won't need to additionally feed future covariates during the recurrent process.
@@ -455,8 +459,9 @@ def train(context, start_pipeline_run, etl_out):
             # Naive Models    
             elif darts_model == 'Naive':
                 # Identify resolution
-                daily_timesteps = int(24 * 60 // (pd.to_timedelta(series_transformed['train'][0].time_index[1]-series_transformed['train'][0].time_index[0]).seconds//60))
-                seasonality_timesteps = daily_timesteps * int(hyperparameters['days_seasonality'])
+                # total_seconds(), not .seconds: .seconds drops whole days, so it is 0 for daily or coarser data
+                step_seconds = pd.to_timedelta(series_transformed['train'][0].time_index[1]-series_transformed['train'][0].time_index[0]).total_seconds()
+                seasonality_timesteps = max(1, round(int(hyperparameters['days_seasonality']) * 86400 / step_seconds))
                 print(f'\nTrained Model: NaiveSeasonal, with seasonality (in timesteps): {seasonality_timesteps}') 
 
                 hparams_to_log = hyperparameters
@@ -525,14 +530,19 @@ def train(context, start_pipeline_run, etl_out):
                 print(f'\nTraining {darts_model}...')
                 logging.info(f'\nTraining {darts_model}...')
 
+                # ARIMA is fit on one series (the last one), with that series' covariates
+                fit_future_covariates = future_covariates_transformed['train']
                 if type(series_transformed['train']) == list:
                     fit_series = series_transformed['train'][-1]
                 else:
                     fit_series = series_transformed['train']
+                # covariates are always loaded as a list (also for a single series)
+                if type(fit_future_covariates) == list:
+                    fit_future_covariates = fit_future_covariates[-1]
 
                 model.fit(
                     series=fit_series,
-                    future_covariates=future_covariates_transformed['train'],
+                    future_covariates=fit_future_covariates,
                     )
                 model_type = "pkl"
             
@@ -567,6 +577,9 @@ def train(context, start_pipeline_run, etl_out):
                 "scale_covs": scale_covs,
                 "past_covs": past_covariates is not None,
                 "future_covs": future_covariates is not None,
+                # inference rebuilds the ETL's calendar features for models trained on them
+                "time_covs": bool(config.time_covs) and future_covariates is not None,
+                "country": config.country,
                 }
             with open('model_info.yml', mode='w') as outfile:
                 yaml.dump(

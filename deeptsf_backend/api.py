@@ -10,7 +10,7 @@ from celery.result import AsyncResult
 import json
 import traceback
 from pydantic import BaseModel
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union
 import pandas as pd
 import mlflow
 from utils_backend import ConfigParser, load_model
@@ -23,6 +23,7 @@ from mlflow.tracking import MlflowClient
 from utils_backend import to_seconds, change_form, make_time_list, truth_checker, get_run_tag, upload_file_to_minio, none_checker
 import psutil, nvsmi
 import os
+import re
 import requests
 import jwt
 import logging
@@ -40,7 +41,6 @@ from math import nan
 import bson
 from minio import Minio
 from minio.error import S3Error
-from dagster_graphql import DagsterGraphQLClient, DagsterGraphQLClientError
 
 # import base64
 # from cryptography import x509
@@ -142,6 +142,112 @@ def _mlflow_headers(request: Optional[Request] = None) -> Dict[str, str]:
 
     return headers
 
+def _dagster_headers(request: Request) -> Dict[str, str]:
+    """
+    Forward the same bearer token that authenticated this API to oauth2-proxy/Dagster.
+    """
+    headers = {"Content-Type": "application/json"}
+    auth = request.headers.get("Authorization")
+    if auth:
+        headers["Authorization"] = auth  # "Bearer <token>"
+    return headers
+
+def _dagster_base_url() -> str:
+    """
+    Base URL of the Dagster webserver. In jwt mode it is derived from `host`;
+    otherwise DAGSTER_ENDPOINT_URL is used, defaulting to https (keycloak) or
+    http when it has no scheme.
+    """
+    if USE_AUTH == "jwt":
+        return "https://deeptsf-dagster" + os.environ.get('host')
+    if "://" in DAGSTER_ENDPOINT_URL:
+        return DAGSTER_ENDPOINT_URL
+    scheme = "https" if USE_AUTH == "keycloak" else "http"
+    return f"{scheme}://{DAGSTER_ENDPOINT_URL}"
+
+def dagster_launch_job(
+    dagster_base_url: str,
+    location_name: str,
+    repository_name: str,
+    job_name: str,
+    run_config: dict,
+    request: Request,
+) -> str:
+    graphql_url = dagster_base_url.rstrip("/") + "/graphql"
+
+    query = """
+    mutation LaunchJob($executionParams: ExecutionParams!) {
+      launchPipelineExecution(executionParams: $executionParams) {
+        __typename
+        ... on LaunchPipelineRunSuccess {
+          run {
+            runId
+          }
+        }
+        ... on PipelineNotFoundError {
+          message
+        }
+        ... on InvalidStepError {
+          invalidStepKey
+        }
+        ... on RunConfigValidationInvalid {
+          errors {
+            message
+            path
+            reason
+          }
+        }
+        ... on PythonError {
+          message
+          stack
+        }
+      }
+    }
+    """
+
+    variables = {
+        "executionParams": {
+            "selector": {
+                "repositoryLocationName": location_name,
+                "repositoryName": repository_name,
+                "pipelineName": job_name,
+            },
+            "runConfigData": run_config,
+        }
+    }
+
+    resp = requests.post(
+        graphql_url,
+        headers=_dagster_headers(request),
+        json={"query": query, "variables": variables, "operationName": "LaunchJob"},
+        timeout=30,
+    )
+    print("Dagster URL:", resp.url)
+    print("Dagster status:", resp.status_code)
+    print("Dagster headers:", dict(resp.headers))
+    print("Dagster body:", resp.text[:4000])
+
+
+    # Helpful debug until stable
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"Dagster HTTP {resp.status_code}: {resp.text[:800]}")
+    data = resp.json()
+
+    if data.get("errors"):
+        raise HTTPException(status_code=502, detail=f"Dagster GraphQL errors: {data['errors']}")
+
+    result = (data.get("data") or {}).get("launchPipelineExecution")
+    if not result:
+        raise HTTPException(status_code=502, detail=f"Unexpected Dagster response: {data}")
+
+    # Dagster >=1.x returns "LaunchRunSuccess"; older versions "LaunchPipelineRunSuccess"
+    if result.get("__typename") in ("LaunchRunSuccess", "LaunchPipelineRunSuccess"):
+        return result["run"]["runId"]
+
+    # Anything else -> bubble up details
+    raise HTTPException(status_code=502, detail=f"Dagster launch failed: {result}")
+
+
 class DateLimits(int, Enum):
     """This function will read the uploaded csv before running the pipeline and will decide which are the allowed values
     for: validation_start_date < test_start_date < test_end_date """
@@ -160,6 +266,9 @@ app = FastAPI(
     },
 )
 
+# Origins of a specific deployment's frontend, comma separated (set in .env).
+CORS_EXTRA_ORIGINS = [o.strip() for o in os.environ.get("CORS_EXTRA_ORIGINS", "").split(",") if o.strip()]
+
 ORIGINS = [
             "https://deeptsf-backend.aiodp.ai",
             "https://deeptsf.aiodp.ai", 
@@ -169,7 +278,7 @@ ORIGINS = [
             "https://deeptsf.dev.aiodp.ai",
             "https://marketplace.aiodp.ai",
             "https://platform.aiodp.ai"
-        ]
+        ] + CORS_EXTRA_ORIGINS
 
 if USE_AUTH == "keycloak":
     app.add_middleware(
@@ -182,7 +291,7 @@ if USE_AUTH == "keycloak":
                     "https://dagster.deeptsf.toolbox.epu.ntua.gr",
                     "https://keycloak.toolbox.epu.ntua.gr",
                     "http://localhost:3000",
-                    "http://localhost:8086"],
+                    "http://localhost:8086"] + CORS_EXTRA_ORIGINS,
         allow_credentials=True,
         allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
         allow_headers=["*"],
@@ -1233,7 +1342,8 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
                 "config": {
                     "a": 0.3,
                     "analyze_with_shap": False,
-                    "convert_to_local_tz": True,
+                    # Timestamps from the frontend are used as uploaded, not shifted from UTC to local time.
+                    "convert_to_local_tz": False,
                     "country": "PT",
                     "database_name": "rdn_load_data",
                     "device": "gpu",
@@ -1243,7 +1353,7 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
                     "future_covs_uri": "None",
                     "grid_search": False,
                     "loss_function": "mape",
-                    "m_mase": 1,
+                    "m_mase": int(parameters["forecast_horizon"]),  # MASE naive baseline = value forecast_horizon steps behind
                     "max_thr": -1,
                     "min_non_nan_interval": 24,
                     "n_trials": 100,
@@ -1321,33 +1431,22 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     #    params["time_covs"] = "PT"
     print(run_config)
 
-    if USE_AUTH == "jwt":
-        KUBE_HOST = os.environ.get('host')
-        DAGSTER_HOST = "deeptsf-dagster" + KUBE_HOST
-        print(DAGSTER_HOST)
-        client = DagsterGraphQLClient(DAGSTER_HOST, use_https=True)
-    elif USE_AUTH == "keycloak":
-        KUBE_HOST = os.environ.get('host')
-        DAGSTER_HOST = DAGSTER_ENDPOINT_URL
-        print(DAGSTER_HOST)
-        client = DagsterGraphQLClient(DAGSTER_HOST, use_https=True)
-    else: 
-        DAGSTER_HOST = DAGSTER_ENDPOINT_URL.split("://")[-1]
-        PORT = DAGSTER_HOST.split(":")[-1]
-        DAGSTER_HOST = DAGSTER_HOST.split(":")[0]
-        client = DagsterGraphQLClient(DAGSTER_HOST, port_number=int(PORT), use_https=False)
-
     # 3  submit an asynchronous run
     try:
-        print("SUBMIT")
-        run_id = client.submit_job_execution(
-            "deeptsf_dagster_job",
+        run_id = dagster_launch_job(
+            dagster_base_url=_dagster_base_url(),
+            location_name="dagster_deeptsf",
+            repository_name="__repository__",   # see note below
+            job_name="deeptsf_dagster_job",
             run_config=run_config,
+            request=request,
         )
         print(f"Launched Dagster run {run_id}")
-    except DagsterGraphQLClientError as exc:          # handy for surfacing schema errors
-        print(f"Dagster rejected the launch: {exc}")
-        raise HTTPException(status_code=404, detail="Could not initiate run. Check system logs")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Dagster launch failed")
+        raise HTTPException(status_code=502, detail=f"Could not initiate run via Dagster: {e}")
     
     return {"message": "Experimentation pipeline initiated. Proceed to MLflow for details..."}
 
@@ -1520,11 +1619,201 @@ def load_artifacts(run_id, src_path, tenant, request, dst_path=None):
     return local_path
 
 
+def list_run_artifacts(run_id: str, path: str, request: Request):
+    """
+    List the artifacts of a run under `path` via the MLflow REST API
+    (/mlflow/artifacts/list). Returns the raw `files` entries, each of which
+    carries `path`, `is_dir` and `file_size`.
+    """
+    url = f"{MLFLOW_API_BASE}/mlflow/artifacts/list"
+    try:
+        resp = requests.get(
+            url,
+            params={"run_id": run_id, "path": path},
+            headers=_mlflow_headers(request),
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error(f"Error calling MLflow artifacts.list for {run_id}/{path}: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to contact MLflow tracking server: {e}"
+        )
+
+    try:
+        data = resp.json()
+    except ValueError as e:
+        logger.error("Failed to decode MLflow JSON in artifacts.list", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Invalid JSON from MLflow artifacts.list: {e}"
+        )
+
+    return data.get("files", []) or []
+
+
+@engineer_router.get(
+    '/results/get_evaluation_series/{run_id}',
+    tags=['MLflow Info', 'Model Evaluation']
+)
+async def get_evaluation_series(run_id: str, request: Request):
+    """
+    List the time series that were evaluated in a run.
+
+    When a run evaluates every time series of a multiple dataset, the pipeline
+    logs one directory per Timeseries ID under `eval_results` (see
+    `evaluate_forecasts.py`); a run that evaluates a single series logs
+    `predictions.csv` straight into `eval_results`. This endpoint tells the two
+    apart so the client knows whether it has to ask the user which series to
+    plot.
+    """
+    files = list_run_artifacts(run_id, "eval_results", request)
+
+    series = sorted(
+        os.path.basename(entry.get("path", "").rstrip("/"))
+        for entry in files
+        if entry.get("is_dir") and entry.get("path")
+    )
+
+    return {
+        "multiple": bool(series),
+        "series": series,
+    }
+
+
+# plot_series names each trace after the component's ID from the source file's
+# "ID" column, which is the only place that ID survives into a run's artifacts.
+_PLOT_COMPONENT_RE = re.compile(r'"name"\s*:\s*"Time series actual - component (.*?)"')
+
+# What darts calls the components of a series stacked out of a multiple dataset:
+# every component arrives as a column named "Value", so stacking dedupes them.
+_PLACEHOLDER_COMPONENT_RE = re.compile(r"^Value(_\d+)?$")
+
+
+def _component_ids_from_plot(run_id, artifact_dir, tenant, request):
+    """
+    Read the component IDs of a series out of the Actual_vs_Predicted.html logged
+    beside its CSVs.
+
+    multiple_ts_file_to_dfs() builds every component as a one-column frame named
+    "Value", so by the time they are stacked into one series darts has renamed
+    them Value, Value_1, Value_2 ... and predictions.csv inherits those. The IDs
+    from the source file's "ID" column reach only the plot, whose traces
+    plot_series names "Time series actual - component <id>".
+    """
+    with tempfile.TemporaryDirectory() as plot_dir:
+        plot_path = load_artifacts(
+            run_id=run_id,
+            src_path=f"{artifact_dir}/Actual_vs_Predicted.html",
+            tenant=tenant,
+            request=request,
+            dst_path=plot_dir,
+        )
+        with open(plot_path, "r", encoding="utf-8", errors="replace") as plot:
+            names = _PLOT_COMPONENT_RE.findall(plot.read())
+
+    # plot_series falls back to a component's position when it is given no IDs to
+    # use, and a position is no better a name than Value_1 is.
+    if names == [str(i) for i in range(len(names))]:
+        return []
+
+    return names
+
+
+def _name_components(df, component_ids):
+    """Name a frame's columns after the component IDs, when the two line up."""
+    if component_ids and len(df.columns) == len(component_ids):
+        df.columns = component_ids
+    return df
+
+
+def _same_time_window(forecast_df, actual_df, n):
+    """
+    Put the forecast and the actual series on one window: the last `n` samples of
+    the forecast, and the part of the actual series that falls inside them.
+
+    The backtest starts after the actual series does (its first `overlap` steps
+    are dropped) and stops at the end of its last full forecast window, short of
+    where the actual series ends. Cutting `n` samples off the end of each frame
+    on its own therefore lands them on two different windows, which is why `n`
+    counts back from the last forecast timestamp and the actual series follows it.
+
+    `n` of zero or less means the whole forecast.
+    """
+    # A series indexed by position rather than by time compares fine as it is, and
+    # pd.to_datetime would read those integers as nanoseconds since the epoch.
+    indexed_by_time = not (
+        pd.api.types.is_numeric_dtype(forecast_df.index)
+        or pd.api.types.is_numeric_dtype(actual_df.index)
+    )
+    if indexed_by_time:
+        try:
+            forecast_index = pd.to_datetime(forecast_df.index)
+            actual_index = pd.to_datetime(actual_df.index)
+        except (ValueError, TypeError):
+            pass
+        else:
+            forecast_df = forecast_df.set_index(forecast_index)
+            actual_df = actual_df.set_index(actual_index)
+
+    forecast_df = forecast_df.sort_index()
+    actual_df = actual_df.sort_index()
+
+    if n > 0:
+        forecast_df = forecast_df.iloc[-n:]
+    if forecast_df.empty:
+        return forecast_df, actual_df.iloc[:0]
+
+    window_start, window_end = forecast_df.index[0], forecast_df.index[-1]
+    actual_df = actual_df[(actual_df.index >= window_start) & (actual_df.index <= window_end)]
+
+    return forecast_df, actual_df
+
+
+def _split_response(df):
+    """
+    Serialise a dataframe in pandas' 'split' orientation: one entry per column,
+    one timestamp per index entry and one row of values per timestamp. Keeping the
+    rows intact is what lets a multivariate series reach the client with every
+    component, instead of collapsing to the first one. NaN is not valid JSON, so
+    gaps go out as null.
+    """
+    return {
+        "columns": [str(column) for column in df.columns],
+        "index": [str(timestamp) for timestamp in df.index],
+        "data": [
+            [None if pd.isna(value) else value for value in row]
+            for row in df.to_numpy().tolist()
+        ],
+    }
+
+
 @engineer_router.get(
     '/results/get_forecast_vs_actual/{run_id}/n_samples/{n}',
     tags=['MLflow Info', 'Model Evaluation']
 )
-async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
+async def get_forecast_vs_actual(
+    run_id: str,
+    n: int,
+    request: Request,
+    series: Optional[str] = None,
+):
+    """
+    Return the last `n` samples of the forecast of a run, together with the part of
+    the actual series that covers the same time window.
+
+    `series` selects one Timeseries ID of a run that evaluated a whole multiple
+    dataset; it is left out for runs that evaluated a single series. Both series
+    are returned in pandas' 'split' orientation, so every component of a
+    multivariate series comes back as its own column with its own name.
+    """
+    series_dir = none_checker(series)
+    series_dir = series_dir.strip() if isinstance(series_dir, str) else series_dir
+    if series_dir and ("/" in series_dir or "\\" in series_dir or series_dir.startswith(".")):
+        # `series` names one directory logged under eval_results, nothing else.
+        raise HTTPException(status_code=400, detail=f"Invalid series: {series}")
+    artifact_dir = "eval_results" if not series_dir else f"eval_results/{series_dir}"
 
     try:
         # If you already have middleware populating request.state.user:
@@ -1543,30 +1832,47 @@ async def get_forecast_vs_actual(run_id: str, n: int, request: Request):
         # Use REST-based artifact loader
         forecast_path = load_artifacts(
             run_id=run_id,
-            src_path="eval_results/predictions.csv",
+            src_path=f"{artifact_dir}/predictions.csv",
             tenant=tenant,
             request=request,
         )
         actual_path = load_artifacts(
             run_id=run_id,
-            src_path="eval_results/original_series.csv",
+            src_path=f"{artifact_dir}/original_series.csv",
             tenant=tenant,
             request=request,
         )
 
-        forecast_df = pd.read_csv(forecast_path, index_col=0).iloc[-n:]
-        actual_df = pd.read_csv(actual_path, index_col=0)[-n:]
+        forecast_df, actual_df = _same_time_window(
+            pd.read_csv(forecast_path, index_col=0),
+            pd.read_csv(actual_path, index_col=0),
+            n,
+        )
 
-        forecast_response = forecast_df.to_dict('split')
-        actual_response = actual_df.to_dict('split')
+        # A series stacked out of a multiple dataset reaches here with placeholder
+        # component names, so the real IDs are recovered from the run's own plot.
+        component_ids = []
+        if len(actual_df.columns) > 1 and all(
+            _PLACEHOLDER_COMPONENT_RE.match(str(column)) for column in actual_df.columns
+        ):
+            try:
+                component_ids = _component_ids_from_plot(run_id, artifact_dir, tenant, request)
+            except Exception:
+                logger.warning(
+                    f"Could not read component names from the plot of run {run_id}",
+                    exc_info=True,
+                )
 
-        # Unlist since each row is [value]
-        actual_response["data"] = [row[0] for row in actual_response["data"]]
-        forecast_response["data"] = [row[0] for row in forecast_response["data"]]
+        actual_df = _name_components(actual_df, component_ids)
+        forecast_df = _name_components(forecast_df, component_ids)
+
+        forecast_response = _split_response(forecast_df)
+        actual_response = _split_response(actual_df)
 
         response = {
             "forecast": forecast_response,
             "actual": actual_response,
+            "series": series_dir or None,
         }
     except Exception as e:
         traceback.print_exc()
@@ -1628,7 +1934,8 @@ class ForecastRequest(BaseModel):
     timesteps_ahead: int
     series_uri: Optional[str] = None
     multiple_file_type: Optional[bool] = False
-    weather_covariates: Optional[bool] = False
+    # True for the default weather variable (shortwave_radiation), or the open-meteo variable name(s)
+    weather_covariates: Optional[Union[bool, str, List[str]]] = False
     resolution: Optional[str] = "1h"
     ts_id_pred: Optional[str] = "None"
     series: Optional[Dict] = None

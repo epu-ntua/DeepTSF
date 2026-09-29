@@ -1,0 +1,58 @@
+# Backend, celery worker and redis only.
+# To run this you need a .env file with the contents of .env_keycloak and the missing variables filled in.
+services:
+
+  backend:
+    container_name: DeepTSF-backend
+    hostname: DeepTSF-backend
+    build:
+      context: ./
+      target: backend
+      dockerfile:  Dockerfile_keycloak
+    restart: always
+    ports:
+      - '${BACKEND_PORT:-8081}:${BACKEND_PORT:-8081}'
+    expose:
+      - '${BACKEND_PORT:-8081}'
+    stdin_open:
+      true
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    # volumes:
+    #   - ./logs:/app/logs
+    # Same command as the Dockerfile ENTRYPOINT, but also mirrors all output
+    # to ./logs/backend.log on the host so logs are readable without docker access.
+    entrypoint: ["/bin/bash", "-c", "mkdir -p /app/logs && conda run --no-capture-output -n DeepTSF_env uvicorn api:app --host 0.0.0.0 --port $${BACKEND_PORT:-8081} 2>&1 | tee -a /app/logs/backend.log"]
+    depends_on:
+      - redis
+    mem_limit: 1G
+    networks:
+       - appnet
+
+  # Consumes the backend's celery tasks (e.g. CSV upload validation) from redis.
+  worker:
+    build:
+      context: ./
+      target: celery-worker
+      dockerfile:  Dockerfile_keycloak
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    mem_limit: 6g
+    networks:
+       - appnet
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    networks:
+       - appnet
+
+networks:
+  appnet:
+    name: ${COMPOSE_NETWORK}
+    external: true

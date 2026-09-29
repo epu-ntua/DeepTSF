@@ -25,6 +25,12 @@ RUN conda --version
 
 WORKDIR /app 
 
+# Deployment-specific dagster storage names (see dagster_deeptsf/dagster.yaml and
+# dagster_deeptsf/__init__.py); override them in .env.
+ENV DAGSTER_PG_DATABASE=dagster_celery \
+    DAGSTER_COMPUTE_LOGS_PREFIX=dagster-compute-logs \
+    DAGSTER_IO_MANAGER_PREFIX=dagster-io-manager
+
 COPY ./conda.yaml ./conda.yaml
 
 RUN conda update conda
@@ -47,7 +53,8 @@ RUN pip install uvicorn[standard]==0.29.0 cryptography==44.0.2 dagster-graphql==
 
 COPY . .
  
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8081"]
+# Shell form so ${BACKEND_PORT} is expanded at runtime (defaults to 8081)
+ENTRYPOINT conda run --no-capture-output -n DeepTSF_env uvicorn api:app --host 0.0.0.0 --port ${BACKEND_PORT:-8081}
 
 #############################DAGSTER#######################################
 
@@ -59,9 +66,15 @@ SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
 # Install additional dependencies
 RUN pip install dagster==1.8.13 dagster-webserver==1.8.13 dagster-shell==0.24.13 dagster-mlflow==0.24.13 dagster-postgres==0.24.13 dagster-aws==0.24.13
 
+# Decrypts the per-user offline tokens the gateway writes (see auth_runtime.py)
+RUN pip install cryptography==44.0.2
+
 EXPOSE 8006
 
 COPY . .
+
+# Tolerate multi-byte characters split across log chunks (backport of upstream Dagster fix)
+RUN python patch_dagster_logs.py
 
 WORKDIR /app/dagster_deeptsf
 
@@ -77,6 +90,9 @@ FROM base AS celery-worker
 SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
 
 RUN pip install dagster==1.8.13 dagster-webserver==1.8.13 dagster-shell==0.24.13 dagster-mlflow==0.24.13 dagster-postgres==0.24.13 dagster-aws==0.24.13
+
+# Decrypts the per-user offline tokens the gateway writes (see auth_runtime.py)
+RUN pip install cryptography==44.0.2
 
 COPY . .
 

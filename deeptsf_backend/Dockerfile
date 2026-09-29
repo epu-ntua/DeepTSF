@@ -25,6 +25,12 @@ RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkg
 
 WORKDIR /app 
 
+# Deployment-specific dagster storage names (see dagster_deeptsf/dagster.yaml and
+# dagster_deeptsf/__init__.py); override them in .env.
+ENV DAGSTER_PG_DATABASE=dagster_celery \
+    DAGSTER_COMPUTE_LOGS_PREFIX=dagster-compute-logs \
+    DAGSTER_IO_MANAGER_PREFIX=dagster-io-manager
+
 COPY ./conda.yaml ./conda.yaml
 
 RUN conda update conda
@@ -48,7 +54,8 @@ RUN pip install uvicorn[standard]==0.29.0 cryptography==44.0.2 dagster-graphql==
 
 COPY . .
  
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8080"]
+# Shell form so ${BACKEND_PORT} is expanded at runtime (defaults to 8080)
+ENTRYPOINT conda run --no-capture-output -n DeepTSF_env uvicorn api:app --host 0.0.0.0 --port ${BACKEND_PORT:-8080}
 
 #############################DAGSTER#######################################
 
@@ -63,6 +70,9 @@ RUN pip install dagster==1.8.13 dagster-webserver==1.8.13 dagster-shell==0.24.13
 EXPOSE 8006
 
 COPY . .
+
+# Tolerate multi-byte characters split across log chunks (backport of upstream Dagster fix)
+RUN python patch_dagster_logs.py
 
 WORKDIR /app/dagster_deeptsf
 

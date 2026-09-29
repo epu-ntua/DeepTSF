@@ -45,6 +45,77 @@ from datetime import datetime
 from typing import Union, List, Tuple
 from minio import S3Error
 from minio.commonconfig import CopySource
+from minio import Minio
+from urllib.parse import urlparse
+
+def _current_mlflow_bearer() -> str | None:
+    """
+    Best-effort access to the current run-scoped MLflow bearer token.
+    Falls back to None outside Dagster runtime.
+    """
+    try:
+        from dagster_deeptsf.auth_runtime import get_current_mlflow_token
+        return get_current_mlflow_token()
+    except Exception:
+        return None
+
+def _download_http_artifact_with_bearer(url: str, dst_dir: str, fallback_name: str = "artifact.bin") -> str:
+    os.makedirs(dst_dir, exist_ok=True)
+    filename = url.rstrip("/").split("/")[-1] or fallback_name
+    local_path = os.path.join(dst_dir, filename)
+
+    headers = {}
+    tok = _current_mlflow_bearer()
+    if tok:
+        headers["Authorization"] = f"Bearer {tok}"
+
+    resp = requests.get(url, headers=headers, timeout=120)
+    resp.raise_for_status()
+    with open(local_path, "wb") as f:
+        f.write(resp.content)
+    return local_path
+
+def _download_artifact_url(url: str, dst_dir: str, fallback_name: str = "artifact.bin") -> str:
+    """
+    Download artifact URL using the right auth mechanism:
+    - MinIO object URLs via MinIO credentials (fget_object)
+    - Other HTTP(S) URLs via bearer token
+    """
+    parsed = urlparse(url)
+    mlflow_s3_endpoint = os.environ.get("MLFLOW_S3_ENDPOINT_URL", "").rstrip("/")
+
+    is_minio_object_url = False
+    if mlflow_s3_endpoint:
+        is_minio_object_url = url.startswith(mlflow_s3_endpoint + "/")
+
+    if is_minio_object_url:
+        path_parts = parsed.path.lstrip("/").split("/", 1)
+        if len(path_parts) != 2:
+            raise ValueError(f"Invalid MinIO artifact URL path: {url}")
+        bucket_name, object_path = path_parts
+
+        minio_endpoint = os.environ.get("MINIO_CLIENT_URL")
+        minio_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+        minio_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+        minio_ssl = str(os.environ.get("MINIO_SSL", "false")).lower() in {"1", "true", "yes", "on"}
+
+        if not minio_endpoint or not minio_access_key or not minio_secret_key:
+            raise RuntimeError("Missing MINIO/AWS credentials for MinIO artifact download.")
+
+        os.makedirs(dst_dir, exist_ok=True)
+        filename = object_path.split("/")[-1] or fallback_name
+        local_path = os.path.join(dst_dir, filename)
+
+        minio_client = Minio(
+            minio_endpoint,
+            access_key=minio_access_key,
+            secret_key=minio_secret_key,
+            secure=minio_ssl,
+        )
+        minio_client.fget_object(bucket_name, object_path, local_path)
+        return local_path
+
+    return _download_http_artifact_with_bearer(url, dst_dir, fallback_name=fallback_name)
 
 def move_object(minio_client, source_bucket, source_object, dest_bucket, dest_object):
     try:
@@ -417,6 +488,11 @@ def load_scaler(scaler_uri=None, mode="remote"):
         return None
 
     if mode == "remote":
+        if scaler_uri.startswith("http://") or scaler_uri.startswith("https://"):
+            local_dir = tempfile.mkdtemp()
+            scaler_path = _download_artifact_url(scaler_uri, local_dir, "scaler.pkl")
+            return load_local_pkl_as_object(scaler_path)
+
         run_id = scaler_uri.split("/")[-2]
         mlflow_filepath = scaler_uri.split("/artifacts/")[1]
 
@@ -446,6 +522,11 @@ def load_ts_id(load_ts_id_uri=None, mode="remote"):
         return None
 
     if mode == "remote":
+        if load_ts_id_uri.startswith("http://") or load_ts_id_uri.startswith("https://"):
+            local_dir = tempfile.mkdtemp()
+            tsid_path = _download_artifact_url(load_ts_id_uri, local_dir, "ts_id_l.pkl")
+            return load_local_pkl_as_object(tsid_path)
+
         run_id = load_ts_id_uri.split("/")[-2]
         mlflow_filepath = load_ts_id_uri.split("/artifacts/")[1]
 
@@ -1260,15 +1341,18 @@ def load_local_csv_or_df_as_darts_timeseries(local_path_or_df,
         else:
             id_l, ts_id_l = [[]], [[]]
             if type(local_path_or_df) == pd.DataFrame:
-                covariates = darts.TimeSeries.from_dataframe(
-                    local_path_or_df,
-                    fill_missing_dates=True,
-                    freq=None)
+                single = local_path_or_df.copy()
             else:
-                covariates = darts.TimeSeries.from_csv(
-                    local_path_or_df, time_col=time_col,
-                    fill_missing_dates=True,
-                    freq=None)
+                single = pd.read_csv(local_path_or_df, index_col=time_col)
+            single.index = pd.to_datetime(single.index)
+            single = single.sort_index()
+            # irregular timestamps (jitter, stray readings) go on the regular grid first;
+            # darts can not infer a frequency from them
+            single = regularize(single, resolution if none_checker(resolution) else infer_resolution(single.index))
+            covariates = darts.TimeSeries.from_dataframe(
+                single,
+                fill_missing_dates=True,
+                freq=None)
             covariates = covariates.astype(np.float32)
             if last_date is not None:
                 try:
@@ -1429,10 +1513,12 @@ def parse_uri_prediction_input(client,
         past_covariates = None
 
     if weather_covariates:
+        # True means the default weather variable; a name or a list of names selects them
+        weather_fields = ["shortwave_radiation"] if weather_covariates is True else weather_covariates
         #TODO intergrate weather covariates to work with all kinds of datasets
         covs_nans = get_weather_covariates(series[0].pd_dataframe().index[0], 
                                            pd.Timestamp(date.today()).ceil(freq='D') + pd.Timedelta("10D"), 
-                                           weather_covariates,
+                                           weather_fields,
                                            inference=True)
         covs = []
         for cov in covs_nans:
@@ -1539,19 +1625,19 @@ def multiple_ts_file_to_dfs(series_csv: Union[str, pd.DataFrame] = "../../RDN/Lo
                 raise ComponentTooShortError(len(series), ts_id, id)
             
             if resolution!=None:
-                series = series.asfreq(resolution)
+                series = regularize(series, resolution)
             elif first:
-                infered_resolution = to_standard_form(pd.to_timedelta(np.diff(series.index).min()))
-                series = series.asfreq(infered_resolution)
+                infered_resolution = infer_resolution(series.index)
+                series = regularize(series, infered_resolution)
                 first = False
                 first_id = id
                 first_ts_id = ts_id
             else:
-                temp = to_standard_form(pd.to_timedelta(np.diff(series.index).min()))
+                temp = infer_resolution(series.index)
                 if temp != infered_resolution:
                     raise DifferentFrequenciesMultipleTS(temp, id, ts_id, infered_resolution, first_id, first_ts_id)
                 else:
-                    series = series.asfreq(temp)
+                    series = regularize(series, temp)
                     infered_resolution = temp
 
             res[-1].append(pd.DataFrame({value_name : series}))
@@ -1725,6 +1811,86 @@ def to_standard_form(freq):
             return f'{total_seconds // 60}min'
     else:
         return f'{total_seconds}s'  # Secondly frequency
+
+
+# Calendar features DeepTSF adds as future covariates when time_covs is on. The ETL
+# (training data) and inference (darts_flavor) both build them with time_covariates(),
+# so a model is always served the same components, in the same order, it was trained on.
+TIME_COVARIATE_NAMES = ["year", "month_sin", "month_cos", "dayofyear_sin", "dayofyear_cos",
+                        "hour_sin", "hour_cos", "dayofweek_sin", "dayofweek_cos",
+                        "weekofyear_sin", "weekofyear_cos", "holidays"]
+
+
+def time_covariates(time_index, country_code):
+    """The TIME_COVARIATE_NAMES components over time_index, as one darts TimeSeries.
+    Raises if country_code is not a country the holidays package knows."""
+    from darts.utils.timeseries_generation import datetime_attribute_timeseries, holidays_timeseries
+
+    time_index = pd.DatetimeIndex(time_index)
+    parts = [datetime_attribute_timeseries(time_index=time_index, attribute="year")]
+    for attribute in ("month", "dayofyear", "hour", "dayofweek", "weekofyear"):
+        parts.append(datetime_attribute_timeseries(time_index=time_index, attribute=attribute, cyclic=True))
+    parts.append(holidays_timeseries(time_index=time_index, country_code=country_code))
+    covariates = parts[0]
+    for part in parts[1:]:
+        covariates = covariates.stack(part)
+    return covariates
+
+
+def time_covariates_for(time_index, series_id, country):
+    """time_covariates() with the ETL's choice of holiday calendar: the series id if it
+    is a country code, otherwise the configured country."""
+    try:
+        return time_covariates(time_index, str(series_id))
+    except Exception:
+        return time_covariates(time_index, country)
+
+
+def infer_resolution(index):
+    """
+    Infers the resolution of a (sorted) datetime index, in the form of to_standard_form.
+
+    If every step between consecutive timestamps is a whole multiple of the smallest
+    step, the series is regular (possibly with missing timestamps) and the smallest
+    step is its resolution. Otherwise the timestamps are irregular (jitter, stray
+    samples, ...) and the median step, rounded to a whole number of days, hours,
+    minutes or seconds, is used instead, so one odd timestamp can not set it.
+    """
+    steps = np.diff(pd.DatetimeIndex(index).unique().sort_values().asi8) // 10**9
+    steps = steps[steps > 0]
+    if len(steps) == 0:
+        raise ValueError("Can not infer the resolution of a series with less than 2 distinct timestamps")
+    smallest = int(steps.min())
+    if np.all(steps % smallest == 0):
+        return to_standard_form(pd.Timedelta(seconds=smallest))
+    typical = float(np.median(steps))
+    unit = next(u for u in (86400, 3600, 60, 1) if typical >= u)
+    return to_standard_form(pd.Timedelta(seconds=unit * max(1, round(typical / unit))))
+
+
+def regularize(series, resolution):
+    """
+    Puts a series (or DataFrame) with a datetime index on a regular grid of the given
+    resolution. If its timestamps already lie on such a grid this is just asfreq
+    (missing timestamps become NaN). Otherwise, since asfreq would silently drop every
+    off-grid timestamp, each value is moved to its nearest point of a grid starting at
+    midnight of the first day, and values sharing a point are averaged. Nearest point
+    rather than fixed bins, so a reading slightly early (09:59:40) still counts for its
+    own step (10:00) instead of the previous one.
+    """
+    if len(series) == 0:
+        return series
+    step = pd.to_timedelta(to_offset(resolution))
+    offsets = np.asarray((series.index - series.index[0]) / step)
+    if np.all(offsets == np.round(offsets)):
+        return series.asfreq(resolution)
+    print(f"\nTimestamps do not lie on a regular {resolution} grid, averaging them onto the nearest {resolution} step...")
+    logging.info(f"\nTimestamps do not lie on a regular {resolution} grid, averaging them onto the nearest {resolution} step...")
+    origin = series.index[0].floor("D")
+    steps_from_origin = np.round(np.asarray((series.index - origin) / step)).astype("int64")
+    nearest = pd.DatetimeIndex(origin + pd.to_timedelta(steps_from_origin * step.value, unit="ns"),
+                               name=series.index.name)
+    return series.groupby(nearest).mean().asfreq(resolution)
 
 
 def change_form(freq, change_format_to="pandas_form"):
