@@ -11,21 +11,21 @@
     🙌 Refer to <b><a href="https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation">https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation</a></b> for the documentation 📖
 </p>
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/epu-ntua/DeepTSF/blob/dev/LICENSE.txt) [![DOI](https://img.shields.io/badge/Cite%20this%20paper-Google%20Scholar-blue])](https://doi.org/10.1016/j.softx.2024.101758)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/epu-ntua/DeepTSF/blob/dev/LICENSE.txt) [![DOI](https://img.shields.io/badge/Cite%20this%20paper-Google%20Scholar-blue)](https://doi.org/10.1016/j.softx.2024.101758)
 
 ## Installation
 
-To set up DeepTSF on your local system, you need clone the main branch of this repository:
+To set up DeepTSF on your local system, you need to clone the master branch of this repository:
 
 ```git clone https://github.com/epu-ntua/DeepTSF.git```
 
-Alternatively you can use the dedicated Github release instead of cloning the main branch.
+Alternatively you can use the dedicated Github release instead of cloning the master branch.
 
 After that you need to navigate to the root directory of DeepTSF:
 
 ```cd /path/to/repo/of/DeepTSF```
 
-Το enable the communication of the client with the logging servers (MLflow, Minio, Postgres), a .env file is needed. 
+To enable the communication of the client with the logging servers (MLflow, Minio, Postgres), a .env file is needed. 
 An example (.env.example) is provided, with default environment variables.
 
 After that, you can set up a full deployment of DeepTSF using Docker.
@@ -108,15 +108,15 @@ resources:
 
 For a more complete guide check the extensive documentation.
 
-This application can also be deployed in a kubernetes enviroment. 
+This application can also be deployed in a kubernetes environment. 
 
 #### Set up mlflow tracking server
 
-To run DeepTSF on your system you first have to install the mlflow tracking and minio server.
+DeepTSF can use any available MLflow tracking server (with a MinIO / S3 artifact store), for example ours:
 
-```git clone https://github.com/epu-ntua/mlflow-tracking-server.git```
+```git clone https://github.com/epu-ntua/mlflow.git```
 
-```cd mlflow-server```
+```cd mlflow```
 
 After that, you need to get the server to run
 
@@ -129,7 +129,7 @@ For the extensive DeepTSF documentation please navigate to our [Wiki](https://gi
 
 #### 📺 DeepTSF — Video Demonstration
 
-Also, a video demonstration of DeepTSF is avaialble on Youtube.
+Also, a video demonstration of DeepTSF is available on Youtube.
 
 [![Watch on YouTube](https://img.shields.io/badge/Watch%20on-YouTube-red?logo=youtube&logoColor=white&style=for-the-badge)](https://www.youtube.com/watch?v=hJbnvXummTI) 
 

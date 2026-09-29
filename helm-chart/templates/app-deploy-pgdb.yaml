@@ -24,6 +24,10 @@ metadata:
     release: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.pgdb.replicas }}
+  # The data volume is ReadWriteOnce: the old pod must release it before the
+  # new one starts, otherwise a rolling update deadlocks on Multi-Attach.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: {{ .Values.pgdb.service.name }}
