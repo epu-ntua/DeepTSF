@@ -1409,7 +1409,6 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
                     "series_uri": "None",
                     "shap_data_size": 100,
                     "shap_input_length": -1,
-                    "tenant": tenant,
                     "std_dev": 4.5,
                     "stride": -1,
                     "time_covs": False,
@@ -1441,6 +1440,9 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
             }
         }
     }
+    # The keycloak dagster has no `tenant` parameter (single shared MLflow).
+    if USE_AUTH != "keycloak":
+        run_config["resources"]["config"]["config"]["tenant"] = tenant
 
 
     # params = { 

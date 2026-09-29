@@ -15,7 +15,12 @@ from dagster_deeptsf.evaluate_forecasts import evaluation_asset
 from typing import Optional
 from dagster import ConfigurableResource
 
-class DeepTSFConfig(ConfigurableResource):
+# Behind keycloak (EnergyGuard) there is one MLflow for everyone, so the
+# per-tenant MLflow selection does not exist there and `tenant` is not a
+# config parameter at all.
+USE_KEYCLOAK = os.getenv("USE_AUTH", "").strip().lower() == "keycloak"
+
+class _DeepTSFBaseConfig(ConfigurableResource):
     resolution: str = "None"  
     experiment_name: str = "Default"
     parent_run_name: str = "None"
@@ -59,7 +64,6 @@ class DeepTSFConfig(ConfigurableResource):
     num_workers: int = 4
     eval_method: str = "ts_ID"
     imputation_method: str = "linear"
-    tenant: str = "None"
     order: int = 1
     rmv_outliers: bool = True
     loss_function: str = "mape"
@@ -101,7 +105,6 @@ class DeepTSFConfig(ConfigurableResource):
             "scale": self.scale,
             "scale_covs": self.scale_covs,
             "country": self.country,
-            "tenant" : self.tenant,
             "std_dev": self.std_dev,
             "max_thr": self.max_thr,
             "a": self.a,
@@ -136,6 +139,16 @@ class DeepTSFConfig(ConfigurableResource):
             "pv_ensemble": self.pv_ensemble,
             "format": self.format,
         }
+
+
+if USE_KEYCLOAK:
+    DeepTSFConfig = _DeepTSFBaseConfig
+else:
+    class DeepTSFConfig(_DeepTSFBaseConfig):
+        tenant: str = "None"
+
+        def to_dict(self):
+            return {**super().to_dict(), "tenant": self.tenant}
 
 @graph_multi_asset(
     name="deepTSF_pipeline",

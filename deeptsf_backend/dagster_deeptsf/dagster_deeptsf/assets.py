@@ -92,7 +92,7 @@ S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 
 def start_pipeline_run(context):
     config = context.resources.config
-    tenant = config.tenant
+    tenant = getattr(config, "tenant", "None")
     if none_checker(tenant) is not None:
         mlflow_uri = f"http://{tenant}-mlflow:5000"
         mlflow.set_tracking_uri(mlflow_uri)
@@ -179,10 +179,8 @@ def start_pipeline_run(context):
 
 def training_and_hyperparameter_tuning_asset(context, start_pipeline_run, etl_out):
     config = context.resources.config
-    tenant = config.tenant
-    print(f"Tenant: {tenant}")
+    tenant = getattr(config, "tenant", "None")
     if none_checker(tenant) is not None:
-        print(f"Tenant: {tenant}")
         mlflow_uri = f"http://{tenant}-mlflow:5000"
         mlflow.set_tracking_uri(mlflow_uri)
     else:
