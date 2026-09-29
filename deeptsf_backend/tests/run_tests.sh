@@ -17,9 +17,11 @@ export TMPDIR="$DEEPTSF_TEST_HOME/tmp"
 mkdir -p "$TMPDIR" "$DEEPTSF_TEST_HOME/runs"
 
 # An interrupted run (Ctrl-C, killed terminal) can leave its local MLflow servers
-# behind; stop any process of this test environment whose parent has exited.
+# behind; stop the MLflow / gunicorn processes of this test environment whose parent
+# has exited. (Only those: a run started with nohup also has parent 1 and must live.)
 ps -eo pid,ppid,pgid,args | awk -v venv="$DEEPTSF_TEST_HOME/venv/" \
-    '$2 == 1 && index($0, venv) { print $3 }' | sort -u | while read -r pgid; do
+    '$2 == 1 && index($0, venv) && ($0 ~ /-m mlflow server/ || $0 ~ /-m gunicorn/) { print $3 }' \
+    | sort -u | while read -r pgid; do
     kill -TERM -- "-$pgid" 2>/dev/null || true
 done
 

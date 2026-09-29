@@ -431,30 +431,40 @@ def build_shap_dataset(size: Union[int, float],
     first_iter = True
     samples = set()
 
-    #Choosing the samples of val we will use randomly
-    if(type(size) == float):
-        size = int(size*(len(test) - shap_input_length + 1))
-    if size == len(test) - shap_input_length + 1:
-        samples = set(range(size))
+    #Choosing the samples of val we will use randomly. A sample starting at i uses the
+    #series up to i + shap_input_length - 1 and, below, past covariates up to
+    #i + shap_input_length + shap_output_length - 1 and future covariates up to
+    #i + shap_input_length + 2*shap_output_length - 1 (all indexed on test), so only
+    #starts whose whole window lies inside test are valid.
+    if future_covs != None:
+        lookahead = 2*shap_output_length
+    elif past_covs != None:
+        lookahead = shap_output_length
     else:
-        for i in range(size):
-            while(True):
-                r = random.randint(0, len(test) - shap_input_length + 1)
-                if r not in samples:
-                    break
-            samples.add(r)
+        lookahead = 0
+    n_starts = len(test) - shap_input_length - lookahead + 1
+    if n_starts < 1:
+        raise ValueError(f"The test set ({len(test)} steps) is too short for SHAP samples of "
+                         f"{shap_input_length} steps plus {lookahead} steps of covariates")
+    if(type(size) == float):
+        size = int(size*n_starts)
+    samples = sorted(random.sample(range(n_starts), min(max(size, 1), n_starts)))
 
     for i in samples:
         try:
+            #the row, its columns and background values are only kept once the whole
+            #sample was built, so a failure can not leave a partial row behind
+            row_columns = []
+            row_background = []
             curr = test[i:i + shap_input_length]
             curr_date = int(curr.time_index[0].timestamp())
             curr_values = curr.random_component_values(copy=False)
-            data.append(curr_values.flatten("F"))
+            row = curr_values.flatten("F")
             if first_iter:
                 for ii in range(test.n_components):
-                    columns.extend(["Step " + str(i) + " of comp. " + str(id_l[ii]) for i in range(shap_input_length)])
+                    row_columns.extend(["Step " + str(i) + " of comp. " + str(id_l[ii]) for i in range(shap_input_length)])
                     median_of_train = statistics.median(map(lambda x : x.median(axis=0).values()[0,0], train))
-                    background.extend([median_of_train for _ in range(shap_input_length)])
+                    row_background.extend([median_of_train for _ in range(shap_input_length)])
             if past_covs != None:
                 for ii in range(past_covs.n_components):
                     #TODO: Currently assuming worst case scenario (autoregression for all points)
@@ -466,10 +476,10 @@ def build_shap_dataset(size: Union[int, float],
                     # print(test.time_index[i + shap_input_length])
                     # print(past_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length]])
                     # print(past_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length]].random_component_values(copy=False).flatten())
-                    data[-1] = np.concatenate([data[-1], past_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length + shap_output_length - 1]].random_component_values(copy=False).flatten()])
+                    row = np.concatenate([row, past_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length + shap_output_length - 1]].random_component_values(copy=False).flatten()])
                     if first_iter:
-                        columns.extend(["Step " + str(iii) + " of past cov " + str(id_l_past_covs[ii]) for iii in range(shap_input_length + shap_output_length)])
-                        background.extend([past_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length  + shap_output_length)])
+                        row_columns.extend(["Step " + str(iii) + " of past cov " + str(id_l_past_covs[ii]) for iii in range(shap_input_length + shap_output_length)])
+                        row_background.extend([past_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length  + shap_output_length)])
             if future_covs != None:
                 for ii in range(future_covs.n_components):
                     # print("FUTURE")
@@ -477,14 +487,17 @@ def build_shap_dataset(size: Union[int, float],
                     # print(test.time_index[i])
                     # print(i + shap_input_length + shap_output_length)
                     # print(test.time_index[i + shap_input_length + shap_output_length])
-                    data[-1] = np.concatenate([data[-1], future_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length + 2*shap_output_length - 1]].random_component_values(copy=False).flatten()])
+                    row = np.concatenate([row, future_covs.univariate_component(ii)[test.time_index[i]:test.time_index[i + shap_input_length + 2*shap_output_length - 1]].random_component_values(copy=False).flatten()])
                     if first_iter:
-                        columns.extend(["Step " + str(iii) + " of fut. cov " + str(id_l_future_covs[ii]) for iii in range(shap_input_length + 2*shap_output_length)])
-                        background.extend([future_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length + 2*shap_output_length)])
-            data[-1] = np.concatenate([data[-1], [curr_date]])
+                        row_columns.extend(["Step " + str(iii) + " of fut. cov " + str(id_l_future_covs[ii]) for iii in range(shap_input_length + 2*shap_output_length)])
+                        row_background.extend([future_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length + 2*shap_output_length)])
+            row = np.concatenate([row, [curr_date]])
             if first_iter:
-                columns.extend(["Datetime"])
-                background.extend([curr_date])
+                row_columns.extend(["Datetime"])
+                row_background.extend([curr_date])
+                columns.extend(row_columns)
+                background.extend(row_background)
+            data.append(row)
             first_iter = False
         except:
             curr_date = str(test.time_index[i].timestamp())
