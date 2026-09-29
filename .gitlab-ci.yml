@@ -224,9 +224,10 @@ deploy-prod:
       --set env.POSTGRES_DATABASE=${POSTGRES_DATABASE} \
       --set env.POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
       --set env.POSTGRES_HOST=${POSTGRES_HOST} \
+      ${DEEPTSF_ENV:+--set-file envFile=${DEEPTSF_ENV}} \
       --set commitHash=${CI_COMMIT_SHA}
   only:
-    - none
+    - master
   tags:
     - shared
   environment:
