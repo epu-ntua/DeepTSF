@@ -11,27 +11,43 @@ variables:
   HARBOR_IMAGE_WORKER: "${HARBOR_HOST}/iccs/deeptsf-worker"
   HARBOR_IMAGE_PGDB: "${HARBOR_HOST}/iccs/deeptsf-pgdb"
   HARBOR_IMAGE_REDIS: "${HARBOR_HOST}/iccs/deeptsf-redis"
+  # Shared conda base of backend/dagster/worker, kept in Harbor as a build cache
+  HARBOR_IMAGE_BASE_CACHE: "${HARBOR_HOST}/iccs/deeptsf-base:buildcache"
 
 
 build-app:
   stage: build-app
-  image: harbor.aiodp.ai/cvm-public/ci-tools 
+  image: harbor.aiodp.ai/cvm-public/ci-tools
   services:
     - docker:dind
+  # A cold build (conda env with torch + CUDA wheels) takes over an hour.
+  # Cannot exceed the runner's maximum timeout.
+  timeout: 3h
   variables:
     DOCKER_DRIVER: overlay2
+    DOCKER_BUILDKIT: "1"
   before_script:
     - docker info
+    - echo "Logging into Harbor using Robot Account..."
+    - echo ${HARBOR_ROBOT_PASSWORD} | docker login ${HARBOR_HOST} -u ${HARBOR_ROBOT_USER} --password-stdin
   script:
     ###BUILDING####
+    # The base stage is rebuilt only when conda.yaml or the base part of the
+    # Dockerfile changes; otherwise its layers come from the cached image.
+    # It is pushed straight away so a later failure still leaves a warm cache.
+    - echo "Building shared base image..."
+    - docker pull ${HARBOR_IMAGE_BASE_CACHE} || true
+    - docker build --target base --cache-from ${HARBOR_IMAGE_BASE_CACHE} --build-arg BUILDKIT_INLINE_CACHE=1 -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_BASE_CACHE} ./deeptsf_backend
+    - docker push ${HARBOR_IMAGE_BASE_CACHE}
+
     - echo "Building Docker image for deeptsf backend..."
-    - docker build --target backend -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_BACKEND}:${VERSION} ./deeptsf_backend
+    - docker build --target backend --cache-from ${HARBOR_IMAGE_BASE_CACHE} -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_BACKEND}:${VERSION} ./deeptsf_backend
 
     - echo "Building Docker image for dagster..."
-    - docker build --target dagster -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_DAGSTER}:${VERSION} ./deeptsf_backend
+    - docker build --target dagster --cache-from ${HARBOR_IMAGE_BASE_CACHE} -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_DAGSTER}:${VERSION} ./deeptsf_backend
 
     - echo "Building Docker image for worker..."
-    - docker build --target celery-worker -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_WORKER}:${VERSION} ./deeptsf_backend
+    - docker build --target celery-worker --cache-from ${HARBOR_IMAGE_BASE_CACHE} -f deeptsf_backend/Dockerfile_keycloak -t ${HARBOR_IMAGE_WORKER}:${VERSION} ./deeptsf_backend
 
     - echo "Building pgdb image..."
     - docker build -t ${HARBOR_IMAGE_PGDB}:${VERSION} ./deeptsf_backend/docker-db
@@ -41,9 +57,6 @@ build-app:
     - docker tag  redis:7-alpine  ${HARBOR_IMAGE_REDIS}:${VERSION}
 
     ###PUSHING###
-    - echo "Logging into Harbor using Robot Account..."
-    - echo ${HARBOR_ROBOT_PASSWORD} | docker login ${HARBOR_HOST} -u ${HARBOR_ROBOT_USER} --password-stdin
-
     - echo "Pushing Backend Docker image to Harbor..."
     - docker push ${HARBOR_IMAGE_BACKEND}:${VERSION}
 
