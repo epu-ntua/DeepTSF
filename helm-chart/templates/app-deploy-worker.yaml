@@ -26,6 +26,19 @@ spec:
       - name: deeptsf-worker
         image: "{{ .Values.worker.image.repository }}:{{ .Values.env.VERSION }}"
         imagePullPolicy: Always
+        # A worker can stay "Running" while it has silently stopped consuming from
+        # Redis (e.g. after a Redis restart); restart it if it stops answering pings.
+        # celery_DeepTSF.worker is used instead of .tasks to keep the probe light.
+        livenessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - /opt/conda/envs/DeepTSF_env/bin/celery -A celery_DeepTSF.worker inspect ping -d "celery@${HOSTNAME}" --timeout 10
+          initialDelaySeconds: 120
+          periodSeconds: 60
+          timeoutSeconds: 30
+          failureThreshold: 3
         resources:
           limits:
             memory: {{ .Values.worker.memory_limit | quote }}

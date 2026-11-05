@@ -57,8 +57,10 @@ RUN pip install uvicorn[standard]==0.29.0 cryptography==44.0.2 dagster-graphql==
 
 COPY . .
  
-# Shell form so ${BACKEND_PORT} is expanded at runtime (defaults to 8081)
-ENTRYPOINT conda run --no-capture-output -n DeepTSF_env uvicorn api:app --host 0.0.0.0 --port ${BACKEND_PORT:-8081}
+# bash -c so ${BACKEND_PORT} is expanded at runtime (defaults to 8081). Exec form is required: a
+# shell-form ENTRYPOINT would run through the conda SHELL above, whose outer
+# `conda run` (no --no-capture-output) swallows all stdout/stderr.
+ENTRYPOINT ["/bin/bash", "-c", "exec conda run --no-capture-output -n DeepTSF_env uvicorn api:app --host 0.0.0.0 --port ${BACKEND_PORT:-8081}"]
 
 #############################DAGSTER#######################################
 
