@@ -32,11 +32,60 @@ After that, you can set up a full deployment of DeepTSF using Docker.
 
 ### Set up locally using Docker
 
-To set up locally using docker first go to DeepTSF's root directory (inside deeptsf_backend) and rename .env.example to .env. Then run the following command in DeepTSF's root directory:
+The local deployment is defined in `deeptsf_backend/docker-compose.yml`. It runs everything on one machine, without authentication:
+MinIO, Postgres, MLflow, the backend, the Celery worker, Redis, Dagster, the Chronos-2 inference server and the dashboard.
 
-```docker-compose up```
+Go to the `deeptsf_backend` directory, create the .env file from the example, and start the stack:
+
+```
+cd deeptsf_backend
+cp .env.example .env
+docker compose up -d --build
+```
+
+The first start takes a while: the backend, worker and Dagster images are built locally (conda environment), and the Chronos-2 server downloads the `amazon/chronos-2` weights from HuggingFace (kept in a docker volume afterwards).
+The services run on CPU; to use a GPU, uncomment the `deploy:` blocks in docker-compose.yml (needs the NVIDIA container toolkit).
 
 DeepTSF is up and running. Navigate to [http://localhost:3000](http://localhost:3000) and start your experiments!
+
+The other services are available at:
+
+| Service | URL |
+| --- | --- |
+| Dashboard | http://localhost:3000 |
+| Backend API (Swagger) | http://localhost:8080/docs |
+| MLflow | http://localhost:5000 |
+| Dagster | http://localhost:8006 |
+| MinIO console | http://localhost:9001 |
+| Chronos-2 API (Swagger) | http://localhost:8010/docs |
+
+All ports are bound to 127.0.0.1, so they are only reachable from the machine itself. On a remote server, use an SSH tunnel, e.g. `ssh -L 3000:localhost:3000 -L 8080:localhost:8080 -L 5000:localhost:5000 -L 8006:localhost:8006 <server>`. The dashboard calls the backend, MLflow and Dagster from the browser, so forward those ports too.
+
+To stop the stack run `docker compose down` (add `-v` to also delete the data volumes).
+
+#### Dashboard and Chronos-2 images
+
+The dashboard (`DASHBOARD_IMAGE`) and the Chronos-2 inference server (`CHRONOS_IMAGE`) are pulled from Docker Hub.
+The dashboard's settings are fixed when its image is built, so the `local` tag is built with authentication off and the localhost URLs above. To rebuild it, run this in a checkout of [deeptsf-dashboard](https://github.com/epu-ntua/deeptsf-dashboard):
+
+```
+docker build --target production \
+  --build-arg REACT_APP_NAME=Load_Forecasting_Dashboard \
+  --build-arg REACT_APP_AUTH=False \
+  --build-arg REACT_APP_BACKEND_BASE_URL=http://localhost:8080 \
+  --build-arg REACT_APP_MLFLOW=http://localhost:5000 \
+  --build-arg REACT_APP_DAGSTER_ENDPOINT_URL=http://localhost:8006 \
+  --build-arg REACT_APP_CHRONOS_BASE_URL=/chronos \
+  --build-arg REACT_APP_FOUNDATION_MODELS=True \
+  --build-arg REACT_APP_EXPERIMENT_LIST=False \
+  -t deployaintua/deeptsf-dashboard:local .
+```
+
+If you change the backend, MLflow or Dagster ports, rebuild the dashboard with the matching URLs. If you set `CHRONOS_API_TOKEN` in .env, both the Chronos-2 server and the dashboard use it.
+
+#### Upgrading an existing local deployment
+
+MLflow now stores artifacts through its proxy (`mlflow-artifacts:/` URIs), which the backend and Dagster rely on. Experiments created by an older version of this stack keep their `s3://` artifact locations, so create new experiments (or start from fresh volumes with `docker compose down -v`) after upgrading.
 
 ## Dagster UI for advanced users
 
@@ -120,7 +169,11 @@ DeepTSF can use any available MLflow tracking server (with a MinIO / S3 artifact
 
 After that, you need to get the server to run
 
-```docker-compose up```
+```docker compose up```
+
+DeepTSF expects MLflow to serve the artifacts itself, so the server must run with
+`--serve-artifacts --artifacts-destination s3://<bucket>` rather than `--default-artifact-root s3://<bucket>`
+(see the `mlflow_server` service in deeptsf_backend/docker-compose.yml).
 
 The MLflow server and client may run on different computers. In this case, remember to change
 the addresses on the .env file.

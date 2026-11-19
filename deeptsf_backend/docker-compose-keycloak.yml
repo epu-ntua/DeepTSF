@@ -18,7 +18,13 @@
 #   DAGSTER_PG_DATABASE  dagster storage db, created if missing; dagster.yaml
 #                        reads it too                                (default dagster_celery)
 #   DOCKER_RUNTIME       set to nvidia to give worker/dagster the GPUs (default runc)
-#   BACKEND_MEM_LIMIT / WORKER_MEM_LIMIT / DAGSTER_MEM_LIMIT
+#   BACKEND_MEM_LIMIT / WORKER_MEM_LIMIT / DAGSTER_MEM_LIMIT / CHRONOS_MEM_LIMIT
+#   CHRONOS_IMAGE        Chronos-2 inference server image
+#   CHRONOS_CONTAINER    container name of Chronos-2                 (default DeepTSF-chronos)
+#   CHRONOS_HOSTNAME     DNS alias of Chronos-2, what the reverse proxy points at (default chronos)
+#   CHRONOS_PORT         host port Chronos-2 is published on (localhost only)  (default 8010)
+#   CHRONOS_API_TOKEN    bearer token Chronos-2 requires (REQUIRED: the API is exposed)
+#   HF_TOKEN             only if the amazon/chronos-2 weights are gated for you
 #
 # One-off setup before the first run:
 #   docker network create ${COMPOSE_NETWORK}   # only if it does not exist yet
@@ -173,6 +179,39 @@ services:
           - dagster
           - ${DAGSTER_HOSTNAME:-dagster}
 
+  # Chronos-2 inference server (Foundation Models page), exposed as an API so a
+  # dashboard on any machine can use it. The reverse proxy on ${COMPOSE_NETWORK}
+  # (nginx proxy manager) serves it over https, e.g. https://deeptsf-chronos.<domain>
+  # -> http://${CHRONOS_HOSTNAME}:8000. The dashboard's nginx then proxies its
+  # /chronos path there (dashboard settings: CHRONOS_HOST=deeptsf-chronos.<domain>,
+  # CHRONOS_API_TOKEN=<same token>). Every /forecast call needs the bearer token;
+  # /health is public. Downloads the amazon/chronos-2 weights from HuggingFace on
+  # first start into chronos_hf_cache.
+  chronos:
+    container_name: ${CHRONOS_CONTAINER:-DeepTSF-chronos}
+    image: ${CHRONOS_IMAGE:-deployaintua/chronos2-inference-server:1.0.0}
+    restart: always
+    runtime: ${DOCKER_RUNTIME:-runc}
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      # Fails `docker compose up` when unset, so the API is never exposed without auth.
+      - API_TOKEN=${CHRONOS_API_TOKEN:?set CHRONOS_API_TOKEN in .env (openssl rand -hex 32)}
+      - HF_TOKEN=${HF_TOKEN:-}
+    mem_limit: ${CHRONOS_MEM_LIMIT:-8g}
+    volumes:
+      - chronos_hf_cache:/root/.cache/huggingface
+    expose:
+      - 8000
+    # Also published on the host for debugging (curl http://localhost:8010/health);
+    # the reverse proxy reaches it over ${COMPOSE_NETWORK} by name.
+    ports:
+      - "127.0.0.1:${CHRONOS_PORT:-8010}:8000"
+    networks:
+      appnet:
+        aliases:
+          - ${CHRONOS_HOSTNAME:-chronos}
+
   # frontend:
   #   container_name: load-forecasting-dashboard
   #   hostname: load-forecasting-dashboard
@@ -198,3 +237,5 @@ volumes:
   # Shared with the oauth2proxy stack, which writes the tokens.
   eg_offline_tokens:
     external: true
+  # Chronos-2 model weights, so restarts do not download them again.
+  chronos_hf_cache:

@@ -32,19 +32,14 @@ services:
       - s3    
     networks:
        - load-forecasting-net
+    # One-shot: creates the buckets if they are missing, then exits.
+    # The code reads/writes them with the MinIO credentials, so they stay private.
     entrypoint: >
       /bin/sh -c '
-      sleep 5;
-      /usr/bin/mc config host add s3 http://s3:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} --api S3v4;
-      [[ ! -z "`/usr/bin/mc ls s3 | grep challenge`" ]] || /usr/bin/mc mb s3/${MLFLOW_BUCKET_NAME};
-      [[ ! -z "`/usr/bin/mc ls s3 | grep challenge`" ]] || /usr/bin/mc mb s3/${DAGSTER_BUCKET_NAME};
-      [[ ! -z "`/usr/bin/mc ls s3 | grep challenge`" ]] || /usr/bin/mc mb s3/${DATASET_BUCKET_NAME};
-      /usr/bin/mc policy download s3/${MLFLOW_BUCKET_NAME};
-      /usr/bin/mc policy set public s3/${MLFLOW_BUCKET_NAME};
-      /usr/bin/mc policy download s3/${DAGSTER_BUCKET_NAME};
-      /usr/bin/mc policy set public s3/${DAGSTER_BUCKET_NAME};
-      /usr/bin/mc policy download s3/${DATASET_BUCKET_NAME};
-      /usr/bin/mc policy set public s3/${DATASET_BUCKET_NAME};
+      until /usr/bin/mc alias set s3 http://s3:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} --api S3v4; do echo "waiting for minio..."; sleep 2; done;
+      /usr/bin/mc mb --ignore-existing s3/${MLFLOW_BUCKET_NAME};
+      /usr/bin/mc mb --ignore-existing s3/${DAGSTER_BUCKET_NAME};
+      /usr/bin/mc mb --ignore-existing s3/${DATASET_BUCKET_NAME};
       exit 0;
       '
     env_file:
@@ -90,10 +85,15 @@ services:
     depends_on: 
       - s3
       - pgdb
+      - create_bucket
     networks:
       - load-forecasting-net
+    # Proxied artifact storage: run artifact URIs are mlflow-artifacts:/..., which
+    # the backend and dagster map onto s3://${MLFLOW_BUCKET_NAME}/... themselves
+    # (download_mlflow_file in utils.py). With --default-artifact-root s3://...
+    # the URIs would be s3://... and model loading / plots would fail.
     command: bash -c 
-      "mlflow server --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgdb:5432/${POSTGRES_DATABASE} --host 0.0.0.0 --default-artifact-root s3://${MLFLOW_BUCKET_NAME}/"
+      "mlflow server --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgdb:5432/${POSTGRES_DATABASE} --host 0.0.0.0 --serve-artifacts --artifacts-destination s3://${MLFLOW_BUCKET_NAME}"
     env_file:
       - .env
       # Uses following .env parameters:
@@ -124,6 +124,8 @@ services:
       - .env
     depends_on:
       - redis
+      - mlflow_server
+      - dagster
     # Uses all .env parameters
     # deploy: # activate this if you want gpu usage
     #   resources:
@@ -134,6 +136,8 @@ services:
     networks:
        - load-forecasting-net
 
+  # Consumes the backend's CSV validation tasks and executes the dagster steps
+  # (dagster runs with the celery executor, queue "dagster").
   worker:
     build:
       context: ./
@@ -144,6 +148,14 @@ services:
       - .env
     depends_on:
       - redis
+      - init-dagster-db
+      - mlflow_server
+    # deploy: # activate this if you want gpu usage
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
     networks:
        - load-forecasting-net
 
@@ -152,7 +164,32 @@ services:
     restart: always
     networks:
        - load-forecasting-net
-       
+
+  # One-shot: creates the dagster storage database (dagster_deeptsf/dagster.yaml
+  # keeps runs/events/schedules in postgres) if it is missing. init-extra-db.sql
+  # only runs on a brand-new pgdb volume, this also covers existing ones.
+  init-dagster-db:
+    image: postgres:16-alpine
+    restart: "no"
+    depends_on:
+      - pgdb
+    environment:
+      PGHOST: pgdb
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DATABASE}
+      DAGSTER_PG_DATABASE: ${DAGSTER_PG_DATABASE:-dagster_celery}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until pg_isready; do echo 'waiting for postgres...'; sleep 2; done
+        psql -tAc "SELECT 1 FROM pg_database WHERE datname='$$DAGSTER_PG_DATABASE'" | grep -q 1 \
+          || psql -c "CREATE DATABASE \"$$DAGSTER_PG_DATABASE\""
+        echo "$$DAGSTER_PG_DATABASE database ready"
+    networks:
+       - load-forecasting-net
+
   dagster:
     container_name: deeptsf_dagster
     hostname: deeptsf_dagster
@@ -164,6 +201,9 @@ services:
       dockerfile:  Dockerfile
     depends_on:
       - redis
+      - init-dagster-db
+      - create_bucket
+      - mlflow_server
     # deploy: # activate this if you want gpu usage
     #   resources:
     #     reservations:
@@ -184,31 +224,63 @@ services:
       # AWS_ACCESS_KEY_ID
       # AWS_SECRET_ACCESS_KEY
 
+  # Chronos-2 inference server (Foundation Models page of the dashboard).
+  # Downloads the amazon/chronos-2 weights from HuggingFace on first start and
+  # keeps them in the chronos-hf-cache volume. Runs on CPU unless given a GPU.
+  chronos:
+    container_name: deeptsf_chronos
+    hostname: chronos
+    image: ${CHRONOS_IMAGE:-deployaintua/chronos2-inference-server:1.0.0}
+    restart: always
+    environment:
+      # Empty = no auth. If set, the dashboard's nginx sends the same token.
+      API_TOKEN: ${CHRONOS_API_TOKEN:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - chronos-hf-cache:/root/.cache/huggingface
+    expose:
+      - 8000
+    # Swagger UI on http://localhost:8010/docs, for debugging only
+    ports:
+      - "127.0.0.1:${CHRONOS_PORT:-8010}:8000"
+    # deploy: # activate this if you want gpu usage
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
+    networks:
+      - load-forecasting-net
+
+  # Prebuilt image: React bakes the REACT_APP_* settings in at build time, so the
+  # local tag is built with auth off and the localhost URLs below (see the README
+  # of the DeepTSF repo for the build command). nginx in the image serves it on 3001
+  # and proxies /chronos to the chronos service.
   frontend:
     container_name: deeptsf_dashboard
     hostname: deeptsf_dashboard
-    image: deployaintua/deeptsf-dashboard:latest
+    image: ${DASHBOARD_IMAGE:-deployaintua/deeptsf-dashboard:local}
     restart: always
+    environment:
+      CHRONOS_SCHEME: http
+      CHRONOS_HOST: chronos:8000
+      CHRONOS_API_TOKEN: ${CHRONOS_API_TOKEN:-}
+    depends_on:
+      - backend
+      - chronos
+    # Keep host port 3000: it is the origin the backend's CORS allows when
+    # USE_AUTH is off.
     expose:
-      - 3000
+      - 3001
     ports:
-      - "127.0.0.1:3000:3000"
-    stdin_open: true
-    # environment:
-    ## These environment variable cannot be set from within here. (React issues)
-    ## Instead they should have been included as .env in the front end repo / image.
-    #   DAGSTER_ENDPOINT_URL: ${DAGSTER_ENDPOINT_URL}
-    #   REACT_APP_AUTH: "false"
-    #   REACT_APP_MLFLOW: ${MLFLOW_TRACKING_URI}
-    #   CHOKIDAR_USEPOLLING: "true"
-    #   REACT_APP_NAME: Load_Forecasting_Dashboard
+      - "127.0.0.1:3000:3001"
     networks:
       - load-forecasting-net
 
 volumes:
   database:
-  database2:
   artifact-store:
+  chronos-hf-cache:
 
 networks: 
   load-forecasting-net:

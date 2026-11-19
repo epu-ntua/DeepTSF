@@ -73,6 +73,10 @@ SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
 # Install additional dependencies
 RUN pip install dagster==1.8.13 dagster-webserver==1.8.13 dagster-shell==0.24.13 dagster-mlflow==0.24.13 dagster-postgres==0.24.13 dagster-aws==0.24.13
 
+# Decrypts the per-user offline tokens the gateway writes (see auth_runtime.py);
+# imported unconditionally, so it is needed even when USE_AUTH is off.
+RUN pip install cryptography==44.0.2
+
 EXPOSE 8006
 
 COPY . .
@@ -94,6 +98,10 @@ FROM base AS celery-worker
 SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
 
 RUN pip install dagster==1.8.13 dagster-webserver==1.8.13 dagster-shell==0.24.13 dagster-mlflow==0.24.13 dagster-postgres==0.24.13 dagster-aws==0.24.13
+
+# Decrypts the per-user offline tokens the gateway writes (see auth_runtime.py);
+# imported unconditionally, so it is needed even when USE_AUTH is off.
+RUN pip install cryptography==44.0.2
 
 COPY . .
 
