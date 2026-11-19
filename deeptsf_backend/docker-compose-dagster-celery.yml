@@ -38,7 +38,7 @@ services:
     # and must match the password inside CELERY_BROKER_URL / CELERY_RESULT_BACKEND.
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     ports:
-      - "${REDIS_PORT:-6380}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
     networks:
       appnet:
         aliases:
@@ -104,7 +104,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     ports:
-      - "${DAGSTER_PORT:-8006}:8006"
+      - "127.0.0.1:${DAGSTER_PORT:-8006}:8006"
     env_file:
       - .env
     mem_limit: ${DAGSTER_MEM_LIMIT:-8g}

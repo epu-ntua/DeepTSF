@@ -36,7 +36,7 @@ services:
     # Also published on the host for debugging (curl http://localhost:4180/ping);
     # NPM itself reaches it over keycloak_net by container name.
     ports:
-      - "4180:4180"
+      - "127.0.0.1:4180:4180"
     command:
 
       - --http-address=0.0.0.0:4180

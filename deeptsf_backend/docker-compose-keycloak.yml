@@ -39,7 +39,7 @@ services:
       dockerfile:  Dockerfile_keycloak
     restart: always
     ports:
-      - '${BACKEND_PORT:-8081}:${BACKEND_PORT:-8081}'
+      - '127.0.0.1:${BACKEND_PORT:-8081}:${BACKEND_PORT:-8081}'
     expose:
       - '${BACKEND_PORT:-8081}'
     stdin_open:
@@ -152,7 +152,7 @@ services:
     expose:
       - 8006
     ports:
-      - ${DAGSTER_PORT:-8006}:8006
+      - "127.0.0.1:${DAGSTER_PORT:-8006}:8006"
     env_file:
       - .env
       # Uses following .env parameters:

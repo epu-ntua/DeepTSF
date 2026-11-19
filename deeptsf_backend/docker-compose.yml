@@ -8,8 +8,8 @@ services:
     volumes:
       - artifact-store:/data
     ports:
-      - 9000:9000
-      - 9001:9001
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     networks:
       - load-forecasting-net
     command:
@@ -63,7 +63,7 @@ services:
         - database:/var/lib/postgresql/data
         - ./init-extra-db.sql:/docker-entrypoint-initdb.d/init-extra-db.sql:ro
     ports:
-      - 5432:5432
+      - "127.0.0.1:5432:5432"
     expose:
       - '5432'
     environment:
@@ -84,7 +84,7 @@ services:
     restart: always
     image: inergy2020iccs/mlflow_server:2.11.3
     ports:
-      - 5000:5000
+      - "127.0.0.1:5000:5000"
     expose:
       - 5000
     depends_on: 
@@ -115,7 +115,7 @@ services:
       dockerfile:  Dockerfile
     restart: always
     ports:
-      - '${BACKEND_PORT:-8080}:${BACKEND_PORT:-8080}'
+      - '127.0.0.1:${BACKEND_PORT:-8080}:${BACKEND_PORT:-8080}'
     expose:
       - '${BACKEND_PORT:-8080}'
     stdin_open: 
@@ -173,7 +173,7 @@ services:
     expose:
       - 8006
     ports:
-      - 8006:8006
+      - "127.0.0.1:8006:8006"
     networks:
       - load-forecasting-net
     env_file:
@@ -192,7 +192,7 @@ services:
     expose:
       - 3000
     ports:
-      - 3000:3000
+      - "127.0.0.1:3000:3000"
     stdin_open: true
     # environment:
     ## These environment variable cannot be set from within here. (React issues)

@@ -11,7 +11,7 @@ services:
       dockerfile:  Dockerfile_keycloak
     restart: always
     ports:
-      - '${BACKEND_PORT:-8081}:${BACKEND_PORT:-8081}'
+      - '127.0.0.1:${BACKEND_PORT:-8081}:${BACKEND_PORT:-8081}'
     expose:
       - '${BACKEND_PORT:-8081}'
     stdin_open:
