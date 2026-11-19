@@ -1,0 +1,8 @@
+# The Dockerfiles run `COPY . .`. Keep deployment secrets out of the images:
+# every compose file passes .env to the containers through env_file instead,
+# and load_dotenv() in the code would otherwise pick up a baked-in copy.
+.env
+.env.*
+*.env
+!.env.example
+!.env.auth.example
