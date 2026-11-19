@@ -1,5 +1,18 @@
 # to run this you need to create a .env file with the contents of .env.example
 services:
+  # Build-only: the conda environment as a tagged image that backend, worker and
+  # dagster build FROM. Never started (profile "base"). Rebuild it only when
+  # conda.yaml (or the Dockerfile's conda-base stage) changes:
+  #   docker compose --profile base build conda-base
+  conda-base:
+    image: deeptsf-base:local
+    platform: linux/amd64
+    build:
+      context: ./
+      dockerfile: Dockerfile
+      target: conda-base
+    profiles: ["base"]
+
   s3:
     image: deployaintua/minio:RELEASE.2025-10-15T17-29-55Z
     container_name: s3
@@ -8,8 +21,8 @@ services:
     volumes:
       - artifact-store:/data
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
+      - "127.0.0.1:${MINIO_HOST_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
     networks:
       - load-forecasting-net
     command:
@@ -58,7 +71,7 @@ services:
         - database:/var/lib/postgresql/data
         - ./init-extra-db.sql:/docker-entrypoint-initdb.d/init-extra-db.sql:ro
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     expose:
       - '5432'
     environment:
@@ -79,7 +92,7 @@ services:
     restart: always
     image: inergy2020iccs/mlflow_server:2.11.3
     ports:
-      - "127.0.0.1:5000:5000"
+      - "127.0.0.1:${MLFLOW_HOST_PORT:-5000}:5000"
     expose:
       - 5000
     depends_on: 
@@ -106,6 +119,7 @@ services:
 
 
   backend:
+    platform: linux/amd64
     hostname: deeptsf_backend
     container_name: deeptsf_backend
     # image: inergy2020iccs/deeptsf_backend:1.0.2  # only for releases
@@ -113,6 +127,8 @@ services:
       context: ./
       target: backend
       dockerfile:  Dockerfile
+      args:
+        BASE_IMAGE: deeptsf-base:local
     restart: always
     ports:
       - '127.0.0.1:${BACKEND_PORT:-8080}:${BACKEND_PORT:-8080}'
@@ -122,6 +138,9 @@ services:
       true
     env_file:
       - .env
+    environment:
+      # Browser origins allowed when USE_AUTH is off; follow the host ports below.
+      CORS_EXTRA_ORIGINS: http://localhost:${DASHBOARD_HOST_PORT:-3000},http://localhost:${DAGSTER_HOST_PORT:-8006}${CORS_EXTRA_ORIGINS:+,${CORS_EXTRA_ORIGINS}}
     depends_on:
       - redis
       - mlflow_server
@@ -139,10 +158,13 @@ services:
   # Consumes the backend's CSV validation tasks and executes the dagster steps
   # (dagster runs with the celery executor, queue "dagster").
   worker:
+    platform: linux/amd64
     build:
       context: ./
       target: celery-worker
       dockerfile:  Dockerfile
+      args:
+        BASE_IMAGE: deeptsf-base:local
     restart: always
     env_file:
       - .env
@@ -191,6 +213,7 @@ services:
        - load-forecasting-net
 
   dagster:
+    platform: linux/amd64
     container_name: deeptsf_dagster
     hostname: deeptsf_dagster
     restart: always
@@ -199,6 +222,8 @@ services:
       context: ./
       target: dagster
       dockerfile:  Dockerfile
+      args:
+        BASE_IMAGE: deeptsf-base:local
     depends_on:
       - redis
       - init-dagster-db
@@ -213,7 +238,7 @@ services:
     expose:
       - 8006
     ports:
-      - "127.0.0.1:8006:8006"
+      - "127.0.0.1:${DAGSTER_HOST_PORT:-8006}:8006"
     networks:
       - load-forecasting-net
     env_file:
@@ -240,7 +265,7 @@ services:
       - chronos-hf-cache:/root/.cache/huggingface
     expose:
       - 8000
-    # Swagger UI on http://localhost:8010/docs, for debugging only
+    # Swagger UI on http://localhost:${CHRONOS_PORT}/docs (default 8010), for debugging only
     ports:
       - "127.0.0.1:${CHRONOS_PORT:-8010}:8000"
     # deploy: # activate this if you want gpu usage
@@ -265,15 +290,18 @@ services:
       CHRONOS_SCHEME: http
       CHRONOS_HOST: chronos:8000
       CHRONOS_API_TOKEN: ${CHRONOS_API_TOKEN:-}
+      # Written to /config.js at container start; the browser uses these URLs.
+      DASHBOARD_BACKEND_URL: http://localhost:${BACKEND_PORT:-8080}
+      DASHBOARD_MLFLOW_URL: http://localhost:${MLFLOW_HOST_PORT:-5000}
+      DASHBOARD_DAGSTER_URL: http://localhost:${DAGSTER_HOST_PORT:-8006}
     depends_on:
       - backend
       - chronos
-    # Keep host port 3000: it is the origin the backend's CORS allows when
-    # USE_AUTH is off.
+    # The backend's CORS list follows DASHBOARD_HOST_PORT (see backend above).
     expose:
       - 3001
     ports:
-      - "127.0.0.1:3000:3001"
+      - "127.0.0.1:${DASHBOARD_HOST_PORT:-3000}:3001"
     networks:
       - load-forecasting-net
 

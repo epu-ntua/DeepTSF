@@ -341,10 +341,12 @@ elif USE_AUTH == "jwt":
 else:
     app.add_middleware(
         CORSMiddleware,
+        # localhost defaults; docker-compose.yml adds the configured host ports
+        # (DASHBOARD_HOST_PORT / DAGSTER_HOST_PORT) through CORS_EXTRA_ORIGINS.
         allow_origins=["http://localhost:3000",
                     "http://localhost:8006",
                     "http://frontend:3000",
-                    "http://dagster:8006"],
+                    "http://dagster:8006"] + CORS_EXTRA_ORIGINS,
         allow_credentials=True,
         allow_methods=["OPTIONS", "POST", "GET", "PUT", "DELETE"],
         allow_headers=["*"],

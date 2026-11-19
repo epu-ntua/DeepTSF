@@ -1,4 +1,13 @@
-FROM nvidia/cuda:11.6.2-base-ubuntu20.04 AS base
+# The conda environment lives in its own stage so it can be built once and kept
+# as a tagged image (docker-compose.yml passes BASE_IMAGE=deeptsf-base:local).
+# Tagged images are never garbage-collected the way build cache is, so code-only
+# rebuilds never redo `conda env create`. Without the build arg, BASE_IMAGE
+# falls back to the conda-base stage below and the file builds on its own.
+ARG BASE_IMAGE=conda-base
+
+#############################CONDA BASE####################################
+
+FROM nvidia/cuda:11.6.2-base-ubuntu20.04 AS conda-base
 
 ENV PATH="/root/miniconda3/bin:${PATH}"
 ARG PATH="/root/miniconda3/bin:${PATH}"
@@ -43,7 +52,12 @@ RUN conda env create -f conda.yaml
 
 RUN conda init bash
 
-# Install darts_mlp package
+#############################BASE##########################################
+
+# Project code starts here: nothing below invalidates the conda environment.
+FROM ${BASE_IMAGE} AS base
+
+# Install darts_mlp package (its dependencies are already pinned in conda.yaml)
 COPY ./darts_mlp ./darts_mlp
 SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
 RUN pip install -e ./darts_mlp
@@ -87,7 +101,7 @@ RUN python patch_dagster_logs.py
 WORKDIR /app/dagster_deeptsf
 
 # Set the DAGSTER_HOME environment variable
-ENV DAGSTER_HOME /app/dagster_deeptsf
+ENV DAGSTER_HOME=/app/dagster_deeptsf
 
 ENTRYPOINT [ "conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "dagster", "dev", "-h", "0.0.0.0", "-p", "8006"]
 
