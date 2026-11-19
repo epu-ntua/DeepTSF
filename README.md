@@ -28,64 +28,196 @@ After that you need to navigate to the root directory of DeepTSF:
 To enable the communication of the client with the logging servers (MLflow, Minio, Postgres), a .env file is needed. 
 An example (.env.example) is provided, with default environment variables.
 
-After that, you can set up a full deployment of DeepTSF using Docker.
+After that, you can set up a full deployment of DeepTSF using Docker. There are two variants:
+
+| Variant | Compose file  | Authentication | Runs |
+| --- | --- | --- | --- |
+| **Local** (this section) | `deeptsf_backend/docker-compose.yml`  | none | the whole stack on one machine |
+| **Keycloak** ([below](#deployment-with-keycloak-authentication)) | `deeptsf_backend/docker-compose-keycloak.yml` | Keycloak, through `oauth2proxy/` | backend, worker, Dagster and Chronos-2, next to existing MLflow / MinIO / Postgres |
 
 ### Set up locally using Docker
 
 The local deployment is defined in `deeptsf_backend/docker-compose.yml`. It runs everything on one machine, without authentication:
 MinIO, Postgres, MLflow, the backend, the Celery worker, Redis, Dagster, the Chronos-2 inference server and the dashboard.
 
-Go to the `deeptsf_backend` directory, create the .env file from the example, and start the stack:
+#### First start
+
+Go to the `deeptsf_backend` directory and create the .env file from the example:
 
 ```
 cd deeptsf_backend
 cp .env.example .env
-docker compose up -d --build
 ```
 
-The first start takes a while: the backend, worker and Dagster images are built locally (conda environment), and the Chronos-2 server downloads the `amazon/chronos-2` weights from HuggingFace (kept in a docker volume afterwards).
-The services run on CPU; to use a GPU, uncomment the `deploy:` blocks in docker-compose.yml (needs the NVIDIA container toolkit).
+The backend, worker and Dagster images are built on top of a separate **conda base image** (`deeptsf-base:local`) that holds the conda environment. Run these steps one at a time and let each one finish:
+
+```
+# 1. Optional: free stale build cache (safe, it only holds intermediate build steps)
+docker builder prune -f
+
+# 2. Build the conda base image.
+docker compose --profile base build conda-base
+
+# 3. Check that the image exists
+docker images deeptsf-base
+
+# 4. Build backend, worker and dagster on top of it (a few minutes)
+docker compose build
+
+# 5. Start everything from the new images
+docker compose up -d --no-build
+```
+
+On first start the Chronos-2 server also downloads the `amazon/chronos-2` weights from HuggingFace (kept in a docker volume afterwards).
 
 DeepTSF is up and running. Navigate to [http://localhost:3000](http://localhost:3000) and start your experiments!
 
-The other services are available at:
+#### Ports
 
-| Service | URL |
+The services are available at:
+
+| Service | URL | Host port variable in .env |
+| --- | --- | --- |
+| Dashboard | http://localhost:3000 | `DASHBOARD_HOST_PORT` |
+| Backend API (Swagger) | http://localhost:8080/docs | `BACKEND_PORT` |
+| MLflow | http://localhost:5000 | `MLFLOW_HOST_PORT` |
+| Dagster | http://localhost:8006 | `DAGSTER_HOST_PORT` |
+| MinIO API / console | http://localhost:9000 / http://localhost:9001 | `MINIO_HOST_PORT` / `MINIO_CONSOLE_HOST_PORT` |
+| Postgres | localhost:5432 | `POSTGRES_HOST_PORT` |
+| Chronos-2 API (Swagger) | http://localhost:8010/docs | `CHRONOS_PORT` |
+
+The values above are the defaults. If a port is already taken on your machine, change its variable in .env and run `docker compose up -d --no-build`.
+
+
+### Deployment with Keycloak authentication
+
+The Keycloak variant is for a shared server where users log in through Keycloak. It is defined in `deeptsf_backend/docker-compose-keycloak.yml` and differs from the local setup. It has three parts:
+
+- the DeepTSF stack in `deeptsf_backend/docker-compose-keycloak.yml`: backend, Celery worker, Redis, Dagster and Chronos-2;
+- the `oauth2proxy/` stack, which puts a Keycloak login in front of the Dagster UI;
+- an MLflow tracking server with a MinIO / S3 artifact store, set up separately (see below);
+- the DeepTSF dashboard, from [deeptsf-dashboard](https://github.com/epu-ntua/deeptsf-dashboard), deployed separately (see [Deploy the dashboard](#deploy-the-dashboard)).
+
+You need:
+
+- a Keycloak instance with a realm for DeepTSF, where you can create clients and roles (see [Keycloak clients](#keycloak-clients) and [Keycloak roles](#keycloak-roles));
+- a reverse proxy that terminates HTTPS, e.g. [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager). The oauth2-proxy login only works over HTTPS (secure cookies, `https://` redirect URL). It must be on the `keycloak_net` network (or your `COMPOSE_NETWORK`) and route one host name per service:
+
+| Public host (example) | Forward to |
 | --- | --- |
-| Dashboard | http://localhost:3000 |
-| Backend API (Swagger) | http://localhost:8080/docs |
-| MLflow | http://localhost:5000 |
-| Dagster | http://localhost:8006 |
-| MinIO console | http://localhost:9001 |
-| Chronos-2 API (Swagger) | http://localhost:8010/docs |
+| `deeptsf.<domain>` (`DASHBOARD_HOST`) | the [dashboard](#deploy-the-dashboard) container |
+| `deeptsf-backend.<domain>` | `${BACKEND_CONTAINER}:${BACKEND_PORT}` (default `DeepTSF-backend:8081`) |
+| `deeptsf-dagster.<domain>` (`DAGSTER_PUBLIC_HOST`) | `oauth2_proxy_dagster:4180`, **not** Dagster itself |
+| `deeptsf-chronos.<domain>` | `${CHRONOS_HOSTNAME}:8000` |
 
-All ports are bound to 127.0.0.1, so they are only reachable from the machine itself. On a remote server, use an SSH tunnel, e.g. `ssh -L 3000:localhost:3000 -L 8080:localhost:8080 -L 5000:localhost:5000 -L 8006:localhost:8006 <server>`. The dashboard calls the backend, MLflow and Dagster from the browser, so forward those ports too.
+#### Choose an MLflow server
 
-To stop the stack run `docker compose down` (add `-v` to also delete the data volumes).
+DeepTSF works with either kind of MLflow tracking server. Both must serve the artifacts themselves: run them with `--serve-artifacts --artifacts-destination s3://<bucket>` rather than `--default-artifact-root s3://<bucket>` (see the `mlflow_server` service in `deeptsf_backend/docker-compose.yml`).
 
-#### Dashboard and Chronos-2 images
-
-The dashboard (`DASHBOARD_IMAGE`) and the Chronos-2 inference server (`CHRONOS_IMAGE`) are pulled from Docker Hub.
-The dashboard's settings are fixed when its image is built, so the `local` tag is built with authentication off and the localhost URLs above. To rebuild it, run this in a checkout of [deeptsf-dashboard](https://github.com/epu-ntua/deeptsf-dashboard):
+**Plain MLflow (no login).** Our [epu-ntua/mlflow](https://github.com/epu-ntua/mlflow) is a plain, local MLflow server:
 
 ```
-docker build --target production \
-  --build-arg REACT_APP_NAME=Load_Forecasting_Dashboard \
-  --build-arg REACT_APP_AUTH=False \
-  --build-arg REACT_APP_BACKEND_BASE_URL=http://localhost:8080 \
-  --build-arg REACT_APP_MLFLOW=http://localhost:5000 \
-  --build-arg REACT_APP_DAGSTER_ENDPOINT_URL=http://localhost:8006 \
-  --build-arg REACT_APP_CHRONOS_BASE_URL=/chronos \
-  --build-arg REACT_APP_FOUNDATION_MODELS=True \
-  --build-arg REACT_APP_EXPERIMENT_LIST=False \
-  -t deployaintua/deeptsf-dashboard:local .
+git clone https://github.com/epu-ntua/mlflow.git
+cd mlflow
+docker compose up -d
 ```
 
-If you change the backend, MLflow or Dagster ports, rebuild the dashboard with the matching URLs. If you set `CHRONOS_API_TOKEN` in .env, both the Chronos-2 server and the dashboard use it.
 
-#### Upgrading an existing local deployment
+**MLflow with Keycloak login (optional).** If you want users to log in to MLflow and only see their own experiments, use [mlflow-oidc-auth](https://github.com/mlflow-oidc/mlflow-oidc-auth) with your Keycloak realm instead (see its documentation for the server setup). MLflow then identifies each user by the `email` claim of their token. Dagster runs can take hours, longer than an access token lives, so in this case you also need the Dagster offline client and the `KC_OFFLINE_*` / `EG_TOKEN_ENC_KEY` variables: the Dagster worker uses each user's offline token to keep authenticating to MLflow for the whole run.
 
-MLflow now stores artifacts through its proxy (`mlflow-artifacts:/` URIs), which the backend and Dagster rely on. Experiments created by an older version of this stack keep their `s3://` artifact locations, so create new experiments (or start from fresh volumes with `docker compose down -v`) after upgrading.
+The MLflow server and DeepTSF may run on different computers. In this case, set `MLFLOW_TRACKING_URI` and `MLFLOW_S3_ENDPOINT_URL` in the .env file accordingly.
+
+#### First start
+
+```
+cd deeptsf_backend
+cp .env.auth.example .env          # fill in the Keycloak, MLflow, MinIO and Postgres values
+                                   # CHRONOS_API_TOKEN is required: openssl rand -hex 32
+                                   # DAGSTER_ENDPOINT_URL=https://<DAGSTER_PUBLIC_HOST>
+                                   # CORS_EXTRA_ORIGINS=https://<DASHBOARD_HOST>,https://<DAGSTER_PUBLIC_HOST>
+                                   #   (unless they are already in api.py's built-in CORS list)
+
+# One-off setup
+docker network create keycloak_net        # or your COMPOSE_NETWORK, if it does not exist yet
+docker volume create eg_offline_tokens    # shared with the oauth2proxy stack
+
+# 1. Build the conda base image (~30+ minutes; shared by every project on the machine)
+docker compose -f docker-compose-keycloak.yml --profile base build conda-base
+
+# 2. Check that the image exists
+docker images deeptsf-base-keycloak
+
+# 3. Build backend, worker and dagster on top of it (a few minutes)
+docker compose -f docker-compose-keycloak.yml build
+
+# 4. Start the stack
+docker compose -f docker-compose-keycloak.yml up -d --no-build
+```
+
+The backend launches the dashboard's Dagster runs through `DAGSTER_ENDPOINT_URL`, so it must be the public Dagster URL behind oauth2-proxy, not the Dagster container.
+
+#### Start the oauth2proxy stack
+
+The `oauth2proxy/` stack runs oauth2-proxy and a small gateway in front of Dagster (reverse proxy → `oauth2_proxy_dagster:4180` → `dagster_gateway:8090` → Dagster). Create its .env from the example and fill it in:
+
+```
+cd oauth2proxy
+cp .env.example .env
+docker compose -p deeptsf-oauth2proxy up -d
+```
+
+| Variable | Value |
+| --- | --- |
+| `DAGSTER_PUBLIC_HOST` | public host name of the Dagster UI, e.g. `deeptsf-dagster.example.org` (no `https://`) |
+| `COOKIE_DOMAIN` | domain the login cookie is valid for, e.g. `.example.org` |
+| `KC_ISSUER_URL` | `https://<keycloak>/realms/<realm>` |
+| `KC_CLIENT_ID`, `KC_CLIENT_SECRET` | the Dagster UI login client (below) |
+| `OAUTH2_COOKIE_SECRET` | `openssl rand -base64 32 \| tr -- '+/' '-_'` |
+| `OAUTH2_EXTRA_AUDIENCE` | optional: an extra token audience to accept besides `KC_CLIENT_ID` (default `account`). The backend forwards the dashboard user's token to Dagster, so that token's audience must be `KC_CLIENT_ID` or this value |
+| `DAGSTER_HOSTNAME` | must match `DAGSTER_HOSTNAME` in `deeptsf_backend/.env` (`dagster` if you did not set it) |
+| `REDIS_HOST`, `REDIS_PASSWORD` | must match `deeptsf_backend/.env` (`redis` and empty if you did not set them) |
+| `KC_OFFLINE_ID`, `KC_OFFLINE_SECRET` | MLflow with Keycloak login only: the Dagster offline client. Leave empty for plain MLflow |
+| `EG_TOKEN_ENC_KEY` | MLflow with Keycloak login only: key that encrypts the stored offline tokens, `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Leave empty for plain MLflow |
+
+Set `KC_OFFLINE_ID`, `KC_OFFLINE_SECRET` and `EG_TOKEN_ENC_KEY` to the **same** values in `deeptsf_backend/.env`, or leave them empty in both. If they are set, every run needs the launching user's offline token, and a user only gets one by opening the Dagster UI in the browser once. Until they do, the runs they start from the dashboard fail with `No offline token stored for <user>`.
+
+#### Deploy the dashboard
+
+The web interface is the DeepTSF dashboard, [epu-ntua/deeptsf-dashboard](https://github.com/epu-ntua/deeptsf-dashboard). For this deployment, build and run it with Keycloak authentication on (the Keycloak URL, realm and client to use are described in its README) and with the public URLs of this deployment instead of the localhost ones:
+
+| Dashboard setting | Value |
+| --- | --- |
+| `REACT_APP_BACKEND_BASE_URL` | `https://<BACKEND_HOST>` |
+| `REACT_APP_MLFLOW` | your MLflow URL |
+| `REACT_APP_DAGSTER_ENDPOINT_URL` | `https://<DAGSTER_PUBLIC_HOST>` |
+| `CHRONOS_SCHEME`, `CHRONOS_HOST`, `CHRONOS_API_TOKEN` (container environment) | `https`, `deeptsf-chronos.<domain>` and the same `CHRONOS_API_TOKEN` as in `deeptsf_backend/.env` |
+
+Put the dashboard container on the `keycloak_net` network and route `https://<DASHBOARD_HOST>` to it in the reverse proxy. Users then open **`https://<DASHBOARD_HOST>`** and log in with their Keycloak account. The dashboard's URL must also be among the valid redirect URIs and web origins of the Keycloak client it logs in with (see the Backend client below) and in the backend's CORS list (`CORS_EXTRA_ORIGINS`).
+
+#### Keycloak clients
+
+Create these clients in the realm (*Clients → Create client*, OpenID Connect). All are confidential: turn *Client authentication* on and copy the secret from the *Credentials* tab.
+
+| Client | Needed for | Used by | Settings | Variables |
+| --- | --- | --- | --- | --- |
+| Backend (e.g. `deeptsf-backend`) | always | the DeepTSF backend, to validate users' tokens through the introspection endpoint | *Standard flow* and *Direct access grants* on. Valid redirect URIs and web origins: the dashboard, backend and Dagster public URLs (e.g. `https://<DASHBOARD_HOST>/*`, `https://<BACKEND_HOST>/*`, `https://<DAGSTER_PUBLIC_HOST>/*`) | `KEYCLOAK_ID`, `KEYCLOAK_SECRET` in `deeptsf_backend/.env`; `TOKEN_ISSUER_URL=https://<keycloak>/realms/<realm>/protocol/openid-connect/token` |
+| Dagster UI login (e.g. `dagster`) | always | `oauth2_proxy_dagster`, which puts a Keycloak login in front of the Dagster UI | *Standard flow* on. Root URL `https://<DAGSTER_PUBLIC_HOST>`; valid redirect URI `https://<DAGSTER_PUBLIC_HOST>/*` (covers `/oauth2/callback`); valid post logout redirect URI `https://<DAGSTER_PUBLIC_HOST>/*`; front- and backchannel logout URL `https://<DAGSTER_PUBLIC_HOST>/oauth2/sign_out`. **MLflow with Keycloak login only:** add an *Audience* mapper (*Client scopes → dedicated scope → Add mapper → By configuration → Audience*, added to the access token and introspection) whose included client audience is your MLflow client | `KC_CLIENT_ID`, `KC_CLIENT_SECRET` in `oauth2proxy/.env` |
+| Dagster offline (e.g. `dagster-offline`) | MLflow with Keycloak login only | the Dagster gateway, which gets each user an offline token, and the Dagster worker, which uses it to refresh the user's access token during long runs | *Standard flow* on, *Direct access grants* off. Valid redirect URI `https://<DAGSTER_PUBLIC_HOST>/eg-auth/callback`, web origin `https://<DAGSTER_PUBLIC_HOST>`. `email` and `profile` as default client scopes and `offline_access` as a default or optional one (Keycloak's defaults). The gateway always sends PKCE (`S256`), so enforcing it on the client is optional | `KC_OFFLINE_ID`, `KC_OFFLINE_SECRET` in `oauth2proxy/.env` **and** in `deeptsf_backend/.env` |
+
+With MLflow with Keycloak login, the tokens must include the `email` claim (the default `email` client scope), and `EG_OFFLINE_SESSION_IDLE_DAYS` in `oauth2proxy/docker-compose.yml` must match the realm's *Offline Session Idle* (*Realm settings → Sessions*, 30 days by default), or the client's own value if you override it under *Advanced*.
+
+#### Keycloak roles
+
+The backend authorizes every request by the **realm roles** in the user's token (`realm_access.roles`, read through Keycloak's token introspection endpoint). Create these roles in the realm (*Realm roles → Create role*) and assign them to users (*Users → \<user\> → Role mapping*) or to a group:
+
+| Realm role | Gives access to |
+| --- | --- |
+| `inergy_admin` | everything, including the admin-only endpoints: system monitoring (CPU / memory / GPU usage), the MLflow tracking URI and the hyperparameter entrypoints |
+| `data_scientist` | uploading datasets, listing models, running the experimentation pipeline and the task status websocket |
+| `energy_engineer` | model evaluation and serving: experiment lists, metrics, evaluation series, forecast vs. actual and `/serving/get_result` |
+| `offline_access` | MLflow with Keycloak login only: the gateway asks for an offline token, which Keycloak only issues to users with this role. It is a default realm role, so check it has not been removed |
+
+Every logged-in user needs at least one of `inergy_admin`, `data_scientist` or `energy_engineer`; without one, the backend answers `403`. A user who should run experiments and also evaluate them needs both `data_scientist` and `energy_engineer` (or `inergy_admin`).
 
 ## Dagster UI for advanced users
 
@@ -158,25 +290,6 @@ resources:
 For a more complete guide check the extensive documentation.
 
 This application can also be deployed in a kubernetes environment. 
-
-#### Set up mlflow tracking server
-
-DeepTSF can use any available MLflow tracking server (with a MinIO / S3 artifact store), for example ours:
-
-```git clone https://github.com/epu-ntua/mlflow.git```
-
-```cd mlflow```
-
-After that, you need to get the server to run
-
-```docker compose up```
-
-DeepTSF expects MLflow to serve the artifacts itself, so the server must run with
-`--serve-artifacts --artifacts-destination s3://<bucket>` rather than `--default-artifact-root s3://<bucket>`
-(see the `mlflow_server` service in deeptsf_backend/docker-compose.yml).
-
-The MLflow server and client may run on different computers. In this case, remember to change
-the addresses on the .env file.
 
 For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/epu-ntua/DeepTSF/wiki/DeepTSF-documentation). 
 
