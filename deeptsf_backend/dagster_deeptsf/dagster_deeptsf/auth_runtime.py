@@ -45,7 +45,8 @@ KEYCLOAK_TOKEN_URL = os.getenv("KEYCLOAK_TOKEN_URL") or os.getenv("TOKEN_ISSUER_
 KC_OFFLINE_ID = (os.getenv("KC_OFFLINE_ID") or "").strip()
 KC_OFFLINE_SECRET = (os.getenv("KC_OFFLINE_SECRET") or "").strip()
 
-# Only deployments fronted by the dagster gateway (EnergyGuard) set KC_OFFLINE_ID.
+# Only keycloak deployments fronted by the dagster gateway (../oauth2proxy) that
+# use an MLflow with Keycloak login set KC_OFFLINE_ID.
 # Elsewhere (e.g. the Kubernetes deploy) dagster runs without auth even though
 # USE_AUTH is set for the backend, so this module must stay a no-op there.
 USE_AUTH = (

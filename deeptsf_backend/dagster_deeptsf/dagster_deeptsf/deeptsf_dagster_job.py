@@ -15,7 +15,7 @@ from dagster_deeptsf.evaluate_forecasts import evaluation_asset
 from typing import Optional
 from dagster import ConfigurableResource
 
-# Behind keycloak (EnergyGuard) there is one MLflow for everyone, so the
+# Behind keycloak there is one MLflow for everyone, so the
 # per-tenant MLflow selection does not exist there and `tenant` is not a
 # config parameter at all.
 USE_KEYCLOAK = os.getenv("USE_AUTH", "").strip().lower() == "keycloak"

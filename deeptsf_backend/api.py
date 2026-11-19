@@ -381,7 +381,7 @@ def _cors_headers(request: Request) -> dict:
 
 @scientist_router.get("/")
 async def root():
-    return {"message": "Congratulations! Your API is working as expected. Now head over to http://localhost:8080/docs"}
+    return {"message": "Congratulations! Your API is working as expected. Now head over to /docs"}
 
 
 @scientist_router.get("/models/get_model_names/{resolution}/{multiple}", tags=['Metrics and models retrieval'])

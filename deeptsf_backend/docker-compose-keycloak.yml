@@ -25,15 +25,34 @@
 #   CHRONOS_PORT         host port Chronos-2 is published on (localhost only)  (default 8010)
 #   CHRONOS_API_TOKEN    bearer token Chronos-2 requires (REQUIRED: the API is exposed)
 #   HF_TOKEN             only if the amazon/chronos-2 weights are gated for you
+#   DEEPTSF_BASE_IMAGE   conda base image backend/worker/dagster build FROM
+#                                               (default deeptsf-base-keycloak:local)
 #
 # One-off setup before the first run:
 #   docker network create ${COMPOSE_NETWORK}   # only if it does not exist yet
 #   docker volume create eg_offline_tokens     # shared with ../oauth2proxy
 #
-# Run with (-p keeps the containers separate from any other DeepTSF checkout):
-#   docker-compose -p <project> -f docker-compose-keycloak.yml up -d --build
+# Build the conda base image once (~30+ min; again only when conda.yaml or the
+# conda-base stage of Dockerfile_keycloak changes). All projects on the machine
+# can share it:
+#   docker compose -f docker-compose-keycloak.yml --profile base build conda-base
+#
+# Then build and run (-p keeps the containers separate from any other DeepTSF
+# checkout); code changes only need these two:
+#   docker compose -p <project> -f docker-compose-keycloak.yml build
+#   docker compose -p <project> -f docker-compose-keycloak.yml up -d --no-build
 
 services:
+
+  # Build-only: the conda environment as a tagged image (see the header). Never
+  # started: it only exists under the "base" profile.
+  conda-base:
+    image: ${DEEPTSF_BASE_IMAGE:-deeptsf-base-keycloak:local}
+    build:
+      context: ./
+      dockerfile: Dockerfile_keycloak
+      target: conda-base
+    profiles: ["base"]
 
   backend:
     container_name: ${BACKEND_CONTAINER:-DeepTSF-backend}
@@ -43,6 +62,8 @@ services:
       context: ./
       target: backend
       dockerfile:  Dockerfile_keycloak
+      args:
+        BASE_IMAGE: ${DEEPTSF_BASE_IMAGE:-deeptsf-base-keycloak:local}
     restart: always
     ports:
       - '127.0.0.1:${BACKEND_PORT:-8081}:${BACKEND_PORT:-8081}'
@@ -78,6 +99,8 @@ services:
       context: ./
       target: celery-worker
       dockerfile:  Dockerfile_keycloak
+      args:
+        BASE_IMAGE: ${DEEPTSF_BASE_IMAGE:-deeptsf-base-keycloak:local}
     restart: always
     env_file:
       - .env
@@ -148,6 +171,8 @@ services:
       context: ./
       target: dagster
       dockerfile:  Dockerfile_keycloak
+      args:
+        BASE_IMAGE: ${DEEPTSF_BASE_IMAGE:-deeptsf-base-keycloak:local}
     depends_on:
       - redis
       - init-dagster-db
